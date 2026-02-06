@@ -1,0 +1,884 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../../l10n/app_localizations.dart';
+
+class TambahJadwalPage extends StatefulWidget {
+  const TambahJadwalPage({super.key});
+
+  @override
+  State<TambahJadwalPage> createState() => _TambahJadwalPageState();
+}
+
+class _TambahJadwalPageState extends State<TambahJadwalPage> {
+  final _formKey = GlobalKey<FormState>();
+  final _namaController = TextEditingController();
+  final _kmController = TextEditingController();
+  final _bulanController = TextEditingController();
+  final _catatanController = TextEditingController();
+
+  bool _isJarakSelected = true; // true = jarak, false = waktu
+  bool _reminderEnabled = true;
+  String _reminderBefore = '';
+  DateTime? _selectedDate;
+
+  List<String> _reminderOptionsJarak = [];
+  List<String> _reminderOptionsWaktu = [];
+
+  @override
+  void dispose() {
+    _namaController.dispose();
+    _kmController.dispose();
+    _bulanController.dispose();
+    _catatanController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeData();
+    });
+  }
+
+  void _initializeData() {
+    final l10n = AppLocalizations.of(context)!;
+    setState(() {
+      _reminderBefore = l10n.reminderDistance200km;
+      _reminderOptionsJarak = [
+        l10n.reminderDistance100km,
+        l10n.reminderDistance200km,
+        l10n.reminderDistance300km,
+        l10n.reminderDistance500km,
+      ];
+      _reminderOptionsWaktu = [
+        l10n.reminderTime1Day,
+        l10n.reminderTime3Days,
+        l10n.reminderTime1Week,
+        l10n.reminderTime2Weeks,
+        l10n.reminderTime1Month,
+      ];
+    });
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final colorScheme = Theme.of(context).colorScheme;
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: colorScheme.copyWith(
+              primary: colorScheme.primary,
+              onPrimary: colorScheme.onPrimary,
+              surface: colorScheme.surfaceContainerHighest,
+              onSurface: colorScheme.onSurface,
+            ),
+            dialogTheme: DialogThemeData(backgroundColor: colorScheme.surface),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: colorScheme.brightness == Brightness.light
+            ? Brightness.dark
+            : Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Column(
+          children: [
+            // Header
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Theme.of(context).scaffoldBackgroundColor,
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 14, 12),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          alignment: Alignment.center,
+                          child: Icon(
+                            Icons.arrow_back_ios,
+                            size: 20,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.addServiceSchedule,
+                              style: TextStyle(
+                                fontFamily: 'Arial',
+                                fontSize: 24,
+                                fontWeight: FontWeight.w400,
+                                color: colorScheme.onSurface,
+                                height: 1.33,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              l10n.setMaintenanceReminder,
+                              style: TextStyle(
+                                fontFamily: 'Arial',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w400,
+                                color: colorScheme.onSurfaceVariant,
+                                height: 1.43,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Form Content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 24),
+                child: Form(
+                  key: _formKey,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surface,
+                      border: Border.all(
+                        color: colorScheme.outlineVariant,
+                        width: 0.65,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Nama Perawatan
+                        _buildInputField(
+                          label: l10n.maintenanceName,
+                          controller: _namaController,
+                          hintText: l10n.exampleOilChange,
+                          icon: Icons.build_outlined,
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Jenis Jadwal
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.scheduleType,
+                              style: TextStyle(
+                                fontFamily: 'Arial',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w400,
+                                color: colorScheme.onSurface,
+                                height: 1.43,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildTypeButton(
+                                    label: l10n.distance,
+                                    isSelected: _isJarakSelected,
+                                    onTap: () {
+                                      setState(() {
+                                        _isJarakSelected = true;
+                                        _reminderBefore =
+                                            l10n.reminderDistance200km;
+                                      });
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _buildTypeButton(
+                                    label: l10n.time,
+                                    isSelected: !_isJarakSelected,
+                                    onTap: () {
+                                      setState(() {
+                                        _isJarakSelected = false;
+                                        _reminderBefore =
+                                            l10n.reminderTime1Week;
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Servis pada (km) - untuk tab Jarak
+                        if (_isJarakSelected) ...[
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.serviceAtKm,
+                                style: TextStyle(
+                                  fontFamily: 'Arial',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w400,
+                                  color: colorScheme.onSurface,
+                                  height: 1.43,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextFormField(
+                                controller: _kmController,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                ],
+                                style: TextStyle(
+                                  fontFamily: 'Arial',
+                                  fontSize: 16,
+                                  color: colorScheme.onSurface,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: l10n.exampleKm10000,
+                                  hintStyle: TextStyle(
+                                    fontFamily: 'Arial',
+                                    fontSize: 16,
+                                    color: colorScheme.onSurface.withValues(
+                                      alpha: 0.5,
+                                    ),
+                                  ),
+                                  filled: true,
+                                  fillColor:
+                                      colorScheme.surfaceContainerHighest,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide(
+                                      color: colorScheme.outline,
+                                      width: 0.65,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide(
+                                      color: colorScheme.outline,
+                                      width: 0.65,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide(
+                                      color: colorScheme.primary,
+                                      width: 0.65,
+                                    ),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                l10n.enterKmForNextService,
+                                style: TextStyle(
+                                  fontFamily: 'Arial',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w400,
+                                  color: colorScheme.onSurfaceVariant,
+                                  height: 1.33,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+
+                        // Fields untuk tab Waktu
+                        if (!_isJarakSelected) ...[
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.inMonths,
+                                style: TextStyle(
+                                  fontFamily: 'Arial',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w400,
+                                  color: colorScheme.onSurface,
+                                  height: 1.43,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextFormField(
+                                controller: _bulanController,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                ],
+                                style: TextStyle(
+                                  fontFamily: 'Arial',
+                                  fontSize: 16,
+                                  color: colorScheme.onSurface,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: l10n.exampleMonths6,
+                                  hintStyle: TextStyle(
+                                    fontFamily: 'Arial',
+                                    fontSize: 16,
+                                    color: colorScheme.onSurface.withValues(
+                                      alpha: 0.5,
+                                    ),
+                                  ),
+                                  filled: true,
+                                  fillColor:
+                                      colorScheme.surfaceContainerHighest,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide(
+                                      color: colorScheme.outline,
+                                      width: 0.65,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide(
+                                      color: colorScheme.outline,
+                                      width: 0.65,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide(
+                                      color: colorScheme.primary,
+                                      width: 0.65,
+                                    ),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                l10n.orSelectSpecificDate,
+                                style: TextStyle(
+                                  fontFamily: 'Arial',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w400,
+                                  color: colorScheme.onSurfaceVariant,
+                                  height: 1.33,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.serviceDate,
+                                style: TextStyle(
+                                  fontFamily: 'Arial',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w400,
+                                  color: colorScheme.onSurface,
+                                  height: 1.43,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              GestureDetector(
+                                onTap: () => _selectDate(context),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.surfaceContainerHighest,
+                                    border: Border.all(
+                                      color: colorScheme.outline,
+                                      width: 0.65,
+                                    ),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.calendar_today_outlined,
+                                        size: 20,
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        _selectedDate == null
+                                            ? l10n.selectDate
+                                            : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
+                                        style: TextStyle(
+                                          fontFamily: 'Arial',
+                                          fontSize: 16,
+                                          color: _selectedDate == null
+                                              ? colorScheme.onSurface
+                                                    .withValues(alpha: 0.5)
+                                              : colorScheme.onSurface,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+
+                        // Divider
+                        Container(
+                          padding: const EdgeInsets.only(top: 16),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              top: BorderSide(
+                                color: colorScheme.outlineVariant,
+                                width: 0.65,
+                              ),
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              // Pengingat Toggle
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.notifications_outlined,
+                                        size: 20,
+                                        color: colorScheme.primary,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            l10n.reminder,
+                                            style: TextStyle(
+                                              fontFamily: 'Arial',
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w400,
+                                              color: colorScheme.onSurface,
+                                              height: 1.43,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 0),
+                                          Text(
+                                            l10n.remindMeBeforeDue,
+                                            style: TextStyle(
+                                              fontFamily: 'Arial',
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w400,
+                                              color:
+                                                  colorScheme.onSurfaceVariant,
+                                              height: 1.33,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  Switch(
+                                    value: _reminderEnabled,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _reminderEnabled = value;
+                                      });
+                                    },
+                                    activeColor: colorScheme.onPrimary,
+                                    activeTrackColor: colorScheme.primary,
+                                    inactiveThumbColor:
+                                        colorScheme.onSurfaceVariant,
+                                    inactiveTrackColor:
+                                        colorScheme.surfaceContainerHighest,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Ingatkan sebelum dropdown
+                              if (_reminderEnabled) ...[
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      l10n.remindBefore,
+                                      style: TextStyle(
+                                        fontFamily: 'Arial',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w400,
+                                        color: colorScheme.onSurface,
+                                        height: 1.43,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color:
+                                            colorScheme.surfaceContainerHighest,
+                                        border: Border.all(
+                                          color: colorScheme.outline,
+                                          width: 0.65,
+                                        ),
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      child: DropdownButtonFormField<String>(
+                                        value: _reminderBefore,
+                                        decoration: const InputDecoration(
+                                          border: InputBorder.none,
+                                          contentPadding: EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 14,
+                                          ),
+                                        ),
+                                        dropdownColor:
+                                            colorScheme.surfaceContainerHighest,
+                                        style: TextStyle(
+                                          fontFamily: 'Arial',
+                                          fontSize: 16,
+                                          color: colorScheme.onSurface,
+                                        ),
+                                        icon: Icon(
+                                          Icons.keyboard_arrow_down,
+                                          color: colorScheme.onSurfaceVariant,
+                                        ),
+                                        items:
+                                            (_isJarakSelected
+                                                    ? _reminderOptionsJarak
+                                                    : _reminderOptionsWaktu)
+                                                .map((String value) {
+                                                  return DropdownMenuItem<
+                                                    String
+                                                  >(
+                                                    value: value,
+                                                    child: Text(value),
+                                                  );
+                                                })
+                                                .toList(),
+                                        onChanged: (String? newValue) {
+                                          if (newValue != null) {
+                                            setState(() {
+                                              _reminderBefore = newValue;
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Catatan
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.notesOptional,
+                              style: TextStyle(
+                                fontFamily: 'Arial',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w400,
+                                color: colorScheme.onSurface,
+                                height: 1.43,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _catatanController,
+                              maxLines: 4,
+                              style: TextStyle(
+                                fontFamily: 'Arial',
+                                fontSize: 16,
+                                color: colorScheme.onSurface,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: l10n.addNotesIfNeeded,
+                                hintStyle: TextStyle(
+                                  fontFamily: 'Arial',
+                                  fontSize: 16,
+                                  color: colorScheme.onSurface.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                ),
+                                filled: true,
+                                fillColor: colorScheme.surfaceContainerHighest,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: BorderSide(
+                                    color: colorScheme.outline,
+                                    width: 0.65,
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: BorderSide(
+                                    color: colorScheme.outline,
+                                    width: 0.65,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: BorderSide(
+                                    color: colorScheme.primary,
+                                    width: 0.65,
+                                  ),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Bottom Buttons (inside form)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: OutlinedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  side: BorderSide(
+                                    color: colorScheme.outline,
+                                    width: 0.65,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                ),
+                                child: Text(
+                                  l10n.cancel,
+                                  style: TextStyle(
+                                    fontFamily: 'Arial',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w400,
+                                    color: colorScheme.onSurface,
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _saveSchedule,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: colorScheme.primary,
+                                  elevation: 0,
+                                  shadowColor: Colors.black.withValues(
+                                    alpha: 0.1,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                ),
+                                child: Text(
+                                  l10n.save,
+                                  style: TextStyle(
+                                    fontFamily: 'Arial',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w400,
+                                    color: colorScheme.onPrimary,
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputField({
+    required String label,
+    required TextEditingController controller,
+    required String hintText,
+    required IconData icon,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Arial',
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            color: colorScheme.onSurface,
+            height: 1.43,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          style: TextStyle(
+            fontFamily: 'Arial',
+            fontSize: 16,
+            color: colorScheme.onSurface,
+          ),
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 16,
+              color: colorScheme.onSurface.withValues(alpha: 0.5),
+            ),
+            filled: true,
+            fillColor: colorScheme.surfaceContainerHighest,
+            prefixIcon: Icon(
+              icon,
+              size: 20,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: colorScheme.outline, width: 0.65),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: colorScheme.outline, width: 0.65),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: colorScheme.primary, width: 0.65),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTypeButton({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 64,
+        decoration: BoxDecoration(
+          color: isSelected
+              ? colorScheme.primary
+              : colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 15,
+                    offset: const Offset(0, 10),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 6,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Center(
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: isSelected
+                  ? colorScheme.onPrimary
+                  : colorScheme.onSurfaceVariant,
+              height: 1.43,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _saveSchedule() {
+    if (_formKey.currentState!.validate()) {
+      final colorScheme = Theme.of(context).colorScheme;
+      final l10n = AppLocalizations.of(context)!;
+      // TODO: Implement save logic
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.scheduleSaved),
+          backgroundColor: colorScheme.primary,
+        ),
+      );
+      Navigator.pop(context);
+    }
+  }
+}

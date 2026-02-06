@@ -1,6 +1,6 @@
 name: motorcycle_management
 description: "A new Flutter project."
-publish_to: 'none'
+publish_to: "none"
 version: 0.1.0
 
 environment:
@@ -9,11 +9,41 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # HTTP untuk koneksi API Laravel
+  http: ^1.1.0
+
+  # Local storage untuk token auth
+  shared_preferences: ^2.2.2
+
+  # JSON handling
+  json_annotation: ^4.8.1
+  fl_chart: ^0.68.0
+  flutter_svg: ^2.2.0
+  image_picker: ^1.2.0
+  excel: ^4.0.6
+  path_provider: ^2.1.1
+  permission_handler: ^11.0.1
+  open_file: ^3.3.2
+  file_picker: ^10.3.3
+  intl: ^0.20.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
 
+  # Build runner untuk JSON
+  build_runner: ^2.4.7
+  json_serializable: ^6.7.1
+
 flutter:
   uses-material-design: true
+  generate: true
+
+  # Assets
+  assets:
+    - assets/images/
+    - assets/icon/
