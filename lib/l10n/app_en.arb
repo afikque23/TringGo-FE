@@ -451,7 +451,7 @@
   "currentOdometerKm": "Current Odometer (km)",
   "setAsMainVehicle": "Set as main vehicle",
   "active": "Active",
-  "switchVehicle": "Switch Active Vehicle",
+  "switchVehicle": "Switch Vehicle",
   "switchVehicleConfirm": "Do you want to make \"{vehicleName}\" the active vehicle?",
   "@switchVehicleConfirm": {
     "placeholders": {

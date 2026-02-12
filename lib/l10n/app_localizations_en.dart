@@ -1290,7 +1290,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get active => 'Active';
 
   @override
-  String get switchVehicle => 'Switch Active Vehicle';
+  String get switchVehicle => 'Switch Vehicle';
 
   @override
   String switchVehicleConfirm(String vehicleName) {

@@ -415,7 +415,7 @@
   "currentOdometerKm": "Odometer Saat Ini (km)",
   "setAsMainVehicle": "Tetapkan sebagai kendaraan utama",
   "active": "Aktif",
-  "switchVehicle": "Ganti Kendaraan Aktif",
+  "switchVehicle": "Ganti Kendaraan",
   "switchVehicleConfirm": "Apakah Anda ingin menjadikan \"{vehicleName}\" sebagai kendaraan aktif?",
   "@switchVehicleConfirm": {
     "placeholders": {
@@ -662,7 +662,7 @@
   "faqNoNotifications": "Kenapa notifikasi servis tidak muncul?",
   "faqNoNotificationsAnswer": "Periksa pengaturan notifikasi di menu Profil > Notifikasi & Peringatan. Pastikan 'Aktifkan Semua Notifikasi' dan 'Jadwal Servis' dalam keadaan ON.",
   "faqSwitchMotorcycle": "Bagaimana cara mengubah motor aktif?",
-  "faqSwitchMotorcycleAnswer": "Dari Dashboard, tap nama motor di bagian atas atau buka menu Kendaraan lalu pilih 'Ganti Kendaraan Aktif'. Pilih motor yang ingin Anda aktifkan.",
+  "faqSwitchMotorcycleAnswer": "Dari Dashboard, tap nama motor di bagian atas atau buka menu Kendaraan lalu pilih 'Ganti Kendaraan'. Pilih motor yang ingin Anda aktifkan.",
   "faqDataLost": "Data saya hilang setelah update aplikasi?",
   "faqDataLostAnswer": "Data disimpan di browser Anda secara lokal. Pastikan Anda tidak menghapus cache browser. Untuk keamanan data, kami sarankan rutin export data atau gunakan fitur backup cloud (segera hadir).",
   "faqContactWorkshop": "Bagaimana cara menghubungi bengkel?",

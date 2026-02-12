@@ -2597,7 +2597,7 @@ abstract class AppLocalizations {
   /// No description provided for @switchVehicle.
   ///
   /// In en, this message translates to:
-  /// **'Switch Active Vehicle'**
+  /// **'Switch Vehicle'**
   String get switchVehicle;
 
   /// No description provided for @switchVehicleConfirm.

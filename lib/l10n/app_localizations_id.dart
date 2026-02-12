@@ -1293,7 +1293,7 @@ class AppLocalizationsId extends AppLocalizations {
   String get active => 'Aktif';
 
   @override
-  String get switchVehicle => 'Ganti Kendaraan Aktif';
+  String get switchVehicle => 'Ganti Kendaraan';
 
   @override
   String switchVehicleConfirm(String vehicleName) {
@@ -1887,7 +1887,7 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get faqSwitchMotorcycleAnswer =>
-      'Dari Dashboard, tap nama motor di bagian atas atau buka menu Kendaraan lalu pilih \'Ganti Kendaraan Aktif\'. Pilih motor yang ingin Anda aktifkan.';
+      'Dari Dashboard, tap nama motor di bagian atas atau buka menu Kendaraan lalu pilih \'Ganti Kendaraan\'. Pilih motor yang ingin Anda aktifkan.';
 
   @override
   String get faqDataLost => 'Data saya hilang setelah update aplikasi?';
