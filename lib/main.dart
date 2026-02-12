@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'features/splashscreen/splashcreen.dart';
 import 'core/utils/app_theme.dart';
 import 'core/utils/theme_manager.dart';
@@ -7,6 +8,8 @@ import 'core/utils/language_manager.dart';
 import 'l10n/app_localizations.dart';
 
 void main() {
+  // Initialize FlutterForegroundTask before runApp
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(MainApp());
 }
 
@@ -61,7 +64,7 @@ class _MainAppState extends State<MainApp> {
             Locale('id'), // Indonesia
             Locale('en'), // English
           ],
-          home: const SplashScreen(),
+          home: WithForegroundTask(child: const SplashScreen()),
         ),
       ),
     );

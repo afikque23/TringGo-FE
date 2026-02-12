@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../../core/services/tracking_service.dart';
 import 'gps_tracking_active_page.dart';
 import '../riwayat_trip/riwayat_trip.dart';
 
@@ -12,21 +13,99 @@ class GpsTrackingPage extends StatefulWidget {
 }
 
 class _GpsTrackingPageState extends State<GpsTrackingPage> {
+  final TrackingService _trackingService = TrackingService();
+
   // Tracking state
   final bool _isTracking = false;
   final double _distance = 0.0;
   final String _duration = "0:00";
   final int _currentSpeed = 0;
   final double _averageSpeed = 0.0;
+  bool _isCheckingGps = false;
 
-  void _toggleTracking() {
+  void _toggleTracking() async {
     if (!_isTracking) {
+      setState(() {
+        _isCheckingGps = true;
+      });
+
+      // Check GPS dan permission
+      final isReady = await _trackingService.checkGpsReady();
+
+      setState(() {
+        _isCheckingGps = false;
+      });
+
+      if (!isReady) {
+        // Show error dialog
+        if (!mounted) return;
+        _showGpsErrorDialog();
+        return;
+      }
+
       // Navigate to active tracking page
+      if (!mounted) return;
       Navigator.of(context).push(
         MaterialPageRoute(builder: (context) => const GpsTrackingActivePage()),
       );
     }
-    // TODO: Implement actual GPS tracking logic
+  }
+
+  void _showGpsErrorDialog() {
+    final l10n = AppLocalizations.of(context)!;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'GPS Tidak Aktif',
+          style: TextStyle(
+            fontFamily: 'Arial',
+            color: colorScheme.onSurface,
+            fontSize: 20,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+        content: Text(
+          'Harap aktifkan GPS dan izinkan akses lokasi untuk menggunakan fitur tracking.',
+          style: TextStyle(
+            fontFamily: 'Arial',
+            color: colorScheme.onSurfaceVariant,
+            fontSize: 14,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              'Batal',
+              style: TextStyle(
+                fontFamily: 'Arial',
+                color: colorScheme.onSurfaceVariant,
+                fontSize: 16,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _trackingService.openLocationSettings();
+            },
+            child: Text(
+              'Buka Pengaturan',
+              style: TextStyle(
+                fontFamily: 'Arial',
+                color: colorScheme.primary,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -373,7 +452,7 @@ class _GpsTrackingPageState extends State<GpsTrackingPage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return InkWell(
-      onTap: _toggleTracking,
+      onTap: _isCheckingGps ? null : _toggleTracking,
       child: Container(
         height: 68,
         decoration: BoxDecoration(
@@ -381,8 +460,8 @@ class _GpsTrackingPageState extends State<GpsTrackingPage> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              colorScheme.primary,
-              colorScheme.primary.withValues(alpha: 0.8),
+              colorScheme.primary.withOpacity(_isCheckingGps ? 0.5 : 1.0),
+              colorScheme.primary.withValues(alpha: _isCheckingGps ? 0.4 : 0.8),
             ],
           ),
           borderRadius: BorderRadius.circular(16),
@@ -404,10 +483,20 @@ class _GpsTrackingPageState extends State<GpsTrackingPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.map_outlined, size: 24, color: colorScheme.onPrimary),
+            if (_isCheckingGps)
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  color: colorScheme.onPrimary,
+                  strokeWidth: 2,
+                ),
+              )
+            else
+              Icon(Icons.map_outlined, size: 24, color: colorScheme.onPrimary),
             const SizedBox(width: 12),
             Text(
-              l10n.startTracking,
+              _isCheckingGps ? 'Memeriksa GPS...' : l10n.startTracking,
               style: TextStyle(
                 fontFamily: 'Arial',
                 color: colorScheme.onPrimary,

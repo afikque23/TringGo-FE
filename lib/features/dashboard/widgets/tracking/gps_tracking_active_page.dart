@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import '../../../../core/services/tracking_service.dart';
+import '../../../../core/model/trip_model.dart';
 
 class GpsTrackingActivePage extends StatefulWidget {
   const GpsTrackingActivePage({super.key});
@@ -9,42 +12,161 @@ class GpsTrackingActivePage extends StatefulWidget {
   State<GpsTrackingActivePage> createState() => _GpsTrackingActivePageState();
 }
 
-class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
+class _GpsTrackingActivePageState extends State<GpsTrackingActivePage>
+    with WidgetsBindingObserver {
+  final TrackingService _trackingService = TrackingService();
+  StreamSubscription<TripModel>? _tripSubscription;
+
   // Tracking state
   double _distance = 0.0;
   int _duration = 0; // in seconds
   double _averageSpeed = 0.0;
   double _maxSpeed = 0.0;
-  Timer? _timer;
+  double _currentSpeed = 0.0;
+  bool _isStarting = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _startTracking();
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _tripSubscription?.cancel();
     super.dispose();
   }
 
-  void _startTracking() {
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        _duration++;
-        // TODO: Update with real GPS data
-        _distance += 0.01; // Simulated distance increment
-        _averageSpeed = (_distance / _duration) * 3600; // km/h
-        if (_averageSpeed > _maxSpeed) {
-          _maxSpeed = _averageSpeed;
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // Handle lifecycle changes
+    if (state == AppLifecycleState.resumed) {
+      // App kembali ke foreground, check dan resume jika tracking masih aktif
+      print('App resumed, checking tracking status...');
+      if (_trackingService.isTracking) {
+        // Re-subscribe to stream jika belum
+        if (_tripSubscription == null || _tripSubscription!.isPaused) {
+          _subscribeToTracking();
         }
+      }
+    } else if (state == AppLifecycleState.paused) {
+      // App ke background, tracking tetap jalan via foreground service
+      print('App paused, tracking continues in background...');
+    }
+  }
+
+  void _startTracking() async {
+    // Start tracking dengan nama motor (bisa diganti dengan data dari form)
+    final started = await _trackingService.startTracking(
+      motorcycleName: 'My Ninja',
+    );
+
+    if (!mounted) return;
+
+    if (!started) {
+      setState(() {
+        _isStarting = false;
+      });
+      _showErrorDialog();
+      return;
+    }
+
+    setState(() {
+      _isStarting = false;
+    });
+
+    _subscribeToTracking();
+  }
+
+  void _subscribeToTracking() {
+    // Listen untuk updates
+    _tripSubscription?.cancel();
+    _tripSubscription = _trackingService.tripStream.listen((trip) {
+      if (!mounted) return;
+
+      // Get current speed from last point (convert m/s to km/h)
+      double currentSpeed = 0.0;
+      if (trip.points.isNotEmpty) {
+        final lastPoint = trip.points.last;
+        currentSpeed = lastPoint.speed * 3.6; // m/s to km/h
+      }
+
+      print(
+        '📊 UI Update - Distance: ${trip.totalDistance.toStringAsFixed(3)} km, '
+        'Current: ${currentSpeed.toStringAsFixed(1)} km/h, '
+        'Avg: ${trip.averageSpeed.toStringAsFixed(1)} km/h, '
+        'Max: ${trip.maxSpeed.toStringAsFixed(1)} km/h',
+      );
+
+      setState(() {
+        _distance = trip.totalDistance;
+        _duration = trip.duration;
+        _averageSpeed = trip.averageSpeed;
+        _maxSpeed = trip.maxSpeed;
+        _currentSpeed = currentSpeed;
       });
     });
   }
 
-  void _stopTracking() {
-    _timer?.cancel();
+  void _showErrorDialog() {
+    final colorScheme = Theme.of(context).colorScheme;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Tracking Gagal',
+          style: TextStyle(
+            fontFamily: 'Arial',
+            color: colorScheme.onSurface,
+            fontSize: 20,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+        content: Text(
+          'Tidak dapat memulai tracking. Pastikan GPS aktif dan izin lokasi diberikan.',
+          style: TextStyle(
+            fontFamily: 'Arial',
+            color: colorScheme.onSurfaceVariant,
+            fontSize: 14,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop(); // Back to previous page
+            },
+            child: Text(
+              'Tutup',
+              style: TextStyle(
+                fontFamily: 'Arial',
+                color: colorScheme.primary,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _stopTracking() async {
+    final trip = await _trackingService.stopTracking();
+
+    if (!mounted) return;
+
+    if (trip == null) {
+      Navigator.of(context).pop();
+      return;
+    }
+
     final colorScheme = Theme.of(context).colorScheme;
     // Show summary dialog
     showDialog(
@@ -66,7 +188,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Jarak: ${_distance.toStringAsFixed(2)} km',
+              'Jarak: ${trip.totalDistance.toStringAsFixed(2)} km',
               style: TextStyle(
                 fontFamily: 'Arial',
                 color: colorScheme.onSurfaceVariant,
@@ -75,7 +197,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Waktu: ${_formatDuration(_duration)}',
+              'Waktu: ${trip.formattedDuration}',
               style: TextStyle(
                 fontFamily: 'Arial',
                 color: colorScheme.onSurfaceVariant,
@@ -84,7 +206,16 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Kecepatan Rata-rata: ${_averageSpeed.toStringAsFixed(1)} km/h',
+              'Kecepatan Rata-rata: ${trip.averageSpeed.toStringAsFixed(1)} km/h',
+              style: TextStyle(
+                fontFamily: 'Arial',
+                color: colorScheme.onSurfaceVariant,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Kecepatan Maksimal: ${trip.maxSpeed.toStringAsFixed(1)} km/h',
               style: TextStyle(
                 fontFamily: 'Arial',
                 color: colorScheme.onSurfaceVariant,
@@ -136,29 +267,47 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
       ),
       child: Scaffold(
         backgroundColor: colorScheme.surfaceContainerLow,
-        body: SafeArea(
-          top: false,
-          child: Column(
-            children: [
-              _buildHeader(),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 16),
-                        _buildMapContainer(),
-                        const SizedBox(height: 16),
-                        _buildStatsSection(),
-                      ],
+        body: _isStarting
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(color: colorScheme.primary),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Memulai tracking...',
+                      style: TextStyle(
+                        fontFamily: 'Arial',
+                        color: colorScheme.onSurface,
+                        fontSize: 16,
+                      ),
                     ),
-                  ),
+                  ],
+                ),
+              )
+            : SafeArea(
+                top: false,
+                child: Column(
+                  children: [
+                    _buildHeader(),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                          child: Column(
+                            children: [
+                              const SizedBox(height: 16),
+                              _buildMapContainer(),
+                              const SizedBox(height: 16),
+                              _buildStatsSection(),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -263,6 +412,28 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
 
   Widget _buildSpeedCard() {
     final colorScheme = Theme.of(context).colorScheme;
+
+    // Determine speed status
+    String speedStatus = 'Lambat';
+    Color speedColor = const Color(0xFF6B7C4F);
+    double progressFactor = 0.0;
+
+    if (_currentSpeed > 0) {
+      if (_currentSpeed < 20) {
+        speedStatus = 'Lambat';
+        speedColor = const Color(0xFF6B7C4F);
+        progressFactor = _currentSpeed / 80;
+      } else if (_currentSpeed < 50) {
+        speedStatus = 'Sedang';
+        speedColor = const Color(0xFFFACC15);
+        progressFactor = _currentSpeed / 80;
+      } else {
+        speedStatus = 'Cepat';
+        speedColor = const Color(0xFFFB2C36);
+        progressFactor = _currentSpeed / 80;
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.fromLTRB(24.65, 24.65, 24.65, 0.65),
       decoration: BoxDecoration(
@@ -280,10 +451,10 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  (_averageSpeed > 0 ? _averageSpeed : 26).toStringAsFixed(0),
-                  style: const TextStyle(
+                  _currentSpeed.toStringAsFixed(0),
+                  style: TextStyle(
                     fontFamily: 'Arial',
-                    color: Color(0xFFFACC15),
+                    color: speedColor,
                     fontSize: 60,
                     fontWeight: FontWeight.w700,
                     height: 1.0,
@@ -312,14 +483,14 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFFFACC15).withOpacity(0.125),
+                color: speedColor.withOpacity(0.125),
                 borderRadius: BorderRadius.circular(100),
               ),
-              child: const Text(
-                'Sedang',
+              child: Text(
+                speedStatus,
                 style: TextStyle(
                   fontFamily: 'Arial',
-                  color: Color(0xFFFACC15),
+                  color: speedColor,
                   fontSize: 12,
                   fontWeight: FontWeight.w400,
                   height: 1.33,
@@ -337,10 +508,10 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
             ),
             child: FractionallySizedBox(
               alignment: Alignment.centerLeft,
-              widthFactor: 0.365,
+              widthFactor: progressFactor.clamp(0.0, 1.0),
               child: Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFACC15),
+                  color: speedColor,
                   borderRadius: BorderRadius.circular(100),
                 ),
               ),
@@ -586,6 +757,22 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
 
   Widget _buildPerformanceCard() {
     final colorScheme = Theme.of(context).colorScheme;
+
+    // Determine performance text
+    String performanceText = 'Kecepatan saat ini ';
+    String comparisonText = 'sama dengan ';
+    String contextText = 'rata-rata';
+
+    if (_averageSpeed > 0) {
+      if (_currentSpeed > _averageSpeed + 5) {
+        comparisonText = 'lebih cepat ';
+      } else if (_currentSpeed < _averageSpeed - 5) {
+        comparisonText = 'lebih lambat ';
+      } else {
+        comparisonText = 'sama dengan ';
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16.65, 16.65, 16.65, 16.65),
       decoration: BoxDecoration(
@@ -644,15 +831,15 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                     ),
                     children: [
                       TextSpan(
-                        text: 'Kecepatan saat ini ',
+                        text: performanceText,
                         style: TextStyle(color: colorScheme.onSurfaceVariant),
                       ),
                       TextSpan(
-                        text: 'lebih cepat ',
+                        text: comparisonText,
                         style: TextStyle(color: colorScheme.primary),
                       ),
                       TextSpan(
-                        text: 'dari rata-rata',
+                        text: contextText,
                         style: TextStyle(color: colorScheme.onSurfaceVariant),
                       ),
                     ],

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../../core/services/tracking_service.dart';
+import '../../../../core/model/trip_model.dart';
 import 'detail_trip.dart';
 import '../../../widget/page_transition.dart';
 
@@ -11,38 +14,35 @@ class RiwayatTripPage extends StatefulWidget {
 }
 
 class _RiwayatTripPageState extends State<RiwayatTripPage> {
+  final TrackingService _trackingService = TrackingService();
   int _selectedFilterIndex = 0;
+  List<TripModel> _trips = [];
+  bool _isLoading = true;
 
-  final List<Map<String, dynamic>> _trips = [
-    {
-      'vehicle': 'My Ninja',
-      'date': 'today',
-      'distance': '0.37 km',
-      'duration': '33m',
-      'avgSpeed': 'Avg: 41.9 km/h',
-    },
-    {
-      'vehicle': 'My Ninja',
-      'date': 'yesterday',
-      'distance': '45.2 km',
-      'duration': '1h 5m',
-      'avgSpeed': 'Avg: 42 km/h',
-    },
-    {
-      'vehicle': 'My Ninja',
-      'date': 'Jan 23, 2026',
-      'distance': '32.8 km',
-      'duration': '48m',
-      'avgSpeed': 'Avg: 41 km/h',
-    },
-    {
-      'vehicle': 'Daily Commuter',
-      'date': 'Jan 22, 2026',
-      'distance': '18.5 km',
-      'duration': '35m',
-      'avgSpeed': 'Avg: 32 km/h',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadTripHistory();
+  }
+
+  Future<void> _loadTripHistory() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final trips = await _trackingService.getTripHistory();
+      setState(() {
+        _trips = trips;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading trips: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,15 +54,19 @@ class _RiwayatTripPageState extends State<RiwayatTripPage> {
         children: [
           _buildHeader(),
           Expanded(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-                child: Column(
-                  children: [
-                    _buildStatsCards(),
-                    const SizedBox(height: 16),
-                    _buildTripsList(),
-                  ],
+            child: RefreshIndicator(
+              onRefresh: _loadTripHistory,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                  child: Column(
+                    children: [
+                      _buildStatsCards(),
+                      const SizedBox(height: 16),
+                      _buildTripsList(),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -171,18 +175,54 @@ class _RiwayatTripPageState extends State<RiwayatTripPage> {
     );
   }
 
+  List<TripModel> _getFilteredTrips() {
+    final now = DateTime.now();
+    switch (_selectedFilterIndex) {
+      case 1: // This Week
+        final weekStart = now.subtract(Duration(days: now.weekday - 1));
+        return _trips
+            .where((trip) => trip.startTime.isAfter(weekStart))
+            .toList();
+      case 2: // This Month
+        final monthStart = DateTime(now.year, now.month, 1);
+        return _trips
+            .where((trip) => trip.startTime.isAfter(monthStart))
+            .toList();
+      default: // All Time
+        return _trips;
+    }
+  }
+
   Widget _buildStatsCards() {
     final l10n = AppLocalizations.of(context)!;
+    final filteredTrips = _getFilteredTrips();
+
+    final totalTrips = filteredTrips.length;
+    final totalDistance = filteredTrips.fold<double>(
+      0,
+      (sum, trip) => sum + trip.totalDistance,
+    );
+    final totalDuration = filteredTrips.fold<Duration>(
+      Duration.zero,
+      (sum, trip) => sum + Duration(seconds: trip.duration),
+    );
+
     return Row(
       children: [
-        Expanded(child: _buildStatCard(l10n.trip, '4')),
+        Expanded(child: _buildStatCard(l10n.trip, totalTrips.toString())),
         const SizedBox(width: 12),
-        Expanded(child: _buildStatCard(l10n.distance, '97', unit: 'km')),
+        Expanded(
+          child: _buildStatCard(
+            l10n.distance,
+            totalDistance.toStringAsFixed(1),
+            unit: 'km',
+          ),
+        ),
         const SizedBox(width: 12),
         Expanded(
           child: _buildStatCard(
             l10n.duration,
-            '3',
+            (totalDuration.inMinutes / 60).toStringAsFixed(1),
             unit: l10n.hoursRiding.split(' ')[0],
           ),
         ),
@@ -249,28 +289,82 @@ class _RiwayatTripPageState extends State<RiwayatTripPage> {
   }
 
   Widget _buildTripsList() {
+    if (_isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    final filteredTrips = _getFilteredTrips();
+
+    if (filteredTrips.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Text(
+            'Belum ada riwayat perjalanan',
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 14,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Column(
-      children: _trips.map((trip) => _buildTripItem(trip)).toList(),
+      children: filteredTrips.map((trip) => _buildTripItem(trip)).toList(),
     );
   }
 
-  Widget _buildTripItem(Map<String, dynamic> trip) {
+  String _formatTripDate(DateTime date) {
+    final now = DateTime.now();
     final l10n = AppLocalizations.of(context)!;
-    final colorScheme = Theme.of(context).colorScheme;
 
-    // Translate date labels
-    String dateLabel = trip['date'];
-    if (dateLabel == 'today') {
-      dateLabel = l10n.today;
-    } else if (dateLabel == 'yesterday') {
-      dateLabel = l10n.yesterday;
+    // Check if today
+    if (date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day) {
+      return l10n.today;
     }
+
+    // Check if yesterday
+    final yesterday = now.subtract(const Duration(days: 1));
+    if (date.year == yesterday.year &&
+        date.month == yesterday.month &&
+        date.day == yesterday.day) {
+      return l10n.yesterday;
+    }
+
+    // Format as date
+    return DateFormat('MMM dd, yyyy').format(date);
+  }
+
+  Widget _buildTripItem(TripModel trip) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final endTime = trip.endTime ?? trip.startTime;
 
     return GestureDetector(
       onTap: () {
+        // Convert TripModel to Map for DetailTripPage
+        final tripData = {
+          'vehicle': 'My Motorcycle',
+          'date': _formatTripDate(trip.startTime),
+          'distance': '${trip.totalDistance.toStringAsFixed(2)} km',
+          'duration': trip.formattedDuration,
+          'avgSpeed': 'Avg: ${trip.averageSpeed.toStringAsFixed(1)} km/h',
+          'maxSpeed': '${trip.maxSpeed.toStringAsFixed(1)} km/h',
+          'startTime': DateFormat('HH:mm').format(trip.startTime),
+          'endTime': DateFormat('HH:mm').format(endTime),
+        };
+
         Navigator.push(
           context,
-          SmoothPageRoute(page: DetailTripPage(tripData: trip)),
+          SmoothPageRoute(page: DetailTripPage(tripData: tripData)),
         );
       },
       child: Container(
@@ -291,7 +385,7 @@ class _RiwayatTripPageState extends State<RiwayatTripPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      trip['vehicle'],
+                      'My Motorcycle',
                       style: TextStyle(
                         fontFamily: 'Arial',
                         fontSize: 16,
@@ -310,7 +404,24 @@ class _RiwayatTripPageState extends State<RiwayatTripPage> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          dateLabel,
+                          _formatTripDate(trip.startTime),
+                          style: TextStyle(
+                            fontFamily: 'Arial',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                            height: 1.43,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Icon(
+                          Icons.access_time,
+                          size: 16,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${DateFormat('HH:mm').format(trip.startTime)} - ${DateFormat('HH:mm').format(endTime)}',
                           style: TextStyle(
                             fontFamily: 'Arial',
                             fontSize: 14,
@@ -344,7 +455,7 @@ class _RiwayatTripPageState extends State<RiwayatTripPage> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      trip['distance'],
+                      '${trip.totalDistance.toStringAsFixed(2)} km',
                       style: TextStyle(
                         fontFamily: 'Arial',
                         fontSize: 14,
@@ -366,7 +477,7 @@ class _RiwayatTripPageState extends State<RiwayatTripPage> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      trip['duration'],
+                      trip.formattedDuration,
                       style: TextStyle(
                         fontFamily: 'Arial',
                         fontSize: 14,
@@ -380,7 +491,7 @@ class _RiwayatTripPageState extends State<RiwayatTripPage> {
                 const Spacer(),
                 // Average speed
                 Text(
-                  trip['avgSpeed'],
+                  'Avg: ${trip.averageSpeed.toStringAsFixed(1)} km/h',
                   style: TextStyle(
                     fontFamily: 'Arial',
                     fontSize: 14,
