@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'password_change_success_page.dart';
 import '../widget/page_transition.dart';
 import '../../l10n/app_localizations.dart';
+import '../../core/network/api_config.dart';
 
 class ChangePasswordPage extends StatefulWidget {
   final String email;
+  final String otp;
 
-  const ChangePasswordPage({super.key, required this.email});
+  const ChangePasswordPage({super.key, required this.email, required this.otp});
 
   @override
   State<ChangePasswordPage> createState() => _ChangePasswordPageState();
@@ -57,25 +61,74 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         _newPasswordController.text.isNotEmpty;
   }
 
-  void _handleSubmit() {
-    if (_isFormValid) {
-      setState(() {
-        _isButtonClicked = true;
-      });
-
-      // Simulate API call
-      Future.delayed(const Duration(seconds: 1), () {
-        if (mounted) {
-          // Navigate to success page
-          Navigator.pushReplacement(
-            context,
-            SmoothPageRoute(
-              page: PasswordChangeSuccessPage(email: widget.email),
-            ),
-          );
-        }
-      });
+  Future<void> _handleSubmit() async {
+    if (!_isFormValid) {
+      return;
     }
+
+    setState(() {
+      _isButtonClicked = true;
+    });
+
+    try {
+      final requestBody = {
+        'email': widget.email,
+        'otp': widget.otp,
+        'password': _newPasswordController.text,
+        'password_confirmation': _confirmPasswordController.text,
+      };
+
+      print('🔒 DEBUG Reset Password:');
+      print('URL: ${ApiConfig.resetPasswordUrl}');
+      print('Body: ${jsonEncode(requestBody)}');
+
+      final response = await http.post(
+        Uri.parse(ApiConfig.resetPasswordUrl),
+        headers: ApiConfig.defaultHeaders,
+        body: jsonEncode(requestBody),
+      );
+
+      print('Status Code: ${response.statusCode}');
+      print('Response: ${response.body}');
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        Navigator.pushReplacement(
+          context,
+          SmoothPageRoute(page: PasswordChangeSuccessPage(email: widget.email)),
+        );
+      } else {
+        final error = jsonDecode(response.body);
+        _showErrorDialog(error['message'] ?? 'Gagal mengubah password');
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorDialog('Terjadi kesalahan: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isButtonClicked = false;
+        });
+      }
+    }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Error'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

@@ -1,13 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'change_password_page.dart';
+import 'registration_success_page.dart';
 import '../widget/page_transition.dart';
 import '../../l10n/app_localizations.dart';
+import '../../core/network/api_config.dart';
 
 class OtpVerificationPage extends StatefulWidget {
   final String email;
+  final bool
+  isFromRegistration; // true = dari register, false = dari forgot password
 
-  const OtpVerificationPage({super.key, required this.email});
+  const OtpVerificationPage({
+    super.key,
+    required this.email,
+    this.isFromRegistration = false,
+  });
 
   @override
   State<OtpVerificationPage> createState() => _OtpVerificationPageState();
@@ -20,9 +31,20 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   );
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   bool _isOtpComplete = false;
+  bool _isLoading = false;
+  bool _isResending = false;
+  Timer? _timer;
+  int _remainingSeconds = 300; // 5 minutes = 300 seconds
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimer();
+  }
 
   @override
   void dispose() {
+    _timer?.cancel();
     for (var controller in _otpControllers) {
       controller.dispose();
     }
@@ -32,12 +54,185 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     super.dispose();
   }
 
+  void _startTimer() {
+    _remainingSeconds = 300; // Reset to 5 minutes
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_remainingSeconds > 0) {
+        setState(() {
+          _remainingSeconds--;
+        });
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
+  String get _timerText {
+    final minutes = _remainingSeconds ~/ 60;
+    final seconds = _remainingSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
   void _checkOtpComplete() {
     setState(() {
       _isOtpComplete = _otpControllers.every(
         (controller) => controller.text.isNotEmpty,
       );
     });
+  }
+
+  String get _otpCode {
+    return _otpControllers.map((c) => c.text).join();
+  }
+
+  Future<void> _handleVerifyOtp() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      if (widget.isFromRegistration) {
+        // Flow: Register → Verify OTP with backend → Registration Success
+        final requestBody = {
+          'email': widget.email,
+          'otp': _otpCode,
+          'type': 'email_verification',
+        };
+
+        print('🔍 DEBUG OTP Verification (Registration):');
+        print('URL: ${ApiConfig.verifyEmailUrl}');
+        print('Type: email_verification');
+        print('Email: ${widget.email}');
+        print('OTP: $_otpCode');
+        print('Body: ${jsonEncode(requestBody)}');
+
+        final response = await http.post(
+          Uri.parse(ApiConfig.verifyEmailUrl),
+          headers: ApiConfig.defaultHeaders,
+          body: jsonEncode(requestBody),
+        );
+
+        print('Status Code: ${response.statusCode}');
+        print('Response: ${response.body}');
+
+        if (!mounted) return;
+
+        if (response.statusCode == 200) {
+          Navigator.pushReplacement(
+            context,
+            SmoothPageRoute(page: RegistrationSuccessPage(email: widget.email)),
+          );
+        } else {
+          final error = jsonDecode(response.body);
+          _showErrorDialog(error['message'] ?? 'OTP tidak valid');
+        }
+      } else {
+        // Flow: Forgot Password → OTP input → Change Password (OTP verified at reset password endpoint)
+        print('🔍 Forgot Password Flow: Navigate to Change Password with OTP');
+        print('Email: ${widget.email}');
+        print('OTP: $_otpCode');
+
+        if (!mounted) return;
+
+        Navigator.push(
+          context,
+          SmoothPageRoute(
+            page: ChangePasswordPage(email: widget.email, otp: _otpCode),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorDialog('Terjadi kesalahan: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleResendOtp() async {
+    setState(() {
+      _isResending = true;
+    });
+
+    try {
+      final type = widget.isFromRegistration
+          ? 'email_verification'
+          : 'password_reset';
+      final requestBody = {'email': widget.email, 'type': type};
+
+      print('🔄 DEBUG Resend OTP:');
+      print('URL: ${ApiConfig.resendOtpUrl}');
+      print('Type: $type');
+      print('Email: ${widget.email}');
+      print('Body: ${jsonEncode(requestBody)}');
+
+      final response = await http.post(
+        Uri.parse(ApiConfig.resendOtpUrl),
+        headers: ApiConfig.defaultHeaders,
+        body: jsonEncode(requestBody),
+      );
+
+      print('Status Code: ${response.statusCode}');
+      print('Response: ${response.body}');
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        _startTimer(); // Reset timer when OTP is resent
+        _showSuccessDialog('OTP berhasil dikirim ulang');
+      } else {
+        final error = jsonDecode(response.body);
+        _showErrorDialog(error['message'] ?? 'Gagal mengirim ulang OTP');
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorDialog('Terjadi kesalahan: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isResending = false;
+        });
+      }
+    }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Error'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSuccessDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Berhasil'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -188,7 +383,47 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                           );
                         }),
                       ),
-                      const SizedBox(height: 27),
+                      const SizedBox(height: 16),
+                      // Countdown Timer
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _remainingSeconds > 60
+                              ? colorScheme.primaryContainer
+                              : colorScheme.errorContainer,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.access_time,
+                              size: 16,
+                              color: _remainingSeconds > 60
+                                  ? colorScheme.onPrimaryContainer
+                                  : colorScheme.onErrorContainer,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _remainingSeconds > 0
+                                  ? 'Kode berakhir dalam $_timerText'
+                                  : 'Kode telah kedaluwarsa',
+                              style: TextStyle(
+                                fontFamily: 'Arial',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: _remainingSeconds > 60
+                                    ? colorScheme.onPrimaryContainer
+                                    : colorScheme.onErrorContainer,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       // Resend Code
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -204,19 +439,25 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                             ),
                           ),
                           TextButton(
-                            onPressed: () {
-                              // TODO: Implement resend OTP
-                            },
-                            child: Text(
-                              l10n.resend,
-                              style: TextStyle(
-                                fontFamily: 'Arial',
-                                fontSize: 14,
-                                fontWeight: FontWeight.w400,
-                                height: 1.43,
-                                color: colorScheme.primary,
-                              ),
-                            ),
+                            onPressed: _isResending ? null : _handleResendOtp,
+                            child: _isResending
+                                ? const SizedBox(
+                                    height: 12,
+                                    width: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Text(
+                                    l10n.resend,
+                                    style: TextStyle(
+                                      fontFamily: 'Arial',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w400,
+                                      height: 1.43,
+                                      color: colorScheme.primary,
+                                    ),
+                                  ),
                           ),
                         ],
                       ),
@@ -225,18 +466,11 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                       SizedBox(
                         height: 48,
                         child: ElevatedButton(
-                          onPressed: _isOtpComplete
-                              ? () {
-                                  // Navigate to Change Password Page
-                                  Navigator.push(
-                                    context,
-                                    SmoothPageRoute(
-                                      page: ChangePasswordPage(
-                                        email: widget.email,
-                                      ),
-                                    ),
-                                  );
-                                }
+                          onPressed:
+                              (_isOtpComplete &&
+                                  !_isLoading &&
+                                  _remainingSeconds > 0)
+                              ? _handleVerifyOtp
                               : null,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: colorScheme.primary,
@@ -249,15 +483,26 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          child: Text(
-                            l10n.verifyAndContinue,
-                            style: const TextStyle(
-                              fontFamily: 'Arial',
-                              fontSize: 16,
-                              fontWeight: FontWeight.w400,
-                              height: 1.5,
-                            ),
-                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                )
+                              : Text(
+                                  l10n.verifyAndContinue,
+                                  style: const TextStyle(
+                                    fontFamily: 'Arial',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w400,
+                                    height: 1.5,
+                                  ),
+                                ),
                         ),
                       ),
                       const SizedBox(height: 16),

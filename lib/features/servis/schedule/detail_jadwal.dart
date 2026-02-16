@@ -1,39 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../core/model/service_schedule_model.dart';
+import '../../../core/services/service_schedule_service.dart';
+import '../../widget/page_transition.dart';
+import 'edit_jadwal.dart';
 
-class DetailJadwalPage extends StatelessWidget {
-  final String title;
+class DetailJadwalPage extends StatefulWidget {
+  final ServiceScheduleModel schedule;
   final String status;
   final Color statusColor;
   final String kmRemaining;
   final String currentKm;
   final String targetKm;
   final int percentage;
-  final String interval;
-  final String lastService;
-  final String reminder;
-  final String notes;
 
   const DetailJadwalPage({
     super.key,
-    required this.title,
+    required this.schedule,
     required this.status,
     required this.statusColor,
     required this.kmRemaining,
     required this.currentKm,
     required this.targetKm,
     required this.percentage,
-    required this.interval,
-    required this.lastService,
-    required this.reminder,
-    required this.notes,
   });
+
+  @override
+  State<DetailJadwalPage> createState() => _DetailJadwalPageState();
+}
+
+class _DetailJadwalPageState extends State<DetailJadwalPage> {
+  final _scheduleService = ServiceScheduleService();
+  bool _isDeleting = false;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    final title = widget.schedule.serviceName ?? l10n.serviceSchedule;
+    final interval = widget.schedule.intervalType == 'mileage'
+        ? 'Setiap ${widget.schedule.intervalValue} km'
+        : 'Setiap ${widget.schedule.intervalValue} bulan';
+    final lastService =
+        widget.schedule.lastServiceDate?.toString().split(' ')[0] ?? '-';
+    final reminder = widget.schedule.reminderEnabled
+        ? l10n.activeReminder
+        : 'Tidak Aktif';
+    final notes = widget.schedule.notes ?? '-';
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
@@ -95,6 +109,47 @@ class DetailJadwalPage extends StatelessWidget {
                           ],
                         ),
                       ),
+                      // Edit button
+                      GestureDetector(
+                        onTap: () async {
+                          final result = await Navigator.push(
+                            context,
+                            SmoothPageRoute(
+                              page: EditJadwalPage(schedule: widget.schedule),
+                            ),
+                          );
+                          if (result == true && mounted) {
+                            // Schedule was updated, go back to refresh list
+                            Navigator.pop(context, true);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          child: Icon(
+                            Icons.edit_outlined,
+                            size: 24,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                      // Delete button
+                      GestureDetector(
+                        onTap: _isDeleting
+                            ? null
+                            : () => _showDeleteDialog(context),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          child: Icon(
+                            Icons.delete_outline,
+                            size: 24,
+                            color: _isDeleting
+                                ? colorScheme.onSurfaceVariant.withValues(
+                                    alpha: 0.5,
+                                  )
+                                : colorScheme.error,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -140,17 +195,17 @@ class DetailJadwalPage extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            status,
+            widget.status,
             style: TextStyle(
               fontFamily: 'Arial',
               fontSize: 14,
               fontWeight: FontWeight.w400,
-              color: statusColor,
+              color: widget.statusColor,
               height: 1.43,
             ),
           ),
           Text(
-            '$kmRemaining ${l10n.kmRemaining}',
+            '${widget.kmRemaining} ${l10n.kmRemaining}',
             style: TextStyle(
               fontFamily: 'Arial',
               fontSize: 14,
@@ -167,6 +222,9 @@ class DetailJadwalPage extends StatelessWidget {
   Widget _buildProgressCard(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    final interval = widget.schedule.intervalType == 'mileage'
+        ? 'Setiap ${widget.schedule.intervalValue} km'
+        : 'Setiap ${widget.schedule.intervalValue} bulan';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -207,7 +265,7 @@ class DetailJadwalPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '$currentKm km',
+                    '${widget.currentKm} km',
                     style: TextStyle(
                       fontFamily: 'Arial',
                       fontSize: 18,
@@ -233,7 +291,7 @@ class DetailJadwalPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '$targetKm km',
+                    '${widget.targetKm} km',
                     style: TextStyle(
                       fontFamily: 'Arial',
                       fontSize: 18,
@@ -252,7 +310,7 @@ class DetailJadwalPage extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(999),
                 child: LinearProgressIndicator(
-                  value: percentage / 100,
+                  value: widget.percentage / 100,
                   minHeight: 12,
                   backgroundColor: colorScheme.outlineVariant,
                   valueColor: AlwaysStoppedAnimation<Color>(
@@ -262,7 +320,7 @@ class DetailJadwalPage extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                '$percentage% ${l10n.towardNextService}',
+                '${widget.percentage}% ${l10n.towardNextService}',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Arial',
@@ -315,6 +373,12 @@ class DetailJadwalPage extends StatelessWidget {
   Widget _buildDetailCard(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    final lastService =
+        widget.schedule.lastServiceDate?.toString().split(' ')[0] ?? '-';
+    final reminder = widget.schedule.reminderEnabled
+        ? l10n.activeReminder
+        : 'Tidak Aktif';
+    final notes = widget.schedule.notes ?? '-';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -441,5 +505,108 @@ class DetailJadwalPage extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  void _showDeleteDialog(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: colorScheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            l10n.deleteSchedule,
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 20,
+              fontWeight: FontWeight.w400,
+              color: colorScheme.onSurface,
+            ),
+          ),
+          content: Text(
+            l10n.deleteScheduleConfirm,
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 14,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(
+                l10n.cancel,
+                style: TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 14,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                await _deleteSchedule();
+              },
+              child: Text(
+                l10n.delete,
+                style: TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: colorScheme.error,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteSchedule() async {
+    if (widget.schedule.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('ID jadwal tidak valid'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isDeleting = true);
+
+    try {
+      await _scheduleService.deleteSchedule(widget.schedule.id!);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Jadwal berhasil dihapus'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+        ),
+      );
+
+      // Go back to list page with refresh signal
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() => _isDeleting = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menghapus: ${e.toString()}'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
   }
 }

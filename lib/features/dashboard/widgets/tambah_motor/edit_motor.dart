@@ -2,23 +2,33 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:motorcycle_management/core/utils/app_theme.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../../core/services/vehicle_service.dart';
+import '../../../../core/model/vehicle_model.dart';
 
 class EditMotorPage extends StatefulWidget {
+  final int vehicleId;
   final String name;
   final String brand;
   final String model;
   final String year;
   final String odometer;
   final bool isMainVehicle;
+  final String? tipeMotor;
+  final String? licensePlate;
+  final String? color;
 
   const EditMotorPage({
     super.key,
+    required this.vehicleId,
     required this.name,
     required this.brand,
     required this.model,
     required this.year,
     required this.odometer,
     required this.isMainVehicle,
+    this.tipeMotor,
+    this.licensePlate,
+    this.color,
   });
 
   @override
@@ -27,12 +37,17 @@ class EditMotorPage extends StatefulWidget {
 
 class _EditMotorPageState extends State<EditMotorPage> {
   final _formKey = GlobalKey<FormState>();
+  final _vehicleService = VehicleService();
   late final TextEditingController _namaKendaraanController;
   late final TextEditingController _merekController;
   late final TextEditingController _modelController;
   late final TextEditingController _tahunController;
   late final TextEditingController _odometerController;
+  late final TextEditingController _platNomorController;
+  late final TextEditingController _warnaController;
   late bool _isMainVehicle;
+  String? _selectedMotorcycleType;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -42,7 +57,12 @@ class _EditMotorPageState extends State<EditMotorPage> {
     _modelController = TextEditingController(text: widget.model);
     _tahunController = TextEditingController(text: widget.year);
     _odometerController = TextEditingController(text: widget.odometer);
+    _platNomorController = TextEditingController(
+      text: widget.licensePlate ?? '',
+    );
+    _warnaController = TextEditingController(text: widget.color ?? '');
     _isMainVehicle = widget.isMainVehicle;
+    _selectedMotorcycleType = widget.tipeMotor;
   }
 
   @override
@@ -52,6 +72,8 @@ class _EditMotorPageState extends State<EditMotorPage> {
     _modelController.dispose();
     _tahunController.dispose();
     _odometerController.dispose();
+    _platNomorController.dispose();
+    _warnaController.dispose();
     super.dispose();
   }
 
@@ -131,10 +153,24 @@ class _EditMotorPageState extends State<EditMotorPage> {
                       keyboardType: TextInputType.number,
                     ),
                     const SizedBox(height: 20),
+                    _buildMotorcycleTypeDropdown(),
+                    const SizedBox(height: 20),
                     _buildInputField(
                       label: l10n.currentOdometerKm,
                       controller: _odometerController,
                       keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 20),
+                    _buildInputField(
+                      label: l10n.licensePlate,
+                      controller: _platNomorController,
+                      placeholder: l10n.licensePlatePlaceholder,
+                    ),
+                    const SizedBox(height: 20),
+                    _buildInputField(
+                      label: l10n.motorcycleColor,
+                      controller: _warnaController,
+                      placeholder: l10n.colorPlaceholder,
                     ),
                     const SizedBox(height: 20),
 
@@ -216,6 +252,84 @@ class _EditMotorPageState extends State<EditMotorPage> {
     );
   }
 
+  Widget _buildMotorcycleTypeDropdown() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 10, bottom: 8),
+          child: Text(
+            l10n.motorcycleType,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: colorScheme.onSurface,
+            ),
+          ),
+        ),
+        // Gunakan SizedBox untuk mengunci lebar field agar konsisten
+        SizedBox(
+          width: double.infinity, // Atau atur angka spesifik misal: 300
+          child: DropdownButtonFormField<String>(
+            value: _selectedMotorcycleType,
+            dropdownColor: colorScheme.surfaceContainerHighest,
+            // PERBAIKAN: Matikan isExpanded agar menu tidak memaksa melebar penuh layar
+            isExpanded: false,
+            style: TextStyle(color: colorScheme.onSurface, fontSize: 16),
+            icon: Icon(
+              Icons.keyboard_arrow_down,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: colorScheme.surface,
+              hintText: l10n.selectMotorcycleType,
+              hintStyle: TextStyle(
+                color: colorScheme.onSurface.withOpacity(0.5),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: colorScheme.outlineVariant,
+                  width: 1,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: colorScheme.primary, // Warna hijau (6B7C4F)
+                  width: 1.5,
+                ),
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            items: [
+              DropdownMenuItem(
+                value: 'matic',
+                child: Text(l10n.motorcycleTypeMatic),
+              ),
+              DropdownMenuItem(value: 'manual', child: Text('Manual')),
+              DropdownMenuItem(
+                value: 'sport',
+                child: Text(l10n.motorcycleTypeSport),
+              ),
+            ],
+            onChanged: (val) => setState(() => _selectedMotorcycleType = val),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildMainVehicleCheckbox() {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
@@ -267,7 +381,7 @@ class _EditMotorPageState extends State<EditMotorPage> {
       children: [
         Expanded(
           child: OutlinedButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: _isLoading ? null : () => Navigator.pop(context),
             style: OutlinedButton.styleFrom(
               backgroundColor: colorScheme.surface,
               side: BorderSide(color: colorScheme.outlineVariant),
@@ -285,14 +399,23 @@ class _EditMotorPageState extends State<EditMotorPage> {
         const SizedBox(width: 12),
         Expanded(
           child: ElevatedButton.icon(
-            onPressed: _handleSave,
-            icon: const Icon(
-              Icons.check_circle_outline,
-              color: Colors.white,
-              size: 20,
-            ),
+            onPressed: _isLoading ? null : _handleSave,
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Icon(
+                    Icons.check_circle_outline,
+                    color: Colors.white,
+                    size: 20,
+                  ),
             label: Text(
-              l10n.save,
+              _isLoading ? 'Menyimpan...' : l10n.save,
               style: const TextStyle(color: Colors.white, fontSize: 16),
             ),
             style: ElevatedButton.styleFrom(
@@ -308,7 +431,7 @@ class _EditMotorPageState extends State<EditMotorPage> {
     );
   }
 
-  void _handleSave() {
+  void _handleSave() async {
     if (_namaKendaraanController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -319,24 +442,65 @@ class _EditMotorPageState extends State<EditMotorPage> {
       return;
     }
 
-    final updatedData = {
-      'nama': _namaKendaraanController.text,
-      'merek': _merekController.text,
-      'model': _modelController.text,
-      'tahun': _tahunController.text,
-      'odometer': _odometerController.text,
-      'isMainVehicle': _isMainVehicle,
-    };
+    if (_selectedMotorcycleType == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Tipe motor wajib dipilih'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
 
-    print('Updating vehicle: $updatedData');
+    setState(() => _isLoading = true);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Kendaraan berhasil diperbarui'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-      ),
-    );
+    try {
+      // Parse controllers
+      final year = int.tryParse(_tahunController.text) ?? 2026;
+      final odometer = int.tryParse(_odometerController.text) ?? 0;
 
-    Navigator.pop(context);
+      // Create vehicle model with updated data
+      final vehicle = VehicleModel(
+        id: widget.vehicleId,
+        title: _namaKendaraanController.text,
+        make: _merekController.text,
+        model: _modelController.text,
+        year: year,
+        tipeMotor: _selectedMotorcycleType,
+        odometer: odometer,
+        licensePlate: _platNomorController.text.isEmpty
+            ? null
+            : _platNomorController.text,
+        color: _warnaController.text.isEmpty ? null : _warnaController.text,
+        isPrimary: _isMainVehicle,
+      );
+
+      // Call API
+      await _vehicleService.updateVehicle(widget.vehicleId, vehicle);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Kendaraan berhasil diperbarui'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+        ),
+      );
+
+      Navigator.pop(context, true); // Return true to indicate success
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal memperbarui kendaraan: ${e.toString()}'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 }

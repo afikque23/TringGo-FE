@@ -8,6 +8,9 @@ import '../service.dart';
 import '../schedule/jadwal.dart';
 import 'tambah_riwayat_service.dart';
 import 'edit_riwayat_service.dart';
+import '../../../core/services/service_history_service.dart';
+import '../../../core/model/service_history_model.dart';
+import 'package:intl/intl.dart';
 
 class RiwayatServicePage extends StatefulWidget {
   const RiwayatServicePage({super.key});
@@ -17,65 +20,61 @@ class RiwayatServicePage extends StatefulWidget {
 }
 
 class _RiwayatServicePageState extends State<RiwayatServicePage> {
-  final List<Map<String, dynamic>> _serviceHistory = [
-    {
-      'title': 'Oil Change',
-      'date': '15 Januari 2026',
-      'cost': 'Rp 295.000',
-      'odometer': '8000 km',
-      'workshop': 'Kawasaki Authorized',
-      'notes': 'Full synthetic oil used',
-      'icon': Icons.settings,
-    },
-    {
-      'title': 'Tire Replacement',
-      'date': '10 Desember 2025',
-      'cost': 'Rp 1.180.000',
-      'odometer': '7500 km',
-      'workshop': 'Tire Pro',
-      'notes': 'Front and rear tires replaced',
-      'icon': Icons.settings,
-    },
-    {
-      'title': 'Chain Adjustment',
-      'date': '5 November 2025',
-      'cost': 'Rp 125.000',
-      'odometer': '7200 km',
-      'workshop': 'Local Garage',
-      'notes': 'Chain cleaned and lubricated',
-      'icon': Icons.settings,
-    },
-    {
-      'title': 'Oil Change',
-      'date': '20 Oktober 2025',
-      'cost': 'Rp 295.000',
-      'odometer': '6500 km',
-      'workshop': 'Kawasaki Authorized',
-      'notes': 'Regular maintenance',
-      'icon': Icons.settings,
-    },
-  ];
+  final _historyService = ServiceHistoryService();
+  List<ServiceHistoryModel> _serviceHistory = [];
+  Map<String, dynamic>? _costSummary;
+  bool _isLoading = false;
 
-  int _calculateTotalCost() {
-    int total = 0;
-    for (var service in _serviceHistory) {
-      String costStr = service['cost'].replaceAll(RegExp(r'[^\d]'), '');
-      total += int.parse(costStr);
-    }
-    return total;
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
   }
 
-  String _formatCurrency(int amount) {
-    return 'Rp. ${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    try {
+      final histories = await _historyService.getAllHistories();
+      final summary = await _historyService.getCostSummary();
+      if (mounted) {
+        setState(() {
+          _serviceHistory = histories;
+          _costSummary = summary;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memuat data: ${e.toString()}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  int _calculateTotalCost() {
+    if (_costSummary == null) return 0;
+    final total = _costSummary!['total_cost'];
+    return total is int ? total : (total as num).toInt();
+  }
+
+  String _formatCurrency(dynamic amount) {
+    final value = amount is int ? amount : (amount as num).toInt();
+    return 'Rp. ${value.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
   }
 
   void _showDeleteConfirmation(
     BuildContext context,
-    Map<String, dynamic> service,
-  ) {
+    ServiceHistoryModel service,
+  ) async {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    showDialog(
+
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
@@ -93,7 +92,7 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
             ),
           ),
           content: Text(
-            '${l10n.confirmDeleteService} "${service['title']}"?',
+            '${l10n.confirmDeleteService} "${service.serviceName}"?',
             style: TextStyle(
               fontFamily: 'Arial',
               fontSize: 14,
@@ -103,7 +102,7 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(context, false),
               child: Text(
                 l10n.cancel,
                 style: TextStyle(
@@ -115,18 +114,7 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
               ),
             ),
             TextButton(
-              onPressed: () {
-                setState(() {
-                  _serviceHistory.remove(service);
-                });
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(l10n.delete),
-                    backgroundColor: colorScheme.error,
-                  ),
-                );
-              },
+              onPressed: () => Navigator.pop(context, true),
               child: Text(
                 l10n.delete,
                 style: TextStyle(
@@ -141,6 +129,30 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
         );
       },
     );
+
+    if (confirmed == true && service.id != null) {
+      try {
+        await _historyService.deleteHistory(service.id!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Riwayat servis berhasil dihapus'),
+              backgroundColor: colorScheme.primary,
+            ),
+          );
+          _loadData(); // Reload data
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Gagal menghapus: \${e.toString()}'),
+              backgroundColor: colorScheme.error,
+            ),
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -158,23 +170,44 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
           children: [
             _buildHeader(),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-                child: Column(
-                  children: [
-                    _buildAddButton(),
-                    const SizedBox(height: 16),
-                    _buildTotalCostCard(),
-                    const SizedBox(height: 16),
-                    ..._serviceHistory.map(
-                      (service) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildServiceCard(service),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : RefreshIndicator(
+                      onRefresh: _loadData,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                        child: Column(
+                          children: [
+                            _buildAddButton(),
+                            const SizedBox(height: 16),
+                            _buildTotalCostCard(),
+                            const SizedBox(height: 16),
+                            if (_serviceHistory.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 48,
+                                ),
+                                child: Text(
+                                  'Belum ada riwayat servis',
+                                  style: TextStyle(
+                                    fontFamily: 'Arial',
+                                    fontSize: 14,
+                                    color: colorScheme.secondary,
+                                  ),
+                                ),
+                              )
+                            else
+                              ..._serviceHistory.map(
+                                (service) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _buildServiceCard(service),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
-                  ],
-                ),
-              ),
             ),
           ],
         ),
@@ -367,9 +400,20 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
     );
   }
 
-  Widget _buildServiceCard(Map<String, dynamic> service) {
+  Widget _buildServiceCard(ServiceHistoryModel service) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+
+    // Format date
+    final dateStr = DateFormat('dd MMM yyyy').format(service.serviceDate);
+
+    // Format cost
+    final costStr = _formatCurrency(service.cost);
+
+    // Format mileage
+    final mileageStr =
+        '${service.mileage.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')} km';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -388,7 +432,7 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      service['title'],
+                      service.serviceName,
                       style: TextStyle(
                         color: colorScheme.onSurface,
                         fontSize: 16,
@@ -404,7 +448,7 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          service['date'],
+                          dateStr,
                           style: TextStyle(
                             color: colorScheme.textSecondary,
                             fontSize: 14,
@@ -416,7 +460,7 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
                 ),
               ),
               Text(
-                service['cost'],
+                costStr,
                 style: TextStyle(color: colorScheme.primary, fontSize: 18),
               ),
             ],
@@ -435,7 +479,7 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
                     ),
                   ),
                   Text(
-                    service['odometer'],
+                    mileageStr,
                     style: TextStyle(
                       color: colorScheme.onSurface,
                       fontSize: 14,
@@ -455,7 +499,7 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
                     ),
                   ),
                   Text(
-                    service['workshop'],
+                    service.workshopName ?? '-',
                     style: TextStyle(
                       color: colorScheme.onSurface,
                       fontSize: 14,
@@ -465,32 +509,40 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.only(top: 12),
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(color: colorScheme.outlineVariant, width: 0.65),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.description_outlined,
-                  size: 16,
-                  color: colorScheme.textSecondary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  service['notes'],
-                  style: TextStyle(
-                    color: colorScheme.textSecondary,
-                    fontSize: 12,
+          if (service.notes != null && service.notes!.isNotEmpty)
+            const SizedBox(height: 12),
+          if (service.notes != null && service.notes!.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.only(top: 12),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: colorScheme.outlineVariant,
+                    width: 0.65,
                   ),
                 ),
-              ],
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.description_outlined,
+                    size: 16,
+                    color: colorScheme.textSecondary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      service.notes!,
+                      style: TextStyle(
+                        color: colorScheme.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.only(top: 12),
@@ -503,13 +555,28 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
               children: [
                 Expanded(
                   child: GestureDetector(
-                    onTap: () {
-                      Navigator.push(
+                    onTap: () async {
+                      final result = await Navigator.push(
                         context,
                         SmoothPageRoute(
-                          page: EditRiwayatServicePage(serviceData: service),
+                          page: EditRiwayatServicePage(
+                            serviceData: {
+                              'id': service.id,
+                              'vehicleId': service.vehicleId,
+                              'serviceName': service.serviceName,
+                              'serviceDate': service.serviceDate
+                                  .toIso8601String(),
+                              'mileage': service.mileage,
+                              'cost': service.cost,
+                              'workshopName': service.workshopName,
+                              'notes': service.notes,
+                            },
+                          ),
                         ),
                       );
+                      if (result == true) {
+                        _loadData(); // Reload data if edit was successful
+                      }
                     },
                     child: Container(
                       height: 41,

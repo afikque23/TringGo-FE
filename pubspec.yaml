@@ -18,6 +18,9 @@ dependencies:
   # Local storage untuk token auth
   shared_preferences: ^2.2.2
 
+  # UUID untuk device ID
+  uuid: ^4.5.1
+
   # JSON handling
   json_annotation: ^4.8.1
   fl_chart: ^0.68.0

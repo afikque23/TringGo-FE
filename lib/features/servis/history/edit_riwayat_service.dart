@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:motorcycle_management/core/utils/app_theme.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../core/services/service_history_service.dart';
+import '../../../core/model/service_history_model.dart';
 
 class EditRiwayatServicePage extends StatefulWidget {
   final Map<String, dynamic> serviceData;
@@ -15,6 +17,7 @@ class EditRiwayatServicePage extends StatefulWidget {
 
 class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
   final _formKey = GlobalKey<FormState>();
+  final _historyService = ServiceHistoryService();
 
   // Controllers
   late TextEditingController _odometerController;
@@ -24,6 +27,7 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
 
   DateTime? _selectedDate;
   String _selectedServiceType = 'other'; // Initialize with default value
+  bool _isLoading = false;
 
   // Mapping tipe servis dari database ke key yang sesuai
   String _mapServiceType(String englishName) {
@@ -49,8 +53,7 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
         DateTime.now();
 
     // Inisialisasi dropdown dan text controller dengan data yang sudah ada
-    _selectedServiceType =
-        _mapServiceType(widget.serviceData['type'] ?? '');
+    _selectedServiceType = _mapServiceType(widget.serviceData['type'] ?? '');
     _odometerController = TextEditingController(
       text: widget.serviceData['mileage']?.toString() ?? '',
     );
@@ -209,14 +212,35 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
                   ),
                   decoration: _inputStyle(l10n.selectServiceType),
                   items: [
-                    DropdownMenuItem(value: 'oilChange', child: Text(l10n.oilChange)),
-                    DropdownMenuItem(value: 'brakePadReplacement', child: Text(l10n.brakePadReplacement)),
-                    DropdownMenuItem(value: 'tireReplacement', child: Text(l10n.tireReplacement)),
-                    DropdownMenuItem(value: 'chainSprocketReplacement', child: Text(l10n.chainSprocketReplacement)),
+                    DropdownMenuItem(
+                      value: 'oilChange',
+                      child: Text(l10n.oilChange),
+                    ),
+                    DropdownMenuItem(
+                      value: 'brakePadReplacement',
+                      child: Text(l10n.brakePadReplacement),
+                    ),
+                    DropdownMenuItem(
+                      value: 'tireReplacement',
+                      child: Text(l10n.tireReplacement),
+                    ),
+                    DropdownMenuItem(
+                      value: 'chainSprocketReplacement',
+                      child: Text(l10n.chainSprocketReplacement),
+                    ),
                     DropdownMenuItem(value: 'tuneUp', child: Text(l10n.tuneUp)),
-                    DropdownMenuItem(value: 'sparkPlugReplacement', child: Text(l10n.sparkPlugReplacement)),
-                    DropdownMenuItem(value: 'periodicService', child: Text(l10n.periodicService)),
-                    DropdownMenuItem(value: 'engineRepair', child: Text(l10n.engineRepair)),
+                    DropdownMenuItem(
+                      value: 'sparkPlugReplacement',
+                      child: Text(l10n.sparkPlugReplacement),
+                    ),
+                    DropdownMenuItem(
+                      value: 'periodicService',
+                      child: Text(l10n.periodicService),
+                    ),
+                    DropdownMenuItem(
+                      value: 'engineRepair',
+                      child: Text(l10n.engineRepair),
+                    ),
                     DropdownMenuItem(value: 'other', child: Text(l10n.other)),
                   ],
                   onChanged: (val) =>
@@ -260,7 +284,9 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
                 child: TextFormField(
                   controller: _bengkelController,
                   style: TextStyle(color: colorScheme.onSurface),
-                  decoration: _inputStyle('${l10n.example}: Bengkel Motor Jaya'),
+                  decoration: _inputStyle(
+                    '${l10n.example}: Bengkel Motor Jaya',
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -383,17 +409,91 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
-  void _updateServiceRecord() {
+  Future<void> _updateServiceRecord() async {
     final l10n = AppLocalizations.of(context)!;
-    if (_formKey.currentState!.validate()) {
-      // Logic update API di sini
+
+    if (!_formKey.currentState!.validate()) return;
+
+    if (_selectedDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Pilih tanggal servis'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Parse input values
+      final mileage = int.tryParse(_odometerController.text) ?? 0;
+      final cost =
+          double.tryParse(
+            _biayaController.text.replaceAll(RegExp(r'[^\d]'), ''),
+          ) ??
+          0;
+      final historyId = widget.serviceData['id'] as int?;
+
+      if (historyId == null) {
+        throw Exception('ID riwayat servis tidak ditemukan');
+      }
+
+      // Map service type to readable name
+      final serviceNameMap = {
+        'oilChange': l10n.oilChange,
+        'tireReplacement': l10n.tireReplacement,
+        'chainSprocketReplacement': 'Ganti Rantai & Gir',
+        'brakePadReplacement': l10n.brakePadReplacement,
+        'tuneUp': 'Tune Up',
+        'sparkPlugReplacement': l10n.sparkPlugReplacement,
+        'periodicService': l10n.periodicService,
+        'engineRepair': l10n.engineRepair,
+        'other': l10n.other,
+      };
+
+      // Create updated service history model
+      final updatedHistory = ServiceHistoryModel(
+        id: historyId,
+        vehicleId: widget.serviceData['vehicleId'] as int,
+        serviceName:
+            serviceNameMap[_selectedServiceType] ?? _selectedServiceType,
+        serviceDate: _selectedDate!,
+        mileage: mileage,
+        cost: cost,
+        workshopName: _bengkelController.text.isEmpty
+            ? null
+            : _bengkelController.text,
+        notes: _catatanController.text.isEmpty ? null : _catatanController.text,
+      );
+
+      // Call API
+      await _historyService.updateHistory(historyId, updatedHistory);
+
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(l10n.serviceRecordUpdated),
-          backgroundColor: const Color(0xFF6B7C4F),
+          backgroundColor: Theme.of(context).colorScheme.primary,
         ),
       );
-      Navigator.pop(context);
+
+      Navigator.pop(context, true); // Return true to indicate success
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal memperbarui: \${e.toString()}'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 }

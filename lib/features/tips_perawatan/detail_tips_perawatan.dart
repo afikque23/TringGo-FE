@@ -37,6 +37,8 @@ class DetailTipsPerawatanPage extends StatelessWidget {
                         const SizedBox(height: 16),
                         _buildTags(),
                         const SizedBox(height: 24),
+                        _buildUseThisTipButton(context),
+                        const SizedBox(height: 24),
                       ],
                     ),
                   ),
@@ -364,7 +366,7 @@ class DetailTipsPerawatanPage extends StatelessWidget {
       children: [
         Expanded(child: _buildActionButton(Icons.favorite_border, 'Like')),
         const SizedBox(width: 8),
-        Expanded(child: _buildActionButton(Icons.content_copy, 'Fork')),
+        Expanded(child: _buildActionButton(Icons.bookmark_border, 'Simpan')),
         const SizedBox(width: 8),
         Expanded(child: _buildActionButton(Icons.share, 'Share')),
       ],
@@ -804,6 +806,38 @@ class DetailTipsPerawatanPage extends StatelessWidget {
           fontWeight: FontWeight.w400,
           height: 1.33,
           color: Color(0xFF99A1AF),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUseThisTipButton(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        // TODO: Navigate to schedule or use this tip
+      },
+      child: Container(
+        height: 60,
+        decoration: BoxDecoration(
+          color: const Color(0xFF6B7C4F),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Icon(Icons.calendar_today, size: 20, color: Color(0xFFFFFFFF)),
+            SizedBox(width: 8),
+            Text(
+              'Gunakan Tips Ini',
+              style: TextStyle(
+                fontFamily: 'Arial',
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                height: 1.56,
+                color: Color(0xFFFFFFFF),
+              ),
+            ),
+          ],
         ),
       ),
     );

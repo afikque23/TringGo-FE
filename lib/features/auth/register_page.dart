@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
-import 'registration_success_page.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'otp_verification_page.dart';
 import '../widget/page_transition.dart';
 import '../../l10n/app_localizations.dart';
+import '../../core/network/api_config.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -18,6 +21,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
   int _passwordStrength = -1; // -1: not show, 0: weak, 1: medium, 2: strong
 
   @override
@@ -78,6 +82,93 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
+  Future<void> _handleRegister() async {
+    if (_nameController.text.isEmpty ||
+        _emailController.text.isEmpty ||
+        _phoneController.text.isEmpty ||
+        _passwordController.text.isEmpty) {
+      _showErrorDialog('Semua field harus diisi');
+      return;
+    }
+
+    if (_passwordController.text != _confirmPasswordController.text) {
+      _showErrorDialog('Password dan konfirmasi password tidak sama');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final url = ApiConfig.registerUrl;
+      print('🌐 Calling URL: $url'); // Debug log
+
+      final requestBody = {
+        'name': _nameController.text,
+        'email': _emailController.text,
+        'phone': _phoneController.text,
+        'password': _passwordController.text,
+        'password_confirmation': _confirmPasswordController.text,
+      };
+      print('📤 Request body: $requestBody'); // Debug log
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: ApiConfig.defaultHeaders,
+        body: jsonEncode(requestBody),
+      );
+
+      print('📥 Response status: ${response.statusCode}'); // Debug log
+      print('📥 Response body: ${response.body}'); // Debug log
+
+      if (!mounted) return;
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        // Registrasi berhasil, arahkan ke OTP verification
+        Navigator.push(
+          context,
+          SmoothPageRoute(
+            page: OtpVerificationPage(
+              email: _emailController.text,
+              isFromRegistration: true,
+            ),
+          ),
+        );
+      } else {
+        final error = jsonDecode(response.body);
+        _showErrorDialog(error['message'] ?? 'Registrasi gagal');
+      }
+    } catch (e) {
+      print('❌ Error: $e'); // Debug log
+      if (mounted) {
+        _showErrorDialog('Terjadi kesalahan: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Error'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -89,7 +180,7 @@ class _RegisterPageState extends State<RegisterPage> {
           children: [
             // Static Header Section
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
               child: Column(
                 children: [
                   // App Icon
@@ -99,7 +190,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     height: 80,
                     filterQuality: FilterQuality.high,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 6),
                   // Page Title
                   Text(
                     l10n.register,
@@ -129,12 +220,12 @@ class _RegisterPageState extends State<RegisterPage> {
             // Scrollable Form Section
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
                 child: Column(
                   children: [
                     // Register Card
                     Container(
-                      padding: const EdgeInsets.all(24),
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
                       decoration: BoxDecoration(
                         color: colorScheme.surface,
                         borderRadius: BorderRadius.circular(16),
@@ -212,19 +303,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           SizedBox(
                             height: 48,
                             child: ElevatedButton(
-                              onPressed: () {
-                                // Navigate to registration success page
-                                if (_emailController.text.isNotEmpty) {
-                                  Navigator.push(
-                                    context,
-                                    SmoothPageRoute(
-                                      page: RegistrationSuccessPage(
-                                        email: _emailController.text,
-                                      ),
-                                    ),
-                                  );
-                                }
-                              },
+                              onPressed: _isLoading ? null : _handleRegister,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: colorScheme.primary,
                                 foregroundColor: colorScheme.onPrimary,
@@ -233,15 +312,27 @@ class _RegisterPageState extends State<RegisterPage> {
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                               ),
-                              child: Text(
-                                l10n.register,
-                                style: const TextStyle(
-                                  fontFamily: 'Arial',
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w400,
-                                  height: 1.5,
-                                ),
-                              ),
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
+                                      ),
+                                    )
+                                  : Text(
+                                      l10n.register,
+                                      style: const TextStyle(
+                                        fontFamily: 'Arial',
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w400,
+                                        height: 1.5,
+                                      ),
+                                    ),
                             ),
                           ),
                         ],

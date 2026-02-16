@@ -292,6 +292,42 @@ class AppLocalizationsId extends AppLocalizations {
   String get motorcycleYear => 'Tahun';
 
   @override
+  String get motorcycleType => 'Tipe Motor';
+
+  @override
+  String get selectMotorcycleType => 'Pilih tipe motor';
+
+  @override
+  String get motorcycleTypeMatic => 'Matic';
+
+  @override
+  String get motorcycleTypeBebek => 'Bebek/Cub';
+
+  @override
+  String get motorcycleTypeSport => 'Sport';
+
+  @override
+  String get motorcycleTypeNaked => 'Naked/Standard';
+
+  @override
+  String get motorcycleTypeTouring => 'Touring';
+
+  @override
+  String get motorcycleTypeOffroad => 'Off-road/Trail';
+
+  @override
+  String get licensePlate => 'Plat Nomor';
+
+  @override
+  String get licensePlatePlaceholder => 'contoh: B 1234 XYZ';
+
+  @override
+  String get motorcycleColor => 'Warna Motor';
+
+  @override
+  String get colorPlaceholder => 'contoh: Hitam';
+
+  @override
   String get addMotorcycle => 'Tambah Motor';
 
   @override
@@ -536,6 +572,40 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get scheduleSaved => 'Jadwal berhasil disimpan';
+
+  @override
+  String get editServiceSchedule => 'Edit Jadwal Servis';
+
+  @override
+  String get updateScheduleReminder => 'Perbarui informasi pengingat perawatan';
+
+  @override
+  String get scheduleUpdated => 'Jadwal berhasil diperbarui';
+
+  @override
+  String get deleteSchedule => 'Hapus Jadwal Servis';
+
+  @override
+  String get deleteScheduleConfirm =>
+      'Apakah Anda yakin ingin menghapus jadwal servis ini?';
+
+  @override
+  String get update => 'Perbarui';
+
+  @override
+  String get serviceSchedule => 'Jadwal Servis';
+
+  @override
+  String get serviceIntervalKm => 'Interval Servis (km)';
+
+  @override
+  String get enterIntervalKm => 'Masukkan interval servis dalam kilometer';
+
+  @override
+  String get exampleKm10000 => 'Contoh: 10000';
+
+  @override
+  String get exampleMonths6 => 'Contoh: 6';
 
   @override
   String get oilChange => 'Ganti Oli Mesin';
@@ -1833,12 +1903,6 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get reminderTime1Month => '1 bulan sebelumnya';
-
-  @override
-  String get exampleKm10000 => 'Contoh: 10000';
-
-  @override
-  String get exampleMonths6 => 'Contoh: 6';
 
   @override
   String get remindMeBeforeDue => 'Ingatkan saya sebelum jatuh tempo';

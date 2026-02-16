@@ -3,6 +3,8 @@ import 'tambah_motor.dart';
 import 'edit_motor.dart';
 import '../../../widget/page_transition.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../../core/services/vehicle_service.dart';
+import '../../../../core/model/vehicle_model.dart';
 
 class ListMotorPage extends StatefulWidget {
   const ListMotorPage({super.key});
@@ -12,25 +14,41 @@ class ListMotorPage extends StatefulWidget {
 }
 
 class _ListMotorPageState extends State<ListMotorPage> {
-  // Sample data
-  final List<Map<String, dynamic>> vehicles = [
-    {
-      'name': 'My Ninja',
-      'brand': 'Kawasaki',
-      'model': 'Ninja 250',
-      'year': '2022',
-      'odometer': '8,450',
-      'isActive': true,
-    },
-    {
-      'name': 'Daily Commuter',
-      'brand': 'Honda',
-      'model': 'PCX 160',
-      'year': '2023',
-      'odometer': '5,200',
-      'isActive': false,
-    },
-  ];
+  final _vehicleService = VehicleService();
+  List<VehicleModel> vehicles = [];
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVehicles();
+  }
+
+  Future<void> _loadVehicles() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final fetchedVehicles = await _vehicleService.getAllVehicles();
+      if (mounted) {
+        setState(() {
+          vehicles = fetchedVehicles;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memuat kendaraan: ${e.toString()}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -97,23 +115,56 @@ class _ListMotorPageState extends State<ListMotorPage> {
           ),
           // Vehicle List
           Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
-              itemCount: vehicles.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 20),
-              itemBuilder: (context, index) {
-                final vehicle = vehicles[index];
-                return _buildVehicleCard(
-                  context: context,
-                  name: vehicle['name'],
-                  brand: vehicle['brand'],
-                  model: vehicle['model'],
-                  year: vehicle['year'],
-                  odometer: vehicle['odometer'],
-                  isActive: vehicle['isActive'],
-                );
-              },
-            ),
+            child: _isLoading
+                ? Center(
+                    child: CircularProgressIndicator(
+                      color: colorScheme.primary,
+                    ),
+                  )
+                : vehicles.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.directions_bike,
+                          size: 64,
+                          color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Belum ada kendaraan',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Tambahkan kendaraan pertama Anda',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: colorScheme.onSurfaceVariant.withOpacity(
+                              0.7,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
+                    itemCount: vehicles.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 20),
+                    itemBuilder: (context, index) {
+                      final vehicle = vehicles[index];
+                      return _buildVehicleCard(
+                        context: context,
+                        vehicle: vehicle,
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -135,11 +186,15 @@ class _ListMotorPageState extends State<ListMotorPage> {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: () {
-              Navigator.push(
+            onTap: () async {
+              final result = await Navigator.push(
                 context,
                 SmoothPageRoute(page: const TambahMotorPage()),
               );
+              // Reload vehicles if a vehicle was added
+              if (result == true) {
+                _loadVehicles();
+              }
             },
             borderRadius: BorderRadius.circular(999),
             child: Icon(Icons.add, size: 24, color: colorScheme.onPrimary),
@@ -151,19 +206,16 @@ class _ListMotorPageState extends State<ListMotorPage> {
 
   Widget _buildVehicleCard({
     required BuildContext context,
-    required String name,
-    required String brand,
-    required String model,
-    required String year,
-    required String odometer,
-    required bool isActive,
+    required VehicleModel vehicle,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    final isActive = vehicle.isPrimary;
+
     return GestureDetector(
       onTap: () {
         if (!isActive) {
-          _showSwitchVehicleDialog(name);
+          _showSwitchVehicleDialog(vehicle);
         }
       },
       child: Container(
@@ -201,7 +253,7 @@ class _ListMotorPageState extends State<ListMotorPage> {
                   child: Row(
                     children: [
                       Text(
-                        name,
+                        vehicle.title,
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w400,
@@ -249,20 +301,28 @@ class _ListMotorPageState extends State<ListMotorPage> {
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: () {
-                        Navigator.push(
+                      onTap: () async {
+                        final result = await Navigator.push(
                           context,
                           SmoothPageRoute(
                             page: EditMotorPage(
-                              name: name,
-                              brand: brand,
-                              model: model,
-                              year: year,
-                              odometer: odometer,
-                              isMainVehicle: isActive,
+                              vehicleId: vehicle.id!,
+                              name: vehicle.title,
+                              brand: vehicle.make,
+                              model: vehicle.model,
+                              year: vehicle.year.toString(),
+                              odometer: vehicle.odometer.toString(),
+                              isMainVehicle: vehicle.isPrimary,
+                              tipeMotor: vehicle.tipeMotor,
+                              licensePlate: vehicle.licensePlate,
+                              color: vehicle.color,
                             ),
                           ),
                         );
+                        // Reload vehicles if a vehicle was updated
+                        if (result == true) {
+                          _loadVehicles();
+                        }
                       },
                       borderRadius: BorderRadius.circular(10),
                       child: Icon(
@@ -284,7 +344,7 @@ class _ListMotorPageState extends State<ListMotorPage> {
                     color: Colors.transparent,
                     child: InkWell(
                       onTap: () {
-                        _showDeleteConfirmation(name);
+                        _showDeleteConfirmation(vehicle);
                       },
                       borderRadius: BorderRadius.circular(10),
                       child: Icon(
@@ -300,7 +360,7 @@ class _ListMotorPageState extends State<ListMotorPage> {
             const SizedBox(height: 8),
             // Vehicle details
             Text(
-              '$brand $model • $year',
+              '${vehicle.make} ${vehicle.model} • ${vehicle.year}',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w400,
@@ -308,15 +368,16 @@ class _ListMotorPageState extends State<ListMotorPage> {
               ),
             ),
             const SizedBox(height: 16),
-            // Odometer badge
+            // Odometer badge — full width, left-aligned to match details text
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8),
               decoration: BoxDecoration(
                 color: colorScheme.surfaceContainerLow,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.start,
                 children: [
                   Text(
                     'Odometer',
@@ -328,7 +389,7 @@ class _ListMotorPageState extends State<ListMotorPage> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '$odometer km',
+                    '${vehicle.odometer.toString().replaceAllMapped(RegExp(r'(\\d{1,3})(?=(\\d{3})+(?!\\d))'), (Match m) => '${m[1]},')} km',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w400,
@@ -344,7 +405,7 @@ class _ListMotorPageState extends State<ListMotorPage> {
     );
   }
 
-  void _showSwitchVehicleDialog(String vehicleName) {
+  void _showSwitchVehicleDialog(VehicleModel vehicle) {
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -364,7 +425,7 @@ class _ListMotorPageState extends State<ListMotorPage> {
             ),
           ),
           content: Text(
-            l10n.switchVehicleConfirm(vehicleName),
+            l10n.switchVehicleConfirm(vehicle.title),
             style: TextStyle(fontSize: 14, color: colorScheme.onSurfaceVariant),
           ),
           actions: [
@@ -376,21 +437,45 @@ class _ListMotorPageState extends State<ListMotorPage> {
               ),
             ),
             TextButton(
-              onPressed: () {
-                // TODO: Implement switch active vehicle
-                setState(() {
-                  // Update active vehicle logic here
-                  for (var vehicle in vehicles) {
-                    vehicle['isActive'] = vehicle['name'] == vehicleName;
-                  }
-                });
+              onPressed: () async {
                 Navigator.pop(dialogContext);
+
+                // Show loading
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('$vehicleName${l10n.nowActiveVehicle}'),
-                    backgroundColor: colorScheme.primary,
+                    content: const Text('Mengubah kendaraan utama...'),
+                    duration: const Duration(seconds: 1),
                   ),
                 );
+
+                try {
+                  await _vehicleService.setPrimaryVehicle(vehicle.id!);
+
+                  // Reload vehicles
+                  await _loadVehicles();
+
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          '${vehicle.title}${l10n.nowActiveVehicle}',
+                        ),
+                        backgroundColor: colorScheme.primary,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Gagal mengubah kendaraan utama: ${e.toString()}',
+                        ),
+                        backgroundColor: colorScheme.error,
+                      ),
+                    );
+                  }
+                }
               },
               child: Text(
                 l10n.yesSwitch,
@@ -403,7 +488,7 @@ class _ListMotorPageState extends State<ListMotorPage> {
     );
   }
 
-  void _showDeleteConfirmation(String vehicleName) {
+  void _showDeleteConfirmation(VehicleModel vehicle) {
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -423,7 +508,7 @@ class _ListMotorPageState extends State<ListMotorPage> {
             ),
           ),
           content: Text(
-            l10n.deleteVehicleConfirm(vehicleName),
+            l10n.deleteVehicleConfirm(vehicle.title),
             style: TextStyle(fontSize: 14, color: colorScheme.onSurfaceVariant),
           ),
           actions: [
@@ -435,20 +520,43 @@ class _ListMotorPageState extends State<ListMotorPage> {
               ),
             ),
             TextButton(
-              onPressed: () {
-                // TODO: Implement delete vehicle
-                setState(() {
-                  vehicles.removeWhere(
-                    (vehicle) => vehicle['name'] == vehicleName,
-                  );
-                });
+              onPressed: () async {
                 Navigator.pop(dialogContext);
+
+                // Show loading
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('$vehicleName${l10n.vehicleDeleted}'),
-                    backgroundColor: colorScheme.error,
+                    content: const Text('Menghapus kendaraan...'),
+                    duration: const Duration(seconds: 1),
                   ),
                 );
+
+                try {
+                  await _vehicleService.deleteVehicle(vehicle.id!);
+
+                  // Reload vehicles
+                  await _loadVehicles();
+
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('${vehicle.title}${l10n.vehicleDeleted}'),
+                        backgroundColor: colorScheme.error,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Gagal menghapus kendaraan: ${e.toString()}',
+                        ),
+                        backgroundColor: colorScheme.error,
+                      ),
+                    );
+                  }
+                }
               },
               child: Text(
                 l10n.delete,

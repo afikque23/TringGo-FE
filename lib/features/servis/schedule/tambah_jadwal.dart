@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../core/services/service_schedule_service.dart';
+import '../../../core/services/vehicle_service.dart';
+import '../../../core/model/service_schedule_model.dart';
 
 class TambahJadwalPage extends StatefulWidget {
   const TambahJadwalPage({super.key});
@@ -11,6 +14,9 @@ class TambahJadwalPage extends StatefulWidget {
 
 class _TambahJadwalPageState extends State<TambahJadwalPage> {
   final _formKey = GlobalKey<FormState>();
+  final _scheduleService = ServiceScheduleService();
+  final _vehicleService = VehicleService();
+
   final _namaController = TextEditingController();
   final _kmController = TextEditingController();
   final _bulanController = TextEditingController();
@@ -18,6 +24,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
 
   bool _isJarakSelected = true; // true = jarak, false = waktu
   bool _reminderEnabled = true;
+  bool _isLoading = false;
   String _reminderBefore = '';
   DateTime? _selectedDate;
 
@@ -249,7 +256,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                l10n.serviceAtKm,
+                                l10n.serviceIntervalKm,
                                 style: TextStyle(
                                   fontFamily: 'Arial',
                                   fontSize: 14,
@@ -271,7 +278,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
                                   color: colorScheme.onSurface,
                                 ),
                                 decoration: InputDecoration(
-                                  hintText: l10n.exampleKm10000,
+                                  hintText: 'Contoh: 5000',
                                   hintStyle: TextStyle(
                                     fontFamily: 'Arial',
                                     fontSize: 16,
@@ -311,7 +318,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                l10n.enterKmForNextService,
+                                l10n.enterIntervalKm,
                                 style: TextStyle(
                                   fontFamily: 'Arial',
                                   fontSize: 12,
@@ -867,18 +874,152 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
     );
   }
 
-  void _saveSchedule() {
-    if (_formKey.currentState!.validate()) {
-      final colorScheme = Theme.of(context).colorScheme;
-      final l10n = AppLocalizations.of(context)!;
-      // TODO: Implement save logic
+  Future<void> _saveSchedule() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final colorScheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+
+    // Validate required fields based on type
+    if (_isJarakSelected && _kmController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Mohon isi interval jarak'),
+          backgroundColor: colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    if (!_isJarakSelected) {
+      if (_bulanController.text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Mohon isi interval waktu'),
+            backgroundColor: colorScheme.error,
+          ),
+        );
+        return;
+      }
+      if (_selectedDate == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Mohon pilih tanggal servis berikutnya'),
+            backgroundColor: colorScheme.error,
+          ),
+        );
+        return;
+      }
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Get primary vehicle from server first
+      final vehicle = await _vehicleService.getPrimaryVehicle();
+      if (vehicle == null) {
+        throw Exception('Tidak ada kendaraan utama ditemukan');
+      }
+
+      // Debug: Log vehicle info
+      print('Vehicle ID: ${vehicle.id}');
+      print('Vehicle Title: ${vehicle.title}');
+      print('Vehicle User ID: ${vehicle.userId}');
+
+      // Check if vehicle has server ID (synced with server)
+      if (vehicle.id == null || vehicle.id! <= 0) {
+        throw Exception(
+          'Kendaraan belum tersinkronisasi dengan server. Silakan hapus dan tambah ulang kendaraan Anda saat terhubung internet.',
+        );
+      }
+
+      // Verify vehicle exists on server by trying to set as primary
+      try {
+        await _vehicleService.setPrimaryVehicle(vehicle.id!);
+        print('Successfully verified vehicle on server');
+      } catch (e) {
+        print('ERROR: Vehicle not found on server: $e');
+        throw Exception(
+          'Kendaraan tidak ditemukan di server. Silakan:\n'
+          '1. Pastikan Anda terhubung internet\n'
+          '2. Buka menu Tambah Kendaraan\n'
+          '3. Hapus kendaraan "${vehicle.title}"\n'
+          '4. Tambahkan kembali kendaraan tersebut\n'
+          '5. Coba buat jadwal servis lagi',
+        );
+      }
+
+      // Parse values
+      final serviceName = _namaController.text;
+      final intervalType = _isJarakSelected ? 'mileage' : 'time';
+      final intervalValue = _isJarakSelected
+          ? int.tryParse(_kmController.text) ?? 0
+          : int.tryParse(_bulanController.text) ?? 0;
+
+      // Calculate next service values
+      int? nextServiceMileage;
+      int? lastServiceMileage;
+      DateTime? nextServiceDate;
+
+      if (_isJarakSelected) {
+        final currentMileage = vehicle.odometer;
+        lastServiceMileage = currentMileage; // Set last service to current
+        nextServiceMileage = currentMileage + intervalValue;
+      } else {
+        nextServiceDate = _selectedDate;
+      }
+
+      // Prepare notes with reminder info
+      String? notes = _catatanController.text;
+      if (_reminderEnabled && _reminderBefore.isNotEmpty) {
+        final reminderText = 'Pengingat: $_reminderBefore';
+        notes = notes.isEmpty ? reminderText : '$notes\n$reminderText';
+      }
+
+      // Create new schedule model
+      final newSchedule = ServiceScheduleModel(
+        vehicleId: vehicle.id!,
+        serviceName: serviceName,
+        intervalType: intervalType,
+        intervalValue: intervalValue,
+        lastServiceMileage: lastServiceMileage,
+        nextServiceMileage: nextServiceMileage,
+        nextServiceDate: nextServiceDate,
+        status: 'active',
+        notes: notes.isEmpty ? null : notes,
+      );
+
+      // Debug: Log schedule data being sent
+      print('Creating schedule for vehicle_id: ${vehicle.id}');
+      print('Schedule type: $intervalType');
+      print('Interval value: $intervalValue');
+
+      // Call API
+      await _scheduleService.createSchedule(newSchedule);
+
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(l10n.scheduleSaved),
           backgroundColor: colorScheme.primary,
         ),
       );
-      Navigator.pop(context);
+
+      Navigator.pop(context, true); // Return true to indicate success
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menyimpan: \${e.toString()}'),
+          backgroundColor: colorScheme.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 }

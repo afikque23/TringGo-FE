@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'register_page.dart';
 import 'forgot_password_page.dart';
 import '../dashboard/dashboard.dart';
 import '../widget/page_transition.dart';
 import '../../l10n/app_localizations.dart';
+import '../../core/network/api_config.dart';
+import '../../core/services/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -15,13 +19,93 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _authService = AuthService();
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      _showErrorDialog('Email dan password harus diisi');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse(ApiConfig.loginUrl),
+        headers: ApiConfig.defaultHeaders,
+        body: jsonEncode({
+          'email': _emailController.text,
+          'password': _passwordController.text,
+        }),
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        // Save the authentication token
+        if (data['data'] != null && data['data']['token'] != null) {
+          await _authService.saveToken(data['data']['token']);
+          
+          // Optionally save user data
+          if (data['data']['user'] != null) {
+            final user = data['data']['user'];
+            if (user['id'] != null && user['email'] != null) {
+              await _authService.saveUserData(
+                userId: user['id'],
+                email: user['email'],
+              );
+            }
+          }
+        }
+
+        Navigator.pushReplacement(
+          context,
+          SmoothPageRoute(page: const DashboardPage()),
+        );
+      } else {
+        final error = jsonDecode(response.body);
+        _showErrorDialog(error['message'] ?? 'Login gagal');
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorDialog('Terjadi kesalahan: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Error'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -287,16 +371,7 @@ class _LoginPageState extends State<LoginPage> {
                       SizedBox(
                         height: 48,
                         child: ElevatedButton(
-                          onPressed: () {
-                            // Navigate to Dashboard
-                            if (_emailController.text.isNotEmpty &&
-                                _passwordController.text.isNotEmpty) {
-                              Navigator.pushReplacement(
-                                context,
-                                SmoothPageRoute(page: const DashboardPage()),
-                              );
-                            }
-                          },
+                          onPressed: _isLoading ? null : _handleLogin,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: colorScheme.primary,
                             foregroundColor: colorScheme.onPrimary,
@@ -305,15 +380,26 @@ class _LoginPageState extends State<LoginPage> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          child: Text(
-                            l10n.login,
-                            style: const TextStyle(
-                              fontFamily: 'Arial',
-                              fontSize: 16,
-                              fontWeight: FontWeight.w400,
-                              height: 1.5,
-                            ),
-                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                )
+                              : Text(
+                                  l10n.login,
+                                  style: const TextStyle(
+                                    fontFamily: 'Arial',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w400,
+                                    height: 1.5,
+                                  ),
+                                ),
                         ),
                       ),
                       const SizedBox(height: 24),

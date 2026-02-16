@@ -650,6 +650,78 @@ abstract class AppLocalizations {
   /// **'Year'**
   String get motorcycleYear;
 
+  /// No description provided for @motorcycleType.
+  ///
+  /// In en, this message translates to:
+  /// **'Motorcycle Type'**
+  String get motorcycleType;
+
+  /// No description provided for @selectMotorcycleType.
+  ///
+  /// In en, this message translates to:
+  /// **'Select motorcycle type'**
+  String get selectMotorcycleType;
+
+  /// No description provided for @motorcycleTypeMatic.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic/Scooter'**
+  String get motorcycleTypeMatic;
+
+  /// No description provided for @motorcycleTypeBebek.
+  ///
+  /// In en, this message translates to:
+  /// **'Cub/Underbone'**
+  String get motorcycleTypeBebek;
+
+  /// No description provided for @motorcycleTypeSport.
+  ///
+  /// In en, this message translates to:
+  /// **'Sport'**
+  String get motorcycleTypeSport;
+
+  /// No description provided for @motorcycleTypeNaked.
+  ///
+  /// In en, this message translates to:
+  /// **'Naked/Standard'**
+  String get motorcycleTypeNaked;
+
+  /// No description provided for @motorcycleTypeTouring.
+  ///
+  /// In en, this message translates to:
+  /// **'Touring'**
+  String get motorcycleTypeTouring;
+
+  /// No description provided for @motorcycleTypeOffroad.
+  ///
+  /// In en, this message translates to:
+  /// **'Off-road/Trail'**
+  String get motorcycleTypeOffroad;
+
+  /// No description provided for @licensePlate.
+  ///
+  /// In en, this message translates to:
+  /// **'License Plate'**
+  String get licensePlate;
+
+  /// No description provided for @licensePlatePlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g.: B 1234 XYZ'**
+  String get licensePlatePlaceholder;
+
+  /// No description provided for @motorcycleColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Motorcycle Color'**
+  String get motorcycleColor;
+
+  /// No description provided for @colorPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g.: Black'**
+  String get colorPlaceholder;
+
   /// No description provided for @addMotorcycle.
   ///
   /// In en, this message translates to:
@@ -1123,6 +1195,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Schedule saved successfully'**
   String get scheduleSaved;
+
+  /// No description provided for @editServiceSchedule.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Service Schedule'**
+  String get editServiceSchedule;
+
+  /// No description provided for @updateScheduleReminder.
+  ///
+  /// In en, this message translates to:
+  /// **'Update maintenance reminder information'**
+  String get updateScheduleReminder;
+
+  /// No description provided for @scheduleUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Schedule updated successfully'**
+  String get scheduleUpdated;
+
+  /// No description provided for @deleteSchedule.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Service Schedule'**
+  String get deleteSchedule;
+
+  /// No description provided for @deleteScheduleConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to delete this service schedule?'**
+  String get deleteScheduleConfirm;
+
+  /// No description provided for @update.
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get update;
+
+  /// No description provided for @serviceSchedule.
+  ///
+  /// In en, this message translates to:
+  /// **'Service Schedule'**
+  String get serviceSchedule;
+
+  /// No description provided for @serviceIntervalKm.
+  ///
+  /// In en, this message translates to:
+  /// **'Service Interval (km)'**
+  String get serviceIntervalKm;
+
+  /// No description provided for @enterIntervalKm.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter service interval in kilometers'**
+  String get enterIntervalKm;
+
+  /// No description provided for @exampleKm10000.
+  ///
+  /// In en, this message translates to:
+  /// **'Example: 10000'**
+  String get exampleKm10000;
+
+  /// No description provided for @exampleMonths6.
+  ///
+  /// In en, this message translates to:
+  /// **'Example: 6'**
+  String get exampleMonths6;
 
   /// No description provided for @oilChange.
   ///
@@ -3595,18 +3733,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'1 month before'**
   String get reminderTime1Month;
-
-  /// No description provided for @exampleKm10000.
-  ///
-  /// In en, this message translates to:
-  /// **'Example: 10000'**
-  String get exampleKm10000;
-
-  /// No description provided for @exampleMonths6.
-  ///
-  /// In en, this message translates to:
-  /// **'Example: 6'**
-  String get exampleMonths6;
 
   /// No description provided for @remindMeBeforeDue.
   ///

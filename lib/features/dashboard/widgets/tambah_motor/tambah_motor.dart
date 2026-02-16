@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:motorcycle_management/core/utils/app_theme.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../../core/services/vehicle_service.dart';
+import '../../../../core/model/vehicle_model.dart';
 
 class TambahMotorPage extends StatefulWidget {
   const TambahMotorPage({super.key});
@@ -12,6 +14,7 @@ class TambahMotorPage extends StatefulWidget {
 
 class _TambahMotorPageState extends State<TambahMotorPage> {
   final _formKey = GlobalKey<FormState>();
+  final _vehicleService = VehicleService();
 
   // Controllers
   final _namaKendaraanController = TextEditingController();
@@ -19,8 +22,12 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
   final _modelController = TextEditingController();
   final _tahunController = TextEditingController(text: '2026');
   final _odometerController = TextEditingController(text: '0');
+  final _platNomorController = TextEditingController();
+  final _warnaController = TextEditingController();
 
+  String? _selectedMotorcycleType;
   bool _isMainVehicle = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -29,6 +36,8 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
     _modelController.dispose();
     _tahunController.dispose();
     _odometerController.dispose();
+    _platNomorController.dispose();
+    _warnaController.dispose();
     super.dispose();
   }
 
@@ -108,10 +117,24 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
                       keyboardType: TextInputType.number,
                     ),
                     const SizedBox(height: 20),
+                    _buildMotorcycleTypeDropdown(),
+                    const SizedBox(height: 20),
                     _buildInputField(
                       label: l10n.currentOdometerKm,
                       controller: _odometerController,
                       keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 20),
+                    _buildInputField(
+                      label: l10n.licensePlate,
+                      controller: _platNomorController,
+                      placeholder: l10n.licensePlatePlaceholder,
+                    ),
+                    const SizedBox(height: 20),
+                    _buildInputField(
+                      label: l10n.motorcycleColor,
+                      controller: _warnaController,
+                      placeholder: l10n.colorPlaceholder,
                     ),
                     const SizedBox(height: 20),
 
@@ -161,7 +184,7 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
           decoration: InputDecoration(
             hintText: placeholder,
             hintStyle: TextStyle(
-              color: colorScheme.textSecondary.withOpacity(0.5),
+              color: colorScheme.textSecondary.withAlpha(128),
             ),
             filled: true,
             fillColor: colorScheme.surface,
@@ -188,6 +211,82 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
               borderSide: BorderSide(color: colorScheme.error, width: 1),
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMotorcycleTypeDropdown() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            l10n.motorcycleType,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: colorScheme.onSurface,
+            ),
+          ),
+        ),
+        // PERBAIKAN: Hapus Container pembungkus, gunakan decoration di dalam field
+        DropdownButtonFormField<String>(
+          value: _selectedMotorcycleType,
+          dropdownColor: colorScheme.surfaceContainerHighest,
+          isExpanded: true, // Membuat menu pilihan lebarnya sama dengan box
+          style: TextStyle(color: colorScheme.onSurface, fontSize: 16),
+          icon: Icon(
+            Icons.keyboard_arrow_down,
+            color: colorScheme.onSurfaceVariant,
+          ),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: colorScheme.surface,
+            hintText: l10n.selectMotorcycleType,
+            hintStyle: TextStyle(color: colorScheme.onSurface.withAlpha(128)),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+
+            // Border saat diam (Satu garis, pas dengan field lain)
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                color: colorScheme.outlineVariant,
+                width: 1,
+              ),
+            ),
+
+            // Border saat fokus/diklik (Berubah warna hijau)
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                color: colorScheme.primary, // Warna hijau sesuai theme Anda
+                width: 1.5,
+              ),
+            ),
+
+            // Menghapus border default agar tidak terjadi penumpukan
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          items: [
+            DropdownMenuItem(
+              value: 'matic',
+              child: Text(l10n.motorcycleTypeMatic),
+            ),
+            DropdownMenuItem(value: 'manual', child: const Text('Manual')),
+            DropdownMenuItem(
+              value: 'sport',
+              child: Text(l10n.motorcycleTypeSport),
+            ),
+          ],
+          onChanged: (val) => setState(() => _selectedMotorcycleType = val),
         ),
       ],
     );
@@ -244,7 +343,7 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
       children: [
         Expanded(
           child: OutlinedButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: _isLoading ? null : () => Navigator.pop(context),
             style: OutlinedButton.styleFrom(
               backgroundColor: colorScheme.surface,
               side: BorderSide(color: colorScheme.outlineVariant),
@@ -262,10 +361,19 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
         const SizedBox(width: 12),
         Expanded(
           child: ElevatedButton.icon(
-            onPressed: _handleSave,
-            icon: const Icon(Icons.save_outlined, color: Colors.white),
+            onPressed: _isLoading ? null : _handleSave,
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Icon(Icons.save_outlined, color: Colors.white),
             label: Text(
-              l10n.save,
+              _isLoading ? 'Menyimpan...' : l10n.save,
               style: const TextStyle(color: Colors.white, fontSize: 16),
             ),
             style: ElevatedButton.styleFrom(
@@ -281,7 +389,7 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
     );
   }
 
-  void _handleSave() {
+  void _handleSave() async {
     if (_namaKendaraanController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -291,7 +399,65 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
       );
       return;
     }
-    // Logic simpan data...
-    Navigator.pop(context);
+
+    if (_selectedMotorcycleType == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Tipe motor wajib dipilih'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Parse controllers
+      final year = int.tryParse(_tahunController.text) ?? 2026;
+      final odometer = int.tryParse(_odometerController.text) ?? 0;
+
+      // Create vehicle model
+      final vehicle = VehicleModel(
+        title: _namaKendaraanController.text,
+        make: _merekController.text,
+        model: _modelController.text,
+        year: year,
+        tipeMotor: _selectedMotorcycleType,
+        odometer: odometer,
+        licensePlate: _platNomorController.text.isEmpty
+            ? null
+            : _platNomorController.text,
+        color: _warnaController.text.isEmpty ? null : _warnaController.text,
+        isPrimary: _isMainVehicle,
+      );
+
+      // Call API
+      await _vehicleService.createVehicle(vehicle);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Kendaraan berhasil ditambahkan'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+        ),
+      );
+
+      Navigator.pop(context, true); // Return true to indicate success
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menambahkan kendaraan: ${e.toString()}'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 }

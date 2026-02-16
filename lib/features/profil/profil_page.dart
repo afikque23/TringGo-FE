@@ -12,6 +12,7 @@ import 'preferensi_aplikasi/preferensi_aplikasi.dart';
 import 'bantuan_dukungan/bantuan_dukungan.dart';
 import 'tentang/tentang.dart';
 import '../auth/login_page.dart';
+import '../../core/services/auth_service.dart';
 
 class ProfilPage extends StatefulWidget {
   const ProfilPage({super.key});
@@ -68,8 +69,12 @@ class _ProfilPageState extends State<ProfilPage> {
               ),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(context).pop(); // Close dialog
+                
+                // Clear authentication data
+                await AuthService().clearAuth();
+                
                 // Navigate to login page and remove all previous routes
                 Navigator.of(context).pushAndRemoveUntil(
                   SmoothPageRoute(page: const LoginPage()),

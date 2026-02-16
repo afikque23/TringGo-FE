@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:motorcycle_management/core/utils/app_theme.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../core/services/service_history_service.dart';
+import '../../../core/model/service_history_model.dart';
+import '../../../core/services/vehicle_service.dart';
 
 class TambahRiwayatServicePage extends StatefulWidget {
   const TambahRiwayatServicePage({super.key});
@@ -18,9 +21,12 @@ class _TambahRiwayatServicePageState extends State<TambahRiwayatServicePage> {
   final _biayaController = TextEditingController();
   final _bengkelController = TextEditingController();
   final _catatanController = TextEditingController();
+  final _historyService = ServiceHistoryService();
+  final _vehicleService = VehicleService();
 
   DateTime? _selectedDate;
   String? _selectedServiceType;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -363,9 +369,119 @@ class _TambahRiwayatServicePageState extends State<TambahRiwayatServicePage> {
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
-  void _saveServiceRecord() {
-    if (_formKey.currentState!.validate()) {
-      Navigator.pop(context);
+  Future<void> _saveServiceRecord() async {
+    final l10n = AppLocalizations.of(context)!;
+
+    if (!_formKey.currentState!.validate()) return;
+
+    if (_selectedDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Pilih tanggal servis'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    if (_selectedServiceType == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Pilih jenis servis'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Get primary vehicle
+      final primaryVehicle = await _vehicleService.getPrimaryVehicle();
+
+      if (primaryVehicle == null) {
+        throw Exception(
+          'Tidak ada kendaraan aktif. Silakan tambah kendaraan terlebih dahulu.',
+        );
+      }
+
+      // Check if vehicle has server ID (synced with server)
+      if (primaryVehicle.id == null || primaryVehicle.id! <= 0) {
+        throw Exception(
+          'Kendaraan belum tersinkronisasi dengan server. Silakan hapus dan tambah ulang kendaraan Anda saat terhubung internet.',
+        );
+      }
+
+      // Try to set as primary on server (in case it's not set server-side)
+      try {
+        await _vehicleService.setPrimaryVehicle(primaryVehicle.id!);
+      } catch (e) {
+        print('Warning: Could not set primary vehicle on server: $e');
+        // Continue anyway, the create request will fail with clear error if needed
+      }
+
+      // Parse input values
+      final mileage = int.tryParse(_odometerController.text) ?? 0;
+      final cost =
+          double.tryParse(
+            _biayaController.text.replaceAll(RegExp(r'[^\d]'), ''),
+          ) ??
+          0;
+
+      // Map service type to readable name
+      final serviceNameMap = {
+        'oilChange': l10n.oilChange,
+        'tireReplacement': l10n.tireReplacement,
+        'chainSprocketReplacement': 'Ganti Rantai & Gir',
+        'brakePadReplacement': l10n.brakePadReplacement,
+        'tuneUp': 'Tune Up',
+        'sparkPlugReplacement': l10n.sparkPlugReplacement,
+        'periodicService': l10n.periodicService,
+        'engineRepair': l10n.engineRepair,
+        'other': l10n.other,
+      };
+
+      // Create service history model
+      final newHistory = ServiceHistoryModel(
+        vehicleId: primaryVehicle.id!,
+        serviceName:
+            serviceNameMap[_selectedServiceType] ?? _selectedServiceType!,
+        serviceDate: _selectedDate!,
+        mileage: mileage,
+        cost: cost,
+        workshopName: _bengkelController.text.isEmpty
+            ? null
+            : _bengkelController.text,
+        notes: _catatanController.text.isEmpty ? null : _catatanController.text,
+      );
+
+      // Call API
+      await _historyService.createHistory(newHistory);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Riwayat servis berhasil ditambahkan'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+        ),
+      );
+
+      Navigator.pop(context, true); // Return true to indicate success
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menyimpan: \${e.toString()}'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 }

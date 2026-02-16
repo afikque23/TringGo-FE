@@ -11,6 +11,8 @@ import '../notification/notification_page.dart';
 import '../servis/service.dart';
 import '../servis/schedule/tambah_jadwal.dart';
 import '../../l10n/app_localizations.dart';
+import '../../core/services/vehicle_service.dart';
+import '../../core/model/vehicle_model.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -21,6 +23,34 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   final int _selectedIndex = 0;
+  final _vehicleService = VehicleService();
+  VehicleModel? _primaryVehicle;
+  bool _isLoadingVehicle = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrimaryVehicle();
+  }
+
+  Future<void> _loadPrimaryVehicle() async {
+    try {
+      final vehicle = await _vehicleService.getPrimaryVehicle();
+      if (mounted) {
+        setState(() {
+          _primaryVehicle = vehicle;
+          _isLoadingVehicle = false;
+        });
+      }
+    } catch (e) {
+      print('Failed to load primary vehicle: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingVehicle = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,52 +84,62 @@ class _DashboardPageState extends State<DashboardPage> {
                       // Vehicle Info
                       Expanded(
                         child: GestureDetector(
-                          onTap: () {
-                            Navigator.push(
+                          onTap: () async {
+                            final result = await Navigator.push(
                               context,
                               SmoothPageRoute(page: const ListMotorPage()),
                             );
+                            // Reload vehicle if changed
+                            if (result == true) {
+                              _loadPrimaryVehicle();
+                            }
                           },
                           child: Row(
                             children: [
                               Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      l10n.activeVehicle,
-                                      style: TextStyle(
-                                        fontFamily: 'Arial',
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w400,
-                                        height: 1.43,
-                                        color: colorScheme.secondary,
+                                child: _isLoadingVehicle
+                                    ? const CircularProgressIndicator()
+                                    : Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            l10n.activeVehicle,
+                                            style: TextStyle(
+                                              fontFamily: 'Arial',
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w400,
+                                              height: 1.43,
+                                              color: colorScheme.secondary,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            _primaryVehicle?.title ??
+                                                'Belum ada kendaraan',
+                                            style: TextStyle(
+                                              fontFamily: 'Arial',
+                                              fontSize: 24,
+                                              fontWeight: FontWeight.w400,
+                                              height: 1.33,
+                                              color: colorScheme.onSurface,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            _primaryVehicle != null
+                                                ? '${_primaryVehicle!.make} ${_primaryVehicle!.model} • ${_primaryVehicle!.year}'
+                                                : 'Tap untuk menambahkan',
+                                            style: TextStyle(
+                                              fontFamily: 'Arial',
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w400,
+                                              height: 1.43,
+                                              color: colorScheme.secondary,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'My Ninja',
-                                      style: TextStyle(
-                                        fontFamily: 'Arial',
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.w400,
-                                        height: 1.33,
-                                        color: colorScheme.onSurface,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Kawasaki Ninja 250 • 2022',
-                                      style: TextStyle(
-                                        fontFamily: 'Arial',
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w400,
-                                        height: 1.43,
-                                        color: colorScheme.secondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
                               ),
                             ],
                           ),
@@ -193,7 +233,9 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '8,450 km',
+                            _primaryVehicle != null
+                                ? '${_primaryVehicle!.odometer.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} km'
+                                : '0 km',
                             style: TextStyle(
                               fontFamily: 'Arial',
                               fontSize: 30,

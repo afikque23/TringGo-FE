@@ -292,6 +292,42 @@ class AppLocalizationsEn extends AppLocalizations {
   String get motorcycleYear => 'Year';
 
   @override
+  String get motorcycleType => 'Motorcycle Type';
+
+  @override
+  String get selectMotorcycleType => 'Select motorcycle type';
+
+  @override
+  String get motorcycleTypeMatic => 'Automatic/Scooter';
+
+  @override
+  String get motorcycleTypeBebek => 'Cub/Underbone';
+
+  @override
+  String get motorcycleTypeSport => 'Sport';
+
+  @override
+  String get motorcycleTypeNaked => 'Naked/Standard';
+
+  @override
+  String get motorcycleTypeTouring => 'Touring';
+
+  @override
+  String get motorcycleTypeOffroad => 'Off-road/Trail';
+
+  @override
+  String get licensePlate => 'License Plate';
+
+  @override
+  String get licensePlatePlaceholder => 'e.g.: B 1234 XYZ';
+
+  @override
+  String get motorcycleColor => 'Motorcycle Color';
+
+  @override
+  String get colorPlaceholder => 'e.g.: Black';
+
+  @override
   String get addMotorcycle => 'Add Motorcycle';
 
   @override
@@ -535,6 +571,41 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get scheduleSaved => 'Schedule saved successfully';
+
+  @override
+  String get editServiceSchedule => 'Edit Service Schedule';
+
+  @override
+  String get updateScheduleReminder =>
+      'Update maintenance reminder information';
+
+  @override
+  String get scheduleUpdated => 'Schedule updated successfully';
+
+  @override
+  String get deleteSchedule => 'Delete Service Schedule';
+
+  @override
+  String get deleteScheduleConfirm =>
+      'Are you sure you want to delete this service schedule?';
+
+  @override
+  String get update => 'Update';
+
+  @override
+  String get serviceSchedule => 'Service Schedule';
+
+  @override
+  String get serviceIntervalKm => 'Service Interval (km)';
+
+  @override
+  String get enterIntervalKm => 'Enter service interval in kilometers';
+
+  @override
+  String get exampleKm10000 => 'Example: 10000';
+
+  @override
+  String get exampleMonths6 => 'Example: 6';
 
   @override
   String get oilChange => 'Engine Oil Change';
@@ -1830,12 +1901,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reminderTime1Month => '1 month before';
-
-  @override
-  String get exampleKm10000 => 'Example: 10000';
-
-  @override
-  String get exampleMonths6 => 'Example: 6';
 
   @override
   String get remindMeBeforeDue => 'Remind me before due date';
