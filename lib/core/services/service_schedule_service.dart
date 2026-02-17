@@ -40,6 +40,10 @@ class ServiceScheduleService {
   Future<List<ServiceScheduleModel>> getAllSchedules() async {
     try {
       final headers = await _getHeaders();
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('🔍 FETCHING SERVICE SCHEDULES');
+      print('URL: ${ApiConfig.baseUrl}/service-schedules');
+
       final response = await http
           .get(
             Uri.parse('${ApiConfig.baseUrl}/service-schedules'),
@@ -47,10 +51,14 @@ class ServiceScheduleService {
           )
           .timeout(ApiConfig.connectTimeout);
 
+      print('📥 Server response: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
         final List<dynamic> data = jsonData['data'] ?? [];
-        return data.map((apiData) {
+        print('📊 Server returned ${data.length} schedules');
+
+        final schedules = data.map((apiData) {
           // Transform API response to match our model structure
           final scheduleType = apiData['schedule_type'] ?? 'km';
           final transformedData = <String, dynamic>{
@@ -75,11 +83,27 @@ class ServiceScheduleService {
           };
           return ServiceScheduleModel.fromJson(transformedData);
         }).toList();
+
+        if (schedules.isNotEmpty) {
+          print('Service schedules:');
+          for (var s in schedules) {
+            print(
+              '  • ${s.serviceName} (ID: ${s.id}, VehicleID: ${s.vehicleId})',
+            );
+          }
+        }
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+        return schedules;
       } else {
+        print('❌ Server returned error ${response.statusCode}');
+        print('📄 Response: ${response.body}');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         throw Exception('Failed to load schedules: ${response.statusCode}');
       }
     } catch (e) {
-      print('Failed to fetch schedules: $e');
+      print('❌ Failed to fetch schedules: $e');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       rethrow;
     }
   }

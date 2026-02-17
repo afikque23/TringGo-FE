@@ -35,6 +35,9 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Future<void> _loadPrimaryVehicle() async {
     try {
+      // Debug: Print auth info first
+      await _vehicleService.debugPrintAuthInfo();
+
       final vehicle = await _vehicleService.getPrimaryVehicle();
       if (mounted) {
         setState(() {

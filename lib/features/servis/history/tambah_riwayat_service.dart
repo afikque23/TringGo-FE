@@ -422,12 +422,14 @@ class _TambahRiwayatServicePageState extends State<TambahRiwayatServicePage> {
       }
 
       // Parse input values
-      final mileage = int.tryParse(_odometerController.text) ?? 0;
-      final cost =
-          double.tryParse(
-            _biayaController.text.replaceAll(RegExp(r'[^\d]'), ''),
-          ) ??
-          0;
+      final mileage = _odometerController.text.isEmpty
+          ? null
+          : int.tryParse(_odometerController.text);
+      final cost = _biayaController.text.isEmpty
+          ? null
+          : double.tryParse(
+              _biayaController.text.replaceAll(RegExp(r'[^\d]'), ''),
+            );
 
       // Map service type to readable name
       final serviceNameMap = {
@@ -448,9 +450,9 @@ class _TambahRiwayatServicePageState extends State<TambahRiwayatServicePage> {
         serviceName:
             serviceNameMap[_selectedServiceType] ?? _selectedServiceType!,
         serviceDate: _selectedDate!,
-        mileage: mileage,
+        odometer: mileage,
         cost: cost,
-        workshopName: _bengkelController.text.isEmpty
+        serviceProvider: _bengkelController.text.isEmpty
             ? null
             : _bengkelController.text,
         notes: _catatanController.text.isEmpty ? null : _catatanController.text,

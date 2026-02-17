@@ -2,26 +2,25 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'service_history_model.g.dart';
 
-@JsonSerializable()
+@JsonSerializable(createFactory: false)
 class ServiceHistoryModel {
   final int? id;
   @JsonKey(name: 'vehicle_id')
   final int vehicleId;
   @JsonKey(name: 'service_type_id')
   final int? serviceTypeId;
-  @JsonKey(name: 'service_name')
+  @JsonKey(name: 'service_type')
   final String serviceName;
-  @JsonKey(name: 'service_date')
+  @JsonKey(name: 'performed_at')
   final DateTime serviceDate;
-  final int mileage;
-  final double cost;
-  @JsonKey(name: 'workshop_name')
-  final String? workshopName;
-  @JsonKey(name: 'workshop_location')
-  final String? workshopLocation;
+  final int? odometer;
+  final double? cost;
+  final String? currency;
+  @JsonKey(name: 'service_provider')
+  final String? serviceProvider;
   final String? notes;
-  @JsonKey(name: 'receipt_image')
-  final String? receiptImage;
+  @JsonKey(name: 'receipt_url')
+  final String? receiptUrl;
   @JsonKey(name: 'created_at')
   final DateTime? createdAt;
   @JsonKey(name: 'updated_at')
@@ -33,18 +32,63 @@ class ServiceHistoryModel {
     this.serviceTypeId,
     required this.serviceName,
     required this.serviceDate,
-    required this.mileage,
-    required this.cost,
-    this.workshopName,
-    this.workshopLocation,
+    this.odometer,
+    this.cost,
+    this.currency,
+    this.serviceProvider,
     this.notes,
-    this.receiptImage,
+    this.receiptUrl,
     this.createdAt,
     this.updatedAt,
   });
 
-  factory ServiceHistoryModel.fromJson(Map<String, dynamic> json) =>
-      _$ServiceHistoryModelFromJson(json);
+  factory ServiceHistoryModel.fromJson(Map<String, dynamic> json) {
+    // Handle service_type - it's a string in the API response
+    String serviceName = 'Unknown Service';
+    if (json['service_type'] != null) {
+      if (json['service_type'] is String) {
+        serviceName = json['service_type'] as String;
+      } else if (json['service_type'] is Map) {
+        // Backward compatibility: handle nested service_type object
+        serviceName = json['service_type']['name'] as String;
+      }
+    }
+
+    // Parse performed_at date
+    DateTime serviceDate;
+    try {
+      serviceDate = DateTime.parse(json['performed_at'] as String);
+    } catch (e) {
+      // Fallback to current date if parsing fails
+      serviceDate = DateTime.now();
+    }
+
+    return ServiceHistoryModel(
+      id: json['id'] != null ? (json['id'] as num).toInt() : null,
+      vehicleId: json['vehicle_id'] != null
+          ? (json['vehicle_id'] as num).toInt()
+          : 0,
+      serviceTypeId: json['service_type_id'] != null
+          ? (json['service_type_id'] as num).toInt()
+          : null,
+      serviceName: serviceName,
+      serviceDate: serviceDate,
+      odometer: json['odometer'] != null
+          ? (json['odometer'] as num).toInt()
+          : null,
+      cost: json['cost'] != null ? (json['cost'] as num).toDouble() : null,
+      currency: json['currency'] as String? ?? 'IDR',
+      serviceProvider: json['service_provider'] as String?,
+      notes: json['notes'] as String?,
+      receiptUrl: json['receipt_url'] as String?,
+      createdAt: json['created_at'] == null
+          ? null
+          : DateTime.parse(json['created_at'] as String),
+      updatedAt: json['updated_at'] == null
+          ? null
+          : DateTime.parse(json['updated_at'] as String),
+    );
+  }
 
   Map<String, dynamic> toJson() => _$ServiceHistoryModelToJson(this);
 
@@ -54,12 +98,12 @@ class ServiceHistoryModel {
     int? serviceTypeId,
     String? serviceName,
     DateTime? serviceDate,
-    int? mileage,
+    int? odometer,
     double? cost,
-    String? workshopName,
-    String? workshopLocation,
+    String? currency,
+    String? serviceProvider,
     String? notes,
-    String? receiptImage,
+    String? receiptUrl,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -69,12 +113,12 @@ class ServiceHistoryModel {
       serviceTypeId: serviceTypeId ?? this.serviceTypeId,
       serviceName: serviceName ?? this.serviceName,
       serviceDate: serviceDate ?? this.serviceDate,
-      mileage: mileage ?? this.mileage,
+      odometer: odometer ?? this.odometer,
       cost: cost ?? this.cost,
-      workshopName: workshopName ?? this.workshopName,
-      workshopLocation: workshopLocation ?? this.workshopLocation,
+      currency: currency ?? this.currency,
+      serviceProvider: serviceProvider ?? this.serviceProvider,
       notes: notes ?? this.notes,
-      receiptImage: receiptImage ?? this.receiptImage,
+      receiptUrl: receiptUrl ?? this.receiptUrl,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

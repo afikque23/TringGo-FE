@@ -55,13 +55,13 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
     // Inisialisasi dropdown dan text controller dengan data yang sudah ada
     _selectedServiceType = _mapServiceType(widget.serviceData['type'] ?? '');
     _odometerController = TextEditingController(
-      text: widget.serviceData['mileage']?.toString() ?? '',
+      text: widget.serviceData['odometer']?.toString() ?? '',
     );
     _biayaController = TextEditingController(
       text: widget.serviceData['cost']?.toString() ?? '',
     );
     _bengkelController = TextEditingController(
-      text: widget.serviceData['workshopName'] ?? '',
+      text: widget.serviceData['serviceProvider'] ?? '',
     );
     _catatanController = TextEditingController(
       text: widget.serviceData['notes'] ?? '',
@@ -428,12 +428,14 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
 
     try {
       // Parse input values
-      final mileage = int.tryParse(_odometerController.text) ?? 0;
-      final cost =
-          double.tryParse(
-            _biayaController.text.replaceAll(RegExp(r'[^\d]'), ''),
-          ) ??
-          0;
+      final odometer = _odometerController.text.isEmpty
+          ? null
+          : int.tryParse(_odometerController.text);
+      final cost = _biayaController.text.isEmpty
+          ? null
+          : double.tryParse(
+              _biayaController.text.replaceAll(RegExp(r'[^\d]'), ''),
+            );
       final historyId = widget.serviceData['id'] as int?;
 
       if (historyId == null) {
@@ -460,9 +462,9 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
         serviceName:
             serviceNameMap[_selectedServiceType] ?? _selectedServiceType,
         serviceDate: _selectedDate!,
-        mileage: mileage,
+        odometer: odometer,
         cost: cost,
-        workshopName: _bengkelController.text.isEmpty
+        serviceProvider: _bengkelController.text.isEmpty
             ? null
             : _bengkelController.text,
         notes: _catatanController.text.isEmpty ? null : _catatanController.text,

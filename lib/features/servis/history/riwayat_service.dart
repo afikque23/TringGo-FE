@@ -7,7 +7,7 @@ import '../../widget/page_transition.dart';
 import '../service.dart';
 import '../schedule/jadwal.dart';
 import 'tambah_riwayat_service.dart';
-import 'edit_riwayat_service.dart';
+import 'detail_riwayat_service.dart';
 import '../../../core/services/service_history_service.dart';
 import '../../../core/model/service_history_model.dart';
 import 'package:intl/intl.dart';
@@ -36,6 +36,7 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
     try {
       final histories = await _historyService.getAllHistories();
       final summary = await _historyService.getCostSummary();
+      print('📊 Loaded ${histories.length} service histories');
       if (mounted) {
         setState(() {
           _serviceHistory = histories;
@@ -44,6 +45,7 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
         });
       }
     } catch (e) {
+      print('❌ Failed to load histories: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -59,10 +61,12 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
   int _calculateTotalCost() {
     if (_costSummary == null) return 0;
     final total = _costSummary!['total_cost'];
+    if (total == null) return 0;
     return total is int ? total : (total as num).toInt();
   }
 
   String _formatCurrency(dynamic amount) {
+    if (amount == null) return 'Rp. 0';
     final value = amount is int ? amount : (amount as num).toInt();
     return 'Rp. ${value.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
   }
@@ -341,11 +345,14 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        final result = await Navigator.push(
           context,
           SmoothPageRoute(page: const TambahRiwayatServicePage()),
         );
+        if (result == true) {
+          _loadData(); // Reload data if add was successful
+        }
       },
       child: Container(
         height: 48,
@@ -405,17 +412,21 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
     final l10n = AppLocalizations.of(context)!;
 
     // Format date
-    final dateStr = DateFormat('dd MMM yyyy').format(service.serviceDate);
+    final dateStr = DateFormat(
+      'dd MMMM yyyy',
+      'id_ID',
+    ).format(service.serviceDate);
 
     // Format cost
-    final costStr = _formatCurrency(service.cost);
+    final costStr = service.cost != null ? _formatCurrency(service.cost!) : '-';
 
     // Format mileage
-    final mileageStr =
-        '${service.mileage.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')} km';
+    final mileageStr = service.odometer != null
+        ? '${service.odometer.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')} KM'
+        : '-';
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16.65),
       decoration: BoxDecoration(
         color: colorScheme.surface,
         border: Border.all(color: colorScheme.outlineVariant, width: 0.65),
@@ -424,21 +435,35 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header with service name and cost
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      service.serviceName,
-                      style: TextStyle(
-                        color: colorScheme.onSurface,
-                        fontSize: 16,
-                      ),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.build_circle_outlined,
+                          size: 16,
+                          color: colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          service.serviceName,
+                          style: TextStyle(
+                            fontFamily: 'Arial',
+                            color: colorScheme.onSurface,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Icon(
@@ -450,8 +475,10 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
                         Text(
                           dateStr,
                           style: TextStyle(
+                            fontFamily: 'Arial',
                             color: colorScheme.textSecondary,
                             fontSize: 14,
+                            fontWeight: FontWeight.w400,
                           ),
                         ),
                       ],
@@ -461,59 +488,35 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
               ),
               Text(
                 costStr,
-                style: TextStyle(color: colorScheme.primary, fontSize: 18),
+                style: TextStyle(
+                  fontFamily: 'Arial',
+                  color: colorScheme.primary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 12),
+          // Detail rows
           Column(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Odometer',
-                    style: TextStyle(
-                      color: colorScheme.textSecondary,
-                      fontSize: 14,
-                    ),
-                  ),
-                  Text(
-                    mileageStr,
-                    style: TextStyle(
-                      color: colorScheme.onSurface,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Workshop',
-                    style: TextStyle(
-                      color: colorScheme.textSecondary,
-                      fontSize: 14,
-                    ),
-                  ),
-                  Text(
-                    service.workshopName ?? '-',
-                    style: TextStyle(
-                      color: colorScheme.onSurface,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
+              if (service.odometer != null)
+                _buildDetailRow('Odometer', mileageStr, colorScheme),
+              if (service.odometer != null) const SizedBox(height: 8),
+              if (service.serviceProvider != null)
+                _buildDetailRow(
+                  'Bengkel',
+                  service.serviceProvider!,
+                  colorScheme,
+                ),
             ],
           ),
-          if (service.notes != null && service.notes!.isNotEmpty)
-            const SizedBox(height: 12),
-          if (service.notes != null && service.notes!.isNotEmpty)
+          // Notes section (if available)
+          if (service.notes != null && service.notes!.isNotEmpty) ...[
+            const SizedBox(height: 8.65),
             Container(
-              padding: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.only(top: 8.65),
               decoration: BoxDecoration(
                 border: Border(
                   top: BorderSide(
@@ -535,113 +538,98 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
                     child: Text(
                       service.notes!,
                       style: TextStyle(
+                        fontFamily: 'Arial',
                         color: colorScheme.textSecondary,
                         fontSize: 12,
+                        fontWeight: FontWeight.w400,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
               ),
             ),
-          const SizedBox(height: 12),
+          ],
+          // View details button
+          const SizedBox(height: 12.65),
           Container(
-            padding: const EdgeInsets.only(top: 12),
+            padding: const EdgeInsets.only(top: 12.65),
             decoration: BoxDecoration(
               border: Border(
                 top: BorderSide(color: colorScheme.outlineVariant, width: 0.65),
               ),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () async {
-                      final result = await Navigator.push(
-                        context,
-                        SmoothPageRoute(
-                          page: EditRiwayatServicePage(
-                            serviceData: {
-                              'id': service.id,
-                              'vehicleId': service.vehicleId,
-                              'serviceName': service.serviceName,
-                              'serviceDate': service.serviceDate
-                                  .toIso8601String(),
-                              'mileage': service.mileage,
-                              'cost': service.cost,
-                              'workshopName': service.workshopName,
-                              'notes': service.notes,
-                            },
-                          ),
-                        ),
-                      );
-                      if (result == true) {
-                        _loadData(); // Reload data if edit was successful
-                      }
-                    },
-                    child: Container(
-                      height: 41,
-                      decoration: BoxDecoration(
-                        color: colorScheme.primary,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(
-                            Icons.edit_outlined,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Edit',
-                            style: TextStyle(color: Colors.white, fontSize: 14),
-                          ),
-                        ],
+            child: GestureDetector(
+              onTap: () async {
+                final result = await Navigator.push(
+                  context,
+                  SmoothPageRoute(
+                    page: DetailRiwayatServicePage(serviceId: service.id!),
+                  ),
+                );
+                // Reload data if any changes were made (edit or delete)
+                if (result == true) {
+                  _loadData();
+                }
+              },
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  color: colorScheme.primary,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.description_outlined,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Lihat Detail',
+                      style: TextStyle(
+                        fontFamily: 'Arial',
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _showDeleteConfirmation(context, service),
-                    child: Container(
-                      height: 41,
-                      decoration: BoxDecoration(
-                        color: colorScheme.error.withValues(alpha: 0.1),
-                        border: Border.all(
-                          color: colorScheme.error.withValues(alpha: 0.2),
-                          width: 0.65,
-                        ),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.delete_outline,
-                            size: 16,
-                            color: colorScheme.error,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            l10n.delete,
-                            style: TextStyle(
-                              color: colorScheme.error,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, ColorScheme colorScheme) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Arial',
+            color: colorScheme.textSecondary,
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontFamily: 'Arial',
+            color: colorScheme.onSurface,
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+      ],
     );
   }
 }

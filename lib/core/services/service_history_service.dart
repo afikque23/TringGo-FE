@@ -40,6 +40,9 @@ class ServiceHistoryService {
   Future<List<ServiceHistoryModel>> getAllHistories() async {
     try {
       final headers = await _getHeaders();
+      print(
+        '🔍 Fetching service histories from: ${ApiConfig.baseUrl}/service-histories',
+      );
       final response = await http
           .get(
             Uri.parse('${ApiConfig.baseUrl}/service-histories'),
@@ -47,15 +50,41 @@ class ServiceHistoryService {
           )
           .timeout(ApiConfig.connectTimeout);
 
+      print('📥 Service histories response status: ${response.statusCode}');
+      print('📄 Raw response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
-        final List<dynamic> data = jsonData['data'] ?? [];
-        return data.map((json) => ServiceHistoryModel.fromJson(json)).toList();
+        print('📦 Parsed JSON: $jsonData');
+        final data = jsonData['data'];
+        print('📊 Data field type: ${data.runtimeType}');
+        print('📊 Data field value: $data');
+
+        // API returns nested structure: {data: {service_histories: [...]}}
+        if (data is Map<String, dynamic> &&
+            data.containsKey('service_histories')) {
+          final histories = data['service_histories'];
+          if (histories is List) {
+            print('✅ Found ${histories.length} service histories');
+            return histories
+                .map((json) => ServiceHistoryModel.fromJson(json))
+                .toList();
+          }
+        }
+        // Fallback: check if data itself is a List (for backwards compatibility)
+        if (data is List) {
+          print('✅ Data is List with ${data.length} items');
+          return data
+              .map((json) => ServiceHistoryModel.fromJson(json))
+              .toList();
+        }
+        print('⚠️ No service histories found, returning empty array');
+        return [];
       } else {
         throw Exception('Failed to load histories: ${response.statusCode}');
       }
     } catch (e) {
-      print('Failed to fetch histories: $e');
+      print('❌ Failed to fetch histories: $e');
       rethrow;
     }
   }
@@ -73,7 +102,14 @@ class ServiceHistoryService {
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
-        return ServiceHistoryModel.fromJson(jsonData['data']);
+        final data = jsonData['data'];
+        // Handle nested structure: {data: {service_history: {...}}}
+        if (data is Map<String, dynamic> &&
+            data.containsKey('service_history')) {
+          return ServiceHistoryModel.fromJson(data['service_history']);
+        }
+        // Fallback: data might be the object directly
+        return ServiceHistoryModel.fromJson(data);
       } else {
         throw Exception('Failed to load history: ${response.statusCode}');
       }
@@ -110,20 +146,24 @@ class ServiceHistoryService {
   Future<ServiceHistoryModel> createHistory(ServiceHistoryModel history) async {
     try {
       final headers = await _getHeaders();
-      // Build payload to match backend expected field names.
+      // Build payload to match actual backend API fields (from working Postman request)
       // Backend gets vehicle from session (primary vehicle), not from payload
       final body = <String, dynamic>{
-        // Backend expects 'service_type' and 'performed_at' keys
-        'service_type': history.serviceTypeId ?? history.serviceName,
-        'performed_at': history.serviceDate.toIso8601String(),
-        'mileage': history.mileage,
-        'cost': history.cost,
-        if (history.workshopName != null) 'workshop_name': history.workshopName,
-        if (history.workshopLocation != null)
-          'workshop_location': history.workshopLocation,
+        'service_type': history.serviceName,
+        'performed_at': history.serviceDate
+            .toIso8601String()
+            .split('T')
+            .first, // YYYY-MM-DD format
+        if (history.odometer != null) 'odometer': history.odometer,
+        if (history.cost != null) 'cost': history.cost,
+        'currency': history.currency ?? 'IDR',
+        if (history.serviceProvider != null)
+          'service_provider': history.serviceProvider,
         if (history.notes != null) 'notes': history.notes,
-        if (history.receiptImage != null) 'receipt_image': history.receiptImage,
+        if (history.receiptUrl != null) 'receipt_photo': history.receiptUrl,
       };
+
+      print('📤 Creating service history with body: $body');
 
       final response = await http
           .post(
@@ -133,16 +173,27 @@ class ServiceHistoryService {
           )
           .timeout(ApiConfig.connectTimeout);
 
+      print('📥 Create response status: ${response.statusCode}');
+      print('📄 Create response body: ${response.body}');
+
       if (response.statusCode == 201 || response.statusCode == 200) {
         final jsonData = json.decode(response.body);
-        return ServiceHistoryModel.fromJson(jsonData['data']);
+        print('✅ Service history created successfully');
+        // API returns nested structure: {data: {service_history: {...}}}
+        final data = jsonData['data'];
+        if (data is Map<String, dynamic> &&
+            data.containsKey('service_history')) {
+          return ServiceHistoryModel.fromJson(data['service_history']);
+        }
+        // Fallback: data might be the object directly
+        return ServiceHistoryModel.fromJson(data);
       } else {
         throw Exception(
           'Failed to create history: ${response.statusCode} - ${response.body}',
         );
       }
     } catch (e) {
-      print('Failed to create history: $e');
+      print('❌ Failed to create history: $e');
       rethrow;
     }
   }
@@ -154,17 +205,20 @@ class ServiceHistoryService {
   ) async {
     try {
       final headers = await _getHeaders();
-      // Build payload aligned to backend field names for update as well.
+      // Build payload to match actual backend API fields
       final body = <String, dynamic>{
-        'service_type': history.serviceTypeId ?? history.serviceName,
-        'performed_at': history.serviceDate.toIso8601String(),
-        'mileage': history.mileage,
-        'cost': history.cost,
-        if (history.workshopName != null) 'workshop_name': history.workshopName,
-        if (history.workshopLocation != null)
-          'workshop_location': history.workshopLocation,
+        'service_type': history.serviceName,
+        'performed_at': history.serviceDate
+            .toIso8601String()
+            .split('T')
+            .first, // YYYY-MM-DD format
+        if (history.odometer != null) 'odometer': history.odometer,
+        if (history.cost != null) 'cost': history.cost,
+        'currency': history.currency ?? 'IDR',
+        if (history.serviceProvider != null)
+          'service_provider': history.serviceProvider,
         if (history.notes != null) 'notes': history.notes,
-        if (history.receiptImage != null) 'receipt_image': history.receiptImage,
+        if (history.receiptUrl != null) 'receipt_photo': history.receiptUrl,
       };
 
       final response = await http
@@ -177,7 +231,14 @@ class ServiceHistoryService {
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
-        return ServiceHistoryModel.fromJson(jsonData['data']);
+        final data = jsonData['data'];
+        // Handle nested structure: {data: {service_history: {...}}}
+        if (data is Map<String, dynamic> &&
+            data.containsKey('service_history')) {
+          return ServiceHistoryModel.fromJson(data['service_history']);
+        }
+        // Fallback: data might be the object directly
+        return ServiceHistoryModel.fromJson(data);
       } else {
         throw Exception(
           'Failed to update history: ${response.statusCode} - ${response.body}',
