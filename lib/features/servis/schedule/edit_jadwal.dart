@@ -97,6 +97,31 @@ class _EditJadwalPageState extends State<EditJadwalPage> {
     });
   }
 
+  /// Map reminder UI text to backend reminder_option_id
+  /// Based on ReminderOptionSeeder data
+  int? _getReminderOptionId(String reminderText, bool isJarak) {
+    final l10n = AppLocalizations.of(context)!;
+
+    if (isJarak) {
+      // Jarak/KM based reminders (IDs: 1=100km, 2=200km, 3=300km, 4=500km, 5=1000km)
+      if (reminderText == l10n.reminderDistance100km) return 1; // 100 km
+      if (reminderText == l10n.reminderDistance200km) return 2; // 200 km
+      if (reminderText == l10n.reminderDistance300km) return 3; // 300 km
+      if (reminderText == l10n.reminderDistance500km) return 4; // 500 km
+    } else {
+      // Time based reminders (IDs: 6=3days, 7=7days, 8=14days, 9=1week, 10=2weeks, etc)
+      if (reminderText == l10n.reminderTime1Day)
+        return 6; // 1 day -> map to 3 days (closest)
+      if (reminderText == l10n.reminderTime3Days) return 6; // 3 days
+      if (reminderText == l10n.reminderTime1Week) return 7; // 7 days / 1 week
+      if (reminderText == l10n.reminderTime2Weeks)
+        return 8; // 14 days / 2 weeks
+      if (reminderText == l10n.reminderTime1Month) return 11; // 1 month
+    }
+
+    return null; // No reminder
+  }
+
   Future<void> _selectDate(BuildContext context) async {
     final colorScheme = Theme.of(context).colorScheme;
     final DateTime? picked = await showDatePicker(
@@ -570,7 +595,7 @@ class _EditJadwalPageState extends State<EditJadwalPage> {
                                         _reminderEnabled = value;
                                       });
                                     },
-                                    activeColor: colorScheme.onPrimary,
+                                    activeThumbColor: colorScheme.onPrimary,
                                     activeTrackColor: colorScheme.primary,
                                     inactiveThumbColor:
                                         colorScheme.onSurfaceVariant,
@@ -608,7 +633,7 @@ class _EditJadwalPageState extends State<EditJadwalPage> {
                                         borderRadius: BorderRadius.circular(14),
                                       ),
                                       child: DropdownButtonFormField<String>(
-                                        value: _reminderBefore,
+                                        initialValue: _reminderBefore,
                                         decoration: const InputDecoration(
                                           border: InputBorder.none,
                                           contentPadding: EdgeInsets.symmetric(
@@ -921,10 +946,20 @@ class _EditJadwalPageState extends State<EditJadwalPage> {
       }
 
       // Parse values
-      final serviceName = _namaController.text;
+      final serviceName = _namaController.text.trim();
+      final intervalType = _isJarakSelected ? 'mileage' : 'time';
       final intervalValue = _isJarakSelected
           ? int.tryParse(_kmController.text) ?? 0
           : int.tryParse(_bulanController.text) ?? 0;
+
+      // Map reminder text to reminder_option_id
+      int? reminderOptionId;
+      if (_reminderEnabled && _reminderBefore.isNotEmpty) {
+        reminderOptionId = _getReminderOptionId(
+          _reminderBefore,
+          _isJarakSelected,
+        );
+      }
 
       // Calculate next service values
       int? nextServiceMileage;
@@ -940,22 +975,21 @@ class _EditJadwalPageState extends State<EditJadwalPage> {
         nextServiceDate = _selectedDate;
       }
 
-      // Prepare notes with reminder info
-      String? notes = _catatanController.text;
-      if (_reminderEnabled && _reminderBefore.isNotEmpty) {
-        final reminderText = 'Pengingat: $_reminderBefore';
-        notes = notes.isEmpty ? reminderText : '$notes\n$reminderText';
-      }
+      // Get notes (don't append reminder info - it's stored separately)
+      final notes = _catatanController.text.trim();
 
       // Create updated schedule model
       final updatedSchedule = widget.schedule.copyWith(
-        serviceName: serviceName,
+        serviceName: serviceName.isNotEmpty ? serviceName : null,
+        serviceTypeId: widget.schedule.serviceTypeId ?? 1,
+        intervalType: intervalType,
         intervalValue: intervalValue,
         lastServiceMileage: lastServiceMileage,
         nextServiceMileage: nextServiceMileage,
         nextServiceDate: nextServiceDate,
+        reminderThreshold: reminderOptionId,
         reminderEnabled: _reminderEnabled,
-        notes: notes.isEmpty ? null : notes,
+        notes: notes.isNotEmpty ? notes : null,
       );
 
       // Call API

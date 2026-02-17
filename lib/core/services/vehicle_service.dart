@@ -234,4 +234,62 @@ class VehicleService {
       return updated;
     }
   }
+
+  /// Get service metrics (distance since last service, until next service)
+  Future<Map<String, dynamic>> getServiceMetrics() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/vehicles/primary/service-metrics'),
+            headers: headers,
+          )
+          .timeout(ApiConfig.connectTimeout);
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        return jsonData['data'] ?? {};
+      } else {
+        throw Exception(
+          'Failed to get service metrics: ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      print('Failed to fetch service metrics: $e');
+      return {
+        'current_odometer': 0,
+        'distance_since_service': 0,
+        'distance_until_next_service': 0,
+      };
+    }
+  }
+
+  /// Get usage pattern statistics
+  Future<Map<String, dynamic>> getUsagePattern() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/vehicles/primary/usage-pattern'),
+            headers: headers,
+          )
+          .timeout(ApiConfig.connectTimeout);
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        return jsonData['data'] ?? {};
+      } else {
+        throw Exception('Failed to get usage pattern: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Failed to fetch usage pattern: $e');
+      return {
+        'average_km_per_day': 0.0,
+        'weekly_km': 0.0,
+        'monthly_km': 0.0,
+        'usage_intensity': 'light',
+        'odometer': 0,
+      };
+    }
+  }
 }

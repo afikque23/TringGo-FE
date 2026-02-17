@@ -49,7 +49,8 @@ class ServiceHistoryService {
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
-        final List<dynamic> data = jsonData['data'] ?? [];
+        // Backend returns data.service_histories array
+        final List<dynamic> data = jsonData['data']?['service_histories'] ?? [];
         return data.map((json) => ServiceHistoryModel.fromJson(json)).toList();
       } else {
         throw Exception('Failed to load histories: ${response.statusCode}');
@@ -96,7 +97,8 @@ class ServiceHistoryService {
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
-        return jsonData['data'] ?? {};
+        // Backend returns data.summary object
+        return jsonData['data']?['summary'] ?? {};
       } else {
         throw Exception('Failed to load cost summary: ${response.statusCode}');
       }
@@ -114,15 +116,15 @@ class ServiceHistoryService {
       // Backend gets vehicle from session (primary vehicle), not from payload
       final body = <String, dynamic>{
         // Backend expects 'service_type' and 'performed_at' keys
-        'service_type': history.serviceTypeId ?? history.serviceName,
+        'service_type': history.serviceName,
         'performed_at': history.serviceDate.toIso8601String(),
-        'mileage': history.mileage,
+        'odometer': history.mileage,
         'cost': history.cost,
-        if (history.workshopName != null) 'workshop_name': history.workshopName,
-        if (history.workshopLocation != null)
-          'workshop_location': history.workshopLocation,
+        if (history.currency != null) 'currency': history.currency,
+        if (history.workshopName != null)
+          'service_provider': history.workshopName,
         if (history.notes != null) 'notes': history.notes,
-        if (history.receiptImage != null) 'receipt_image': history.receiptImage,
+        if (history.receiptImage != null) 'receipt_url': history.receiptImage,
       };
 
       final response = await http
@@ -156,15 +158,15 @@ class ServiceHistoryService {
       final headers = await _getHeaders();
       // Build payload aligned to backend field names for update as well.
       final body = <String, dynamic>{
-        'service_type': history.serviceTypeId ?? history.serviceName,
+        'service_type': history.serviceName,
         'performed_at': history.serviceDate.toIso8601String(),
-        'mileage': history.mileage,
+        'odometer': history.mileage,
         'cost': history.cost,
-        if (history.workshopName != null) 'workshop_name': history.workshopName,
-        if (history.workshopLocation != null)
-          'workshop_location': history.workshopLocation,
+        if (history.currency != null) 'currency': history.currency,
+        if (history.workshopName != null)
+          'service_provider': history.workshopName,
         if (history.notes != null) 'notes': history.notes,
-        if (history.receiptImage != null) 'receipt_image': history.receiptImage,
+        if (history.receiptImage != null) 'receipt_url': history.receiptImage,
       };
 
       final response = await http

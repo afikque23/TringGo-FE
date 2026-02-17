@@ -37,14 +37,18 @@ class ServiceScheduleService {
   }
 
   /// Get all service schedules
-  Future<List<ServiceScheduleModel>> getAllSchedules() async {
+  /// Optional: Pass vehicleId to filter schedules for a specific vehicle
+  Future<List<ServiceScheduleModel>> getAllSchedules({int? vehicleId}) async {
     try {
       final headers = await _getHeaders();
+
+      var url = '${ApiConfig.baseUrl}/service-schedules';
+      if (vehicleId != null) {
+        url += '?vehicle_id=$vehicleId';
+      }
+
       final response = await http
-          .get(
-            Uri.parse('${ApiConfig.baseUrl}/service-schedules'),
-            headers: headers,
-          )
+          .get(Uri.parse(url), headers: headers)
           .timeout(ApiConfig.connectTimeout);
 
       if (response.statusCode == 200) {
@@ -57,8 +61,8 @@ class ServiceScheduleService {
             'id': apiData['id'],
             'vehicle_id': apiData['vehicle_id'],
             'service_type_id': apiData['service_type']?['id'],
-            'service_name':
-                apiData['service_type']?['name'] ?? apiData['service_name'],
+            'service_name': apiData['service_name'] ?? 
+                apiData['service_type']?['name'] ?? 'Unknown Service',
             'interval_type': scheduleType == 'km' ? 'mileage' : 'time',
             'interval_value': apiData['interval_value'] ?? 0,
             'last_service_mileage':
@@ -66,7 +70,7 @@ class ServiceScheduleService {
             'last_service_date': apiData['last_service_date'],
             'next_service_mileage': apiData['target_km'],
             'next_service_date': apiData['target_date'],
-            'reminder_threshold': apiData['reminder_option']?['value'],
+            'reminder_threshold': apiData['reminder_option']?['id'],
             'reminder_enabled': apiData['is_active'] ?? true,
             'status': apiData['status'] ?? 'active',
             'notes': apiData['notes'],
@@ -105,8 +109,8 @@ class ServiceScheduleService {
           'id': apiData['id'],
           'vehicle_id': apiData['vehicle_id'],
           'service_type_id': apiData['service_type']?['id'],
-          'service_name':
-              apiData['service_type']?['name'] ?? apiData['service_name'],
+          'service_name': apiData['service_name'] ?? 
+              apiData['service_type']?['name'] ?? 'Unknown Service',
           'interval_type': scheduleType == 'km' ? 'mileage' : 'time',
           'interval_value': apiData['interval_value'] ?? 0,
           'last_service_mileage':
@@ -114,7 +118,7 @@ class ServiceScheduleService {
           'last_service_date': apiData['last_service_date'],
           'next_service_mileage': apiData['target_km'],
           'next_service_date': apiData['target_date'],
-          'reminder_threshold': apiData['reminder_option']?['value'],
+          'reminder_threshold': apiData['reminder_option']?['id'],
           'reminder_enabled': apiData['is_active'] ?? true,
           'status': apiData['status'] ?? 'active',
           'notes': apiData['notes'],
@@ -159,6 +163,33 @@ class ServiceScheduleService {
     }
   }
 
+  /// Get primary vehicle schedules with real-time status evaluation
+  /// This is the recommended endpoint for mobile apps
+  /// Returns schedules sorted by priority (critical > warning > normal)
+  Future<Map<String, dynamic>> getPrimaryVehicleSchedules() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/service-schedules/primary'),
+            headers: headers,
+          )
+          .timeout(ApiConfig.connectTimeout);
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        return jsonData['data'] ?? {};
+      } else {
+        throw Exception(
+          'Failed to load primary vehicle schedules: ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      print('Failed to fetch primary vehicle schedules: $e');
+      rethrow;
+    }
+  }
+
   /// Create new service schedule
   Future<ServiceScheduleModel> createSchedule(
     ServiceScheduleModel schedule,
@@ -174,29 +205,30 @@ class ServiceScheduleService {
 
       final body = <String, dynamic>{
         'vehicle_id': schedule.vehicleId,
-        'service_type_id':
-            schedule.serviceTypeId ?? 1, // Default to 1 if not provided
+        'service_type_id': schedule.serviceTypeId ?? 1,
         'schedule_type': scheduleType, // 'km' or 'time'
-        'interval_value': schedule.intervalValue,
-        'reminder_option_id': schedule.reminderThreshold ?? 1, // Default to 1
-        'reminder_enabled': schedule.reminderEnabled ? 1 : 0,
         if (schedule.serviceName != null && schedule.serviceName!.isNotEmpty)
           'service_name': schedule.serviceName,
-        if (schedule.lastServiceMileage != null)
-          'last_service_mileage': schedule.lastServiceMileage,
-        if (schedule.lastServiceDate != null)
-          'last_service_date': schedule.lastServiceDate!.toIso8601String(),
-        if (schedule.nextServiceMileage != null)
-          'next_service_mileage': schedule.nextServiceMileage,
-        if (schedule.nextServiceDate != null)
-          'next_service_date': schedule.nextServiceDate!.toIso8601String(),
-        if (schedule.notes != null) 'notes': schedule.notes,
+        if (schedule.notes != null && schedule.notes!.isNotEmpty)
+          'notes': schedule.notes,
       };
-      // Some backend implementations expect an absolute target kilometer
-      // for km-based schedules (key: 'target_km'). Include it when available.
+
+      // Add schedule-type-specific fields
       if (scheduleType == 'km') {
         body['target_km'] =
             schedule.nextServiceMileage ?? schedule.intervalValue;
+      } else if (scheduleType == 'time') {
+        body['target_date'] = schedule.nextServiceDate != null
+            ? schedule.nextServiceDate!.toIso8601String().split('T')[0]
+            : DateTime.now()
+                  .add(Duration(days: schedule.intervalValue))
+                  .toIso8601String()
+                  .split('T')[0];
+      }
+
+      // Add reminder option if provided
+      if (schedule.reminderThreshold != null) {
+        body['reminder_option_id'] = schedule.reminderThreshold;
       }
 
       // Debug logging
@@ -229,8 +261,8 @@ class ServiceScheduleService {
           'id': apiData['id'],
           'vehicle_id': apiData['vehicle_id'],
           'service_type_id': apiData['service_type']?['id'],
-          'service_name':
-              apiData['service_type']?['name'] ?? apiData['service_name'],
+          'service_name': apiData['service_name'] ?? 
+              apiData['service_type']?['name'] ?? 'Unknown Service',
           'interval_type': scheduleType == 'km' ? 'mileage' : 'time',
           'interval_value': apiData['interval_value'] ?? 0,
           'last_service_mileage':
@@ -238,7 +270,7 @@ class ServiceScheduleService {
           'last_service_date': apiData['last_service_date'],
           'next_service_mileage': apiData['target_km'],
           'next_service_date': apiData['target_date'],
-          'reminder_threshold': apiData['reminder_option']?['value'],
+          'reminder_threshold': apiData['reminder_option']?['id'],
           'reminder_enabled': apiData['is_active'] ?? true,
           'status': apiData['status'] ?? 'active',
           'notes': apiData['notes'],
@@ -272,24 +304,28 @@ class ServiceScheduleService {
           : schedule.intervalType;
 
       final body = <String, dynamic>{
-        'vehicle_id': schedule.vehicleId,
         'service_type_id': schedule.serviceTypeId ?? 1,
         'schedule_type': scheduleType,
-        'interval_value': schedule.intervalValue,
-        'reminder_option_id': schedule.reminderThreshold ?? 1,
-        'reminder_enabled': schedule.reminderEnabled ? 1 : 0,
         if (schedule.serviceName != null && schedule.serviceName!.isNotEmpty)
           'service_name': schedule.serviceName,
-        if (schedule.lastServiceMileage != null)
-          'last_service_mileage': schedule.lastServiceMileage,
-        if (schedule.lastServiceDate != null)
-          'last_service_date': schedule.lastServiceDate!.toIso8601String(),
-        if (schedule.nextServiceMileage != null)
-          'next_service_mileage': schedule.nextServiceMileage,
-        if (schedule.nextServiceDate != null)
-          'next_service_date': schedule.nextServiceDate!.toIso8601String(),
         if (schedule.notes != null) 'notes': schedule.notes,
+        'is_active': schedule.reminderEnabled ? 1 : 0,
       };
+
+      // Add schedule-type-specific fields
+      if (scheduleType == 'km') {
+        body['target_km'] =
+            schedule.nextServiceMileage ?? schedule.intervalValue;
+      } else if (scheduleType == 'time' && schedule.nextServiceDate != null) {
+        body['target_date'] = schedule.nextServiceDate!.toIso8601String().split(
+          'T',
+        )[0];
+      }
+
+      // Add reminder option if provided
+      if (schedule.reminderThreshold != null) {
+        body['reminder_option_id'] = schedule.reminderThreshold;
+      }
 
       final response = await http
           .put(
@@ -304,17 +340,23 @@ class ServiceScheduleService {
         final apiData = jsonData['data'];
 
         // Transform API response to match our model structure
+        final scheduleType = apiData['schedule_type'] ?? 'km';
         final transformedData = <String, dynamic>{
           'id': apiData['id'],
           'vehicle_id': apiData['vehicle_id'],
           'service_type_id': apiData['service_type']?['id'],
           'service_name': apiData['service_type']?['name'],
-          'interval_type': apiData['schedule_type'],
-          'interval_value': apiData['target_km'] ?? apiData['target_date'],
+          'interval_type': scheduleType == 'km' ? 'mileage' : 'time',
+          'interval_value':
+              apiData['interval_value'] ??
+              (scheduleType == 'km' ? apiData['target_km'] : 0),
+          'last_service_mileage': apiData['start_odometer'],
+          'last_service_date': apiData['last_service_date'],
           'next_service_mileage': apiData['target_km'],
           'next_service_date': apiData['target_date'],
-          'reminder_threshold': apiData['reminder_option']?['value'],
+          'reminder_threshold': apiData['reminder_option']?['id'],
           'reminder_enabled': apiData['is_active'] ?? true,
+          'status': apiData['status'] ?? 'active',
           'notes': apiData['notes'],
           'created_at': apiData['created_at'],
           'updated_at': apiData['updated_at'],

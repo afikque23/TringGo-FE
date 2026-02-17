@@ -6,6 +6,10 @@ import '../widget/bottom_navbar.dart';
 import '../widget/page_transition.dart';
 import 'schedule/jadwal.dart';
 import 'history/riwayat_service.dart';
+import '../../core/services/vehicle_service.dart';
+import '../../core/services/service_schedule_service.dart';
+import '../../core/model/vehicle_model.dart';
+import '../../core/model/service_schedule_model.dart';
 
 class MaintenancePage extends StatefulWidget {
   const MaintenancePage({super.key});
@@ -16,6 +20,61 @@ class MaintenancePage extends StatefulWidget {
 
 class _MaintenancePageState extends State<MaintenancePage> {
   final int _selectedIndex = 1; // Service tab is active
+  final _vehicleService = VehicleService();
+  final _scheduleService = ServiceScheduleService();
+
+  VehicleModel? _primaryVehicle;
+  List<ServiceScheduleModel> _schedules = [];
+  bool _isLoading = true;
+  Map<String, dynamic> _usagePattern = {};
+  bool _isLoadingPattern = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+    _loadUsagePattern();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final vehicle = await _vehicleService.getPrimaryVehicle();
+      final schedules = await _scheduleService.getAllSchedules();
+
+      if (mounted) {
+        setState(() {
+          _primaryVehicle = vehicle;
+          _schedules = schedules;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _loadUsagePattern() async {
+    setState(() => _isLoadingPattern = true);
+
+    try {
+      final pattern = await _vehicleService.getUsagePattern();
+
+      if (mounted) {
+        setState(() {
+          _usagePattern = pattern;
+          _isLoadingPattern = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingPattern = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,23 +125,29 @@ class _MaintenancePageState extends State<MaintenancePage> {
             ),
             // Content
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-                child: Column(
-                  children: [
-                    _buildStatusCard(),
-                    const SizedBox(height: 16),
-                    _buildInfoCard(),
-                    const SizedBox(height: 16),
-                    _buildStatsRow(),
-                    const SizedBox(height: 16),
-                    _buildRecommendationsCard(),
-                    const SizedBox(height: 16),
-                    _buildUsagePatternCard(),
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : RefreshIndicator(
+                      onRefresh: _loadData,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                        child: Column(
+                          children: [
+                            _buildStatusCard(),
+                            const SizedBox(height: 16),
+                            _buildInfoCard(),
+                            const SizedBox(height: 16),
+                            _buildStatsRow(),
+                            const SizedBox(height: 16),
+                            _buildRecommendationsCard(),
+                            const SizedBox(height: 16),
+                            _buildUsagePatternCard(),
+                            const SizedBox(height: 24),
+                          ],
+                        ),
+                      ),
+                    ),
             ),
           ],
         ),
@@ -169,9 +234,61 @@ class _MaintenancePageState extends State<MaintenancePage> {
     );
   }
 
+  Map<String, int> _calculateScheduleStatuses() {
+    if (_schedules.isEmpty || _primaryVehicle == null) {
+      return {'urgent': 0, 'soon': 0, 'good': 0};
+    }
+
+    int urgent = 0;
+    int soon = 0;
+    int good = 0;
+    final currentOdometer = _primaryVehicle!.odometer;
+
+    for (final schedule in _schedules) {
+      if (schedule.intervalType == 'mileage') {
+        final nextService = schedule.nextServiceMileage ?? 0;
+        final remaining = nextService - currentOdometer;
+
+        if (remaining <= 0) {
+          urgent++;
+        } else if (remaining <= 500) {
+          soon++;
+        } else {
+          good++;
+        }
+      }
+    }
+
+    return {'urgent': urgent, 'soon': soon, 'good': good};
+  }
+
   Widget _buildStatusCard() {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    final statuses = _calculateScheduleStatuses();
+    final urgentCount = statuses['urgent'] ?? 0;
+    final soonCount = statuses['soon'] ?? 0;
+    final goodCount = statuses['good'] ?? 0;
+    final totalSchedules = _schedules.length;
+
+    // Calculate overall status
+    String statusText;
+    Color statusColor;
+    double progressValue;
+
+    if (urgentCount > 0) {
+      statusText = l10n.urgent;
+      statusColor = colorScheme.error;
+      progressValue = 0.3;
+    } else if (soonCount > 0) {
+      statusText = l10n.soon;
+      statusColor = colorScheme.warning;
+      progressValue = 0.6;
+    } else {
+      statusText = l10n.good;
+      statusColor = colorScheme.primary;
+      progressValue = totalSchedules > 0 ? 0.85 : 0.0;
+    }
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -200,8 +317,10 @@ class _MaintenancePageState extends State<MaintenancePage> {
                 height: 32,
                 padding: const EdgeInsets.all(4),
                 child: Icon(
-                  Icons.check_circle_outline,
-                  color: colorScheme.primary,
+                  urgentCount > 0
+                      ? Icons.warning_amber_outlined
+                      : Icons.check_circle_outline,
+                  color: statusColor,
                   size: 24,
                 ),
               ),
@@ -212,12 +331,12 @@ class _MaintenancePageState extends State<MaintenancePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                l10n.good,
+                statusText,
                 style: TextStyle(
                   fontFamily: 'Arial',
                   fontSize: 30,
                   fontWeight: FontWeight.w400,
-                  color: colorScheme.primary,
+                  color: statusColor,
                   height: 1.2,
                 ),
               ),
@@ -225,12 +344,10 @@ class _MaintenancePageState extends State<MaintenancePage> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(999),
                 child: LinearProgressIndicator(
-                  value: 0.75,
+                  value: progressValue,
                   minHeight: 12,
                   backgroundColor: colorScheme.outlineVariant,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    colorScheme.primary,
-                  ),
+                  valueColor: AlwaysStoppedAnimation<Color>(statusColor),
                 ),
               ),
               const SizedBox(height: 8),
@@ -251,21 +368,21 @@ class _MaintenancePageState extends State<MaintenancePage> {
             children: [
               _buildStatBox(
                 l10n.urgent,
-                '1',
+                urgentCount.toString(),
                 colorScheme.error,
                 Icons.warning_amber_outlined,
               ),
               const SizedBox(width: 12),
               _buildStatBox(
                 l10n.soon,
-                '2',
+                soonCount.toString(),
                 colorScheme.warning,
                 Icons.access_time,
               ),
               const SizedBox(width: 12),
               _buildStatBox(
                 l10n.good,
-                '5',
+                goodCount.toString(),
                 colorScheme.primary,
                 Icons.check_circle_outline,
               ),
@@ -378,6 +495,9 @@ class _MaintenancePageState extends State<MaintenancePage> {
   Widget _buildStatsRow() {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    final statuses = _calculateScheduleStatuses();
+    final totalComponents = _schedules.length;
+    final needsAttention = (statuses['urgent'] ?? 0) + (statuses['soon'] ?? 0);
 
     return Row(
       children: [
@@ -407,7 +527,7 @@ class _MaintenancePageState extends State<MaintenancePage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '8',
+                  totalComponents.toString(),
                   style: TextStyle(
                     fontFamily: 'Arial',
                     fontSize: 24,
@@ -458,12 +578,14 @@ class _MaintenancePageState extends State<MaintenancePage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '3',
+                  needsAttention.toString(),
                   style: TextStyle(
                     fontFamily: 'Arial',
                     fontSize: 24,
                     fontWeight: FontWeight.w400,
-                    color: colorScheme.warning,
+                    color: needsAttention > 0
+                        ? colorScheme.warning
+                        : colorScheme.primary,
                     height: 1.33,
                   ),
                 ),
@@ -489,6 +611,43 @@ class _MaintenancePageState extends State<MaintenancePage> {
   Widget _buildRecommendationsCard() {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    final statuses = _calculateScheduleStatuses();
+    final urgentCount = statuses['urgent'] ?? 0;
+    final soonCount = statuses['soon'] ?? 0;
+
+    // Only show if there are recommendations
+    if (urgentCount == 0 && soonCount == 0) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          border: Border.all(color: colorScheme.outlineVariant, width: 0.65),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.check_circle_outline,
+              color: colorScheme.primary,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Semua komponen dalam kondisi baik',
+                style: TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: colorScheme.onSurface,
+                  height: 1.43,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -511,19 +670,21 @@ class _MaintenancePageState extends State<MaintenancePage> {
             ),
           ),
           const SizedBox(height: 12),
-          _buildRecommendationItem(
-            icon: Icons.warning_amber_outlined,
-            color: colorScheme.error,
-            title: l10n.urgentMaintenance,
-            description: l10n.urgentMaintenanceDesc,
-          ),
-          const SizedBox(height: 8),
-          _buildRecommendationItem(
-            icon: Icons.access_time,
-            color: colorScheme.warning,
-            title: l10n.planMaintenance,
-            description: l10n.planMaintenanceDesc,
-          ),
+          if (urgentCount > 0)
+            _buildRecommendationItem(
+              icon: Icons.warning_amber_outlined,
+              color: colorScheme.error,
+              title: l10n.urgentMaintenance,
+              description: l10n.urgentMaintenanceDesc,
+            ),
+          if (urgentCount > 0 && soonCount > 0) const SizedBox(height: 8),
+          if (soonCount > 0)
+            _buildRecommendationItem(
+              icon: Icons.access_time,
+              color: colorScheme.warning,
+              title: l10n.planMaintenance,
+              description: l10n.planMaintenanceDesc,
+            ),
         ],
       ),
     );
@@ -666,7 +827,14 @@ class _MaintenancePageState extends State<MaintenancePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        l10n.lightUsage,
+                        _isLoadingPattern
+                            ? l10n.lightUsage
+                            : (_usagePattern['usage_intensity'] == 'heavy'
+                                  ? 'Penggunaan Berat'
+                                  : _usagePattern['usage_intensity'] ==
+                                        'moderate'
+                                  ? 'Penggunaan Sedang'
+                                  : l10n.lightUsage),
                         style: TextStyle(
                           fontFamily: 'Arial',
                           fontSize: 14,
@@ -695,11 +863,32 @@ class _MaintenancePageState extends State<MaintenancePage> {
           const SizedBox(height: 16),
           Row(
             children: [
-              _buildUsageStatBox(l10n.average, '11.1', l10n.kmPerDay),
+              _buildUsageStatBox(
+                l10n.average,
+                _isLoadingPattern
+                    ? '...'
+                    : '${_usagePattern['average_km_per_day'] ?? 0}',
+                l10n.kmPerDay,
+              ),
               const SizedBox(width: 12),
-              _buildUsageStatBox(l10n.thisWeek, '78', l10n.kmTotal),
+              _buildUsageStatBox(
+                l10n.thisWeek,
+                _isLoadingPattern
+                    ? '...'
+                    : '${(_usagePattern['weekly_km'] ?? 0).round()}',
+                l10n.kmTotal,
+              ),
               const SizedBox(width: 12),
-              _buildUsageStatBox(l10n.odometer, '8,450', l10n.km),
+              _buildUsageStatBox(
+                l10n.odometer,
+                _primaryVehicle != null
+                    ? (_primaryVehicle!.odometer.toString().replaceAllMapped(
+                        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+                        (Match m) => '${m[1]},',
+                      ))
+                    : '0',
+                l10n.km,
+              ),
             ],
           ),
           const SizedBox(height: 16),

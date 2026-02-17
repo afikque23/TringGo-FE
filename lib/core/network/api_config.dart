@@ -15,7 +15,7 @@ class ApiConfig {
   // static const String baseUrl = 'http://127.0.0.1:8000/api/v1/motorcycle';
 
   // OPTION 2: Android Emulator via 10.0.2.2 (no adb reverse)
-  static const String baseUrl = 'http://10.0.2.2:8000/api/v1/motorcycle';
+  static const String baseUrl = 'http://192.168.1.11:8000/api/v1/motorcycle';
 
   // OPTION 3: Physical Device - use your computer's actual IP (replace .125)
   // static const String baseUrl = 'http://192.168.1.125:8000/api/v1/motorcycle';
@@ -26,6 +26,13 @@ class ApiConfig {
   /// API Endpoints
   // Motorcycle
   static const String motorcycle = '/motorcycle';
+
+  // Trips
+  static const String trips = '/trips';
+  static const String tripById = '/trips'; // + /{id}
+
+  // Odometer
+  static const String updateOdometer = '/vehicles'; // + /{vehicleId}/odometer
 
   // Authentication
   static const String authRegister = '/auth/register';
@@ -39,6 +46,14 @@ class ApiConfig {
   /// Full URLs
   // Motorcycle URLs
   static String get motorcycleUrl => '$baseUrl$motorcycle';
+
+  // Trip URLs
+  static String get tripsUrl => '$baseUrl$trips';
+  static String tripByIdUrl(String id) => '$baseUrl$tripById/$id';
+
+  // Odometer URLs
+  static String updateOdometerUrl(int vehicleId) =>
+      '$baseUrl$updateOdometer/$vehicleId/odometer';
 
   // Authentication URLs
   static String get registerUrl => '$baseUrl$authRegister';

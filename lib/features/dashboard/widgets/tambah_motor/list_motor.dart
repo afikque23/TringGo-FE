@@ -17,6 +17,7 @@ class _ListMotorPageState extends State<ListMotorPage> {
   final _vehicleService = VehicleService();
   List<VehicleModel> vehicles = [];
   bool _isLoading = false;
+  bool _hasChanges = false; // Track if any vehicle changes occurred
 
   @override
   void initState() {
@@ -54,150 +55,162 @@ class _ListMotorPageState extends State<ListMotorPage> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    return Scaffold(
-      backgroundColor: colorScheme.surfaceContainerLow,
-      body: Column(
-        children: [
-          // Header
-          Container(
-            width: double.infinity,
-            decoration: BoxDecoration(color: colorScheme.surfaceContainerLow),
-            padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
-            child: SafeArea(
-              bottom: false,
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      // Back button
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          child: Icon(
-                            Icons.arrow_back_ios,
-                            size: 16,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              l10n.myVehicles,
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w400,
-                                color: colorScheme.onSurface,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              l10n.selectOrManageVehicles,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w400,
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            ),
-          ),
-          // Vehicle List
-          Expanded(
-            child: _isLoading
-                ? Center(
-                    child: CircularProgressIndicator(
-                      color: colorScheme.primary,
-                    ),
-                  )
-                : vehicles.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          // Handle system back button/gesture
+          Navigator.of(context).pop(_hasChanges);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: colorScheme.surfaceContainerLow,
+        body: Column(
+          children: [
+            // Header
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(color: colorScheme.surfaceContainerLow),
+              padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
+              child: SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    Row(
                       children: [
-                        Icon(
-                          Icons.directions_bike,
-                          size: 64,
-                          color: colorScheme.onSurfaceVariant.withOpacity(0.5),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Belum ada kendaraan',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: colorScheme.onSurfaceVariant,
+                        // Back button
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context, _hasChanges),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            child: Icon(
+                              Icons.arrow_back_ios,
+                              size: 16,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Tambahkan kendaraan pertama Anda',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: colorScheme.onSurfaceVariant.withOpacity(
-                              0.7,
-                            ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.myVehicles,
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w400,
+                                  color: colorScheme.onSurface,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                l10n.selectOrManageVehicles,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w400,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
-                    itemCount: vehicles.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 20),
-                    itemBuilder: (context, index) {
-                      final vehicle = vehicles[index];
-                      return _buildVehicleCard(
-                        context: context,
-                        vehicle: vehicle,
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-      // Floating Action Button
-      floatingActionButton: Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          color: colorScheme.primary,
-          borderRadius: BorderRadius.circular(999),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.25),
-              blurRadius: 50,
-              offset: const Offset(0, 25),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            ),
+            // Vehicle List
+            Expanded(
+              child: _isLoading
+                  ? Center(
+                      child: CircularProgressIndicator(
+                        color: colorScheme.primary,
+                      ),
+                    )
+                  : vehicles.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.directions_bike,
+                            size: 64,
+                            color: colorScheme.onSurfaceVariant.withOpacity(
+                              0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Belum ada kendaraan',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Tambahkan kendaraan pertama Anda',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: colorScheme.onSurfaceVariant.withOpacity(
+                                0.7,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
+                      itemCount: vehicles.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 20),
+                      itemBuilder: (context, index) {
+                        final vehicle = vehicles[index];
+                        return _buildVehicleCard(
+                          context: context,
+                          vehicle: vehicle,
+                        );
+                      },
+                    ),
             ),
           ],
         ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () async {
-              final result = await Navigator.push(
-                context,
-                SmoothPageRoute(page: const TambahMotorPage()),
-              );
-              // Reload vehicles if a vehicle was added
-              if (result == true) {
-                _loadVehicles();
-              }
-            },
+        // Floating Action Button
+        floatingActionButton: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: colorScheme.primary,
             borderRadius: BorderRadius.circular(999),
-            child: Icon(Icons.add, size: 24, color: colorScheme.onPrimary),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.25),
+                blurRadius: 50,
+                offset: const Offset(0, 25),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () async {
+                final result = await Navigator.push(
+                  context,
+                  SmoothPageRoute(page: const TambahMotorPage()),
+                );
+                // Reload vehicles if a vehicle was added
+                if (result == true) {
+                  _hasChanges = true;
+                  _loadVehicles();
+                }
+              },
+              borderRadius: BorderRadius.circular(999),
+              child: Icon(Icons.add, size: 24, color: colorScheme.onPrimary),
+            ),
           ),
         ),
       ),
@@ -321,6 +334,7 @@ class _ListMotorPageState extends State<ListMotorPage> {
                         );
                         // Reload vehicles if a vehicle was updated
                         if (result == true) {
+                          _hasChanges = true;
                           _loadVehicles();
                         }
                       },
@@ -451,6 +465,9 @@ class _ListMotorPageState extends State<ListMotorPage> {
                 try {
                   await _vehicleService.setPrimaryVehicle(vehicle.id!);
 
+                  // Mark that changes occurred
+                  _hasChanges = true;
+
                   // Reload vehicles
                   await _loadVehicles();
 
@@ -533,6 +550,9 @@ class _ListMotorPageState extends State<ListMotorPage> {
 
                 try {
                   await _vehicleService.deleteVehicle(vehicle.id!);
+
+                  // Mark that changes occurred
+                  _hasChanges = true;
 
                   // Reload vehicles
                   await _loadVehicles();
