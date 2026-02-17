@@ -30,7 +30,8 @@ class ServiceHistoryModel {
 
   ServiceHistoryModel({
     this.id,
-    this.vehicleId,
+    required this.vehicleId,
+    this.serviceTypeId,
     required this.serviceName,
     required this.serviceDate,
     this.odometer,
@@ -96,40 +97,30 @@ class ServiceHistoryModel {
   ServiceHistoryModel copyWith({
     int? id,
     int? vehicleId,
+    int? serviceTypeId,
     String? serviceName,
     DateTime? serviceDate,
     int? odometer,
     double? cost,
     String? currency,
-<<<<<<< HEAD
     String? serviceProvider,
     String? notes,
     String? receiptUrl,
-=======
-    String? workshopName,
-    String? receiptImage,
-    String? notes,
->>>>>>> 22e009ef7836e42850c49ce646c3d245a089ae7b
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
     return ServiceHistoryModel(
       id: id ?? this.id,
       vehicleId: vehicleId ?? this.vehicleId,
+      serviceTypeId: serviceTypeId ?? this.serviceTypeId,
       serviceName: serviceName ?? this.serviceName,
       serviceDate: serviceDate ?? this.serviceDate,
       odometer: odometer ?? this.odometer,
       cost: cost ?? this.cost,
       currency: currency ?? this.currency,
-<<<<<<< HEAD
       serviceProvider: serviceProvider ?? this.serviceProvider,
       notes: notes ?? this.notes,
       receiptUrl: receiptUrl ?? this.receiptUrl,
-=======
-      workshopName: workshopName ?? this.workshopName,
-      receiptImage: receiptImage ?? this.receiptImage,
-      notes: notes ?? this.notes,
->>>>>>> 22e009ef7836e42850c49ce646c3d245a089ae7b
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

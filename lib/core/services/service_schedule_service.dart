@@ -69,8 +69,10 @@ class ServiceScheduleService {
             'id': apiData['id'],
             'vehicle_id': apiData['vehicle_id'],
             'service_type_id': apiData['service_type']?['id'],
-            'service_name': apiData['service_name'] ?? 
-                apiData['service_type']?['name'] ?? 'Unknown Service',
+            'service_name':
+                apiData['service_name'] ??
+                apiData['service_type']?['name'] ??
+                'Unknown Service',
             'interval_type': scheduleType == 'km' ? 'mileage' : 'time',
             'interval_value': apiData['interval_value'] ?? 0,
             'last_service_mileage':
@@ -133,8 +135,10 @@ class ServiceScheduleService {
           'id': apiData['id'],
           'vehicle_id': apiData['vehicle_id'],
           'service_type_id': apiData['service_type']?['id'],
-          'service_name': apiData['service_name'] ?? 
-              apiData['service_type']?['name'] ?? 'Unknown Service',
+          'service_name':
+              apiData['service_name'] ??
+              apiData['service_type']?['name'] ??
+              'Unknown Service',
           'interval_type': scheduleType == 'km' ? 'mileage' : 'time',
           'interval_value': apiData['interval_value'] ?? 0,
           'last_service_mileage':
@@ -285,8 +289,10 @@ class ServiceScheduleService {
           'id': apiData['id'],
           'vehicle_id': apiData['vehicle_id'],
           'service_type_id': apiData['service_type']?['id'],
-          'service_name': apiData['service_name'] ?? 
-              apiData['service_type']?['name'] ?? 'Unknown Service',
+          'service_name':
+              apiData['service_name'] ??
+              apiData['service_type']?['name'] ??
+              'Unknown Service',
           'interval_type': scheduleType == 'km' ? 'mileage' : 'time',
           'interval_value': apiData['interval_value'] ?? 0,
           'last_service_mileage':
