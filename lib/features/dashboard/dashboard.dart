@@ -26,11 +26,14 @@ class _DashboardPageState extends State<DashboardPage> {
   final _vehicleService = VehicleService();
   VehicleModel? _primaryVehicle;
   bool _isLoadingVehicle = true;
+  Map<String, dynamic> _serviceMetrics = {};
+  bool _isLoadingMetrics = true;
 
   @override
   void initState() {
     super.initState();
     _loadPrimaryVehicle();
+    _loadServiceMetrics();
   }
 
   Future<void> _loadPrimaryVehicle() async {
@@ -50,6 +53,25 @@ class _DashboardPageState extends State<DashboardPage> {
       if (mounted) {
         setState(() {
           _isLoadingVehicle = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadServiceMetrics() async {
+    try {
+      final metrics = await _vehicleService.getServiceMetrics();
+      if (mounted) {
+        setState(() {
+          _serviceMetrics = metrics;
+          _isLoadingMetrics = false;
+        });
+      }
+    } catch (e) {
+      print('Failed to load service metrics: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingMetrics = false;
         });
       }
     }
@@ -336,7 +358,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                         ),
                                       ),
                                       Text(
-                                        '950 km',
+                                        _isLoadingMetrics
+                                            ? '...'
+                                            : '${_serviceMetrics['distance_since_service'] ?? 0} km',
                                         style: TextStyle(
                                           fontFamily: 'Arial',
                                           fontSize: 14,
@@ -363,7 +387,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                         ),
                                       ),
                                       Text(
-                                        '1550 km',
+                                        _isLoadingMetrics
+                                            ? '...'
+                                            : '${_serviceMetrics['distance_until_next_service'] ?? 0} km',
                                         style: TextStyle(
                                           fontFamily: 'Arial',
                                           fontSize: 14,
@@ -415,14 +441,22 @@ class _DashboardPageState extends State<DashboardPage> {
                           width: double.infinity,
                           height: 60,
                           child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                SmoothPageRoute(page: const GpsTrackingPage()),
-                              );
-                            },
+                            onPressed: _primaryVehicle == null
+                                ? null
+                                : () {
+                                    Navigator.push(
+                                      context,
+                                      SmoothPageRoute(
+                                        page: const GpsTrackingPage(),
+                                      ),
+                                    );
+                                  },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: colorScheme.primary,
+                              backgroundColor: _primaryVehicle == null
+                                  ? colorScheme.surfaceContainerHighest
+                                  : colorScheme.primary,
+                              disabledBackgroundColor:
+                                  colorScheme.surfaceContainerHighest,
                               elevation: 0,
                               shadowColor: Colors.black.withValues(alpha: 0.1),
                               shape: RoundedRectangleBorder(
@@ -432,20 +466,26 @@ class _DashboardPageState extends State<DashboardPage> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.location_on,
                                   size: 24,
-                                  color: Colors.white,
+                                  color: _primaryVehicle == null
+                                      ? colorScheme.onSurfaceVariant
+                                      : Colors.white,
                                 ),
                                 const SizedBox(width: 12),
                                 Text(
-                                  l10n.startTracking,
-                                  style: const TextStyle(
+                                  _primaryVehicle == null
+                                      ? 'Tambah kendaraan terlebih dahulu'
+                                      : l10n.startTracking,
+                                  style: TextStyle(
                                     fontFamily: 'Arial',
                                     fontSize: 18,
                                     fontWeight: FontWeight.w400,
                                     height: 1.56,
-                                    color: Colors.white,
+                                    color: _primaryVehicle == null
+                                        ? colorScheme.onSurfaceVariant
+                                        : Colors.white,
                                   ),
                                 ),
                               ],

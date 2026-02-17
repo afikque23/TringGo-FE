@@ -61,22 +61,17 @@ class ServiceHistoryService {
         print('📊 Data field value: $data');
 
         // API returns nested structure: {data: {service_histories: [...]}}
-        if (data is Map<String, dynamic> &&
-            data.containsKey('service_histories')) {
+        if (data is Map<String, dynamic> && data.containsKey('service_histories')) {
           final histories = data['service_histories'];
           if (histories is List) {
             print('✅ Found ${histories.length} service histories');
-            return histories
-                .map((json) => ServiceHistoryModel.fromJson(json))
-                .toList();
+            return histories.map((json) => ServiceHistoryModel.fromJson(json)).toList();
           }
         }
         // Fallback: check if data itself is a List (for backwards compatibility)
         if (data is List) {
           print('✅ Data is List with ${data.length} items');
-          return data
-              .map((json) => ServiceHistoryModel.fromJson(json))
-              .toList();
+          return data.map((json) => ServiceHistoryModel.fromJson(json)).toList();
         }
         print('⚠️ No service histories found, returning empty array');
         return [];
@@ -132,7 +127,8 @@ class ServiceHistoryService {
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
-        return jsonData['data'] ?? {};
+        // Backend returns data.summary object
+        return jsonData['data']?['summary'] ?? {};
       } else {
         throw Exception('Failed to load cost summary: ${response.statusCode}');
       }
@@ -149,6 +145,7 @@ class ServiceHistoryService {
       // Build payload to match actual backend API fields (from working Postman request)
       // Backend gets vehicle from session (primary vehicle), not from payload
       final body = <String, dynamic>{
+<<<<<<< HEAD
         'service_type': history.serviceName,
         'performed_at': history.serviceDate
             .toIso8601String()
@@ -161,6 +158,18 @@ class ServiceHistoryService {
           'service_provider': history.serviceProvider,
         if (history.notes != null) 'notes': history.notes,
         if (history.receiptUrl != null) 'receipt_photo': history.receiptUrl,
+=======
+        // Backend expects 'service_type' and 'performed_at' keys
+        'service_type': history.serviceName,
+        'performed_at': history.serviceDate.toIso8601String(),
+        'odometer': history.mileage,
+        'cost': history.cost,
+        if (history.currency != null) 'currency': history.currency,
+        if (history.workshopName != null)
+          'service_provider': history.workshopName,
+        if (history.notes != null) 'notes': history.notes,
+        if (history.receiptImage != null) 'receipt_url': history.receiptImage,
+>>>>>>> 22e009ef7836e42850c49ce646c3d245a089ae7b
       };
 
       print('📤 Creating service history with body: $body');
@@ -208,6 +217,7 @@ class ServiceHistoryService {
       // Build payload to match actual backend API fields
       final body = <String, dynamic>{
         'service_type': history.serviceName,
+<<<<<<< HEAD
         'performed_at': history.serviceDate
             .toIso8601String()
             .split('T')
@@ -219,6 +229,16 @@ class ServiceHistoryService {
           'service_provider': history.serviceProvider,
         if (history.notes != null) 'notes': history.notes,
         if (history.receiptUrl != null) 'receipt_photo': history.receiptUrl,
+=======
+        'performed_at': history.serviceDate.toIso8601String(),
+        'odometer': history.mileage,
+        'cost': history.cost,
+        if (history.currency != null) 'currency': history.currency,
+        if (history.workshopName != null)
+          'service_provider': history.workshopName,
+        if (history.notes != null) 'notes': history.notes,
+        if (history.receiptImage != null) 'receipt_url': history.receiptImage,
+>>>>>>> 22e009ef7836e42850c49ce646c3d245a089ae7b
       };
 
       final response = await http

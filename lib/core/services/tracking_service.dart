@@ -5,6 +5,8 @@ import '../model/location_point.dart';
 import '../model/trip_model.dart';
 import 'location_service.dart';
 import 'background_tracking_handler.dart';
+import 'trip_service.dart';
+import 'vehicle_service.dart';
 
 /// Service untuk mengelola tracking session (start, stop, calculate stats)
 class TrackingService {
@@ -15,6 +17,8 @@ class TrackingService {
   final LocationService _locationService = LocationService();
   final BackgroundTrackingManager _backgroundManager =
       BackgroundTrackingManager();
+  final TripService _tripService = TripService();
+  final VehicleService _vehicleService = VehicleService();
 
   TripModel? _currentTrip;
   StreamSubscription<LocationPoint>? _locationSubscription;
@@ -265,10 +269,47 @@ class TrackingService {
     _currentTrip = null;
   }
 
-  /// Save trip ke storage (bisa local atau API)
+  /// Save trip ke storage dan backend
   Future<void> _saveTrip(TripModel trip) async {
     try {
       print('💾 Saving trip...');
+
+      // 1. Save to backend first (with vehicle ID and odometer update)
+      bool savedToBackend = false;
+      try {
+        // Try to get primary vehicle to update odometer
+        final vehicle = await _vehicleService.getPrimaryVehicle();
+
+        if (vehicle != null && vehicle.id != null) {
+          // Save trip to backend
+          print('📤 Sending trip to backend...');
+          final savedTrip = await _tripService.createTrip(trip);
+
+          if (savedTrip != null) {
+            savedToBackend = true;
+            print('✅ Trip saved to backend successfully');
+
+            // Update vehicle odometer (add trip distance to current odometer)
+            final newOdometer = vehicle.odometer + trip.totalDistance;
+            print(
+              '📊 Updating odometer: ${vehicle.odometer} → $newOdometer km',
+            );
+
+            await _tripService.updateVehicleOdometer(
+              vehicleId: vehicle.id!,
+              newOdometer: newOdometer,
+              notes:
+                  'Auto-updated after trip on ${DateTime.now().toIso8601String()}',
+            );
+          }
+        } else {
+          print('⚠️ No primary vehicle found, skipping odometer update');
+        }
+      } catch (e) {
+        print('⚠️ Backend sync failed (will save locally): $e');
+      }
+
+      // 2. Save to local storage (as backup or if backend failed)
       final prefs = await SharedPreferences.getInstance();
 
       // Get existing trips
@@ -285,10 +326,11 @@ class TrackingService {
       // Save back to storage
       await prefs.setStringList('trip_history', tripsJson);
 
-      print('✅ Trip saved successfully! Total trips: ${tripsJson.length}');
+      print('✅ Trip saved locally! Total trips: ${tripsJson.length}');
       print('   Distance: ${trip.totalDistance.toStringAsFixed(2)} km');
       print('   Duration: ${trip.formattedDuration}');
       print('   Points: ${trip.points.length}');
+      print('   Backend: ${savedToBackend ? "✅ Synced" : "❌ Local only"}');
     } catch (e) {
       print('❌ Error saving trip: $e');
     }
@@ -321,6 +363,42 @@ class TrackingService {
       return trips;
     } catch (e) {
       print('❌ Error loading trip history: $e');
+      return [];
+    }
+  }
+
+  /// Sync local trips to backend
+  /// Useful after being offline or for manual sync
+  Future<int> syncLocalTripsToBackend() async {
+    try {
+      print('🔄 Starting trip sync to backend...');
+      final localTrips = await getTripHistory();
+
+      if (localTrips.isEmpty) {
+        print('ℹ️ No local trips to sync');
+        return 0;
+      }
+
+      final syncedCount = await _tripService.syncLocalTripsToBackend(
+        localTrips,
+      );
+      print('✅ Sync completed: $syncedCount/${localTrips.length} trips synced');
+      return syncedCount;
+    } catch (e) {
+      print('❌ Error syncing trips: $e');
+      return 0;
+    }
+  }
+
+  /// Get trips from backend (server-first approach)
+  Future<List<TripModel>> getTripsFromBackend({
+    int? limit,
+    String? vehicleId,
+  }) async {
+    try {
+      return await _tripService.getAllTrips(limit: limit, vehicleId: vehicleId);
+    } catch (e) {
+      print('Error fetching trips from backend: $e');
       return [];
     }
   }
