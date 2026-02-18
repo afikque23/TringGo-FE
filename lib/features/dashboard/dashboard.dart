@@ -555,13 +555,18 @@ class _DashboardPageState extends State<DashboardPage> {
                                 width: double.infinity,
                                 height: 48,
                                 child: ElevatedButton(
-                                  onPressed: () {
-                                    Navigator.push(
+                                  onPressed: () async {
+                                    final result = await Navigator.push(
                                       context,
                                       SmoothPageRoute(
                                         page: const TambahJarakPage(),
                                       ),
                                     );
+                                    // Reload data if manual distance was added successfully
+                                    if (result == true && mounted) {
+                                      _loadPrimaryVehicle();
+                                      _loadServiceMetrics();
+                                    }
                                   },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: colorScheme.primary,

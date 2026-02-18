@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../core/services/vehicle_service.dart';
+import '../../../core/services/trip_service.dart';
+import '../../../core/model/vehicle_model.dart';
 
 class TambahJarakPage extends StatefulWidget {
   const TambahJarakPage({super.key});
@@ -10,6 +13,9 @@ class TambahJarakPage extends StatefulWidget {
 }
 
 class _TambahJarakPageState extends State<TambahJarakPage> {
+  final _vehicleService = VehicleService();
+  final _tripService = TripService();
+
   String _formatDate(DateTime date) {
     const months = [
       'Januari',
@@ -31,13 +37,48 @@ class _TambahJarakPageState extends State<TambahJarakPage> {
   final TextEditingController _jarakController = TextEditingController();
   final TextEditingController _catatanController = TextEditingController();
   DateTime? _selectedDate;
-  String? _selectedVehicle;
+  VehicleModel? _selectedVehicle;
 
-  final List<String> _vehicles = [
-    'Kawasaki Ninja 250',
-    'Honda CBR150R',
-    'Yamaha R15',
-  ];
+  List<VehicleModel> _vehicles = [];
+  bool _isLoading = true;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVehicles();
+  }
+
+  Future<void> _loadVehicles() async {
+    try {
+      final vehicles = await _vehicleService.getAllVehicles();
+      setState(() {
+        _vehicles = vehicles;
+        _isLoading = false;
+        // Auto-select primary vehicle if available
+        if (_vehicles.isNotEmpty) {
+          final primaryVehicle = _vehicles.firstWhere(
+            (v) => v.isPrimary,
+            orElse: () => _vehicles.first,
+          );
+          _selectedVehicle = primaryVehicle;
+        }
+      });
+    } catch (e) {
+      print('Error loading vehicles: $e');
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Gagal memuat daftar kendaraan'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -76,7 +117,7 @@ class _TambahJarakPageState extends State<TambahJarakPage> {
     }
   }
 
-  void _handleSave() {
+  Future<void> _handleSave() async {
     if (_jarakController.text.isEmpty ||
         _selectedDate == null ||
         _selectedVehicle == null) {
@@ -89,21 +130,93 @@ class _TambahJarakPageState extends State<TambahJarakPage> {
       return;
     }
 
-    // TODO: Implement save logic
-    final l10n = AppLocalizations.of(context)!;
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(l10n.distanceSaved),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-      ),
-    );
+    // Validate vehicle has an ID
+    if (_selectedVehicle!.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Kendaraan tidak valid. Silakan pilih kendaraan lain.',
+          ),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    // Validate distance value
+    final distance = double.tryParse(_jarakController.text);
+    if (distance == null || distance <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Jarak harus berupa angka yang valid'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final result = await _tripService.addManualDistance(
+        vehicleId: _selectedVehicle!.id!,
+        distanceKm: distance,
+        tripDate: _selectedDate!,
+        notes: _catatanController.text.isEmpty ? null : _catatanController.text,
+      );
+
+      if (result != null && mounted) {
+        final l10n = AppLocalizations.of(context)!;
+        Navigator.pop(context, true); // Return true to indicate success
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.distanceSaved),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Gagal menyimpan jarak. Silakan coba lagi.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error saving manual distance: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Terjadi kesalahan. Silakan coba lagi.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
+
+    // Show loading indicator while fetching vehicles
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Center(
+          child: CircularProgressIndicator(color: colorScheme.primary),
+        ),
+      );
+    }
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
@@ -309,19 +422,13 @@ class _TambahJarakPageState extends State<TambahJarakPage> {
                           ),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedVehicle,
-                            hint: Row(
-                              children: [
-                                Icon(
-                                  Icons.directions_bike,
-                                  size: 20,
-                                  color: colorScheme.secondary,
+                        child: _vehicles.isEmpty
+                            ? Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
                                 ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  l10n.selectVehicle,
+                                child: Text(
+                                  'Tidak ada kendaraan tersedia',
                                   style: TextStyle(
                                     fontFamily: 'Arial',
                                     fontSize: 18,
@@ -330,42 +437,68 @@ class _TambahJarakPageState extends State<TambahJarakPage> {
                                     ),
                                   ),
                                 ),
-                              ],
-                            ),
-                            icon: Icon(
-                              Icons.keyboard_arrow_down,
-                              color: colorScheme.secondary,
-                            ),
-                            dropdownColor: colorScheme.surface,
-                            isExpanded: true,
-                            style: TextStyle(
-                              fontFamily: 'Arial',
-                              fontSize: 18,
-                              color: colorScheme.onSurface,
-                            ),
-                            items: _vehicles.map((String vehicle) {
-                              return DropdownMenuItem<String>(
-                                value: vehicle,
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.directions_bike,
-                                      size: 20,
-                                      color: colorScheme.secondary,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(vehicle),
-                                  ],
+                              )
+                            : DropdownButtonHideUnderline(
+                                child: DropdownButton<VehicleModel>(
+                                  value: _selectedVehicle,
+                                  hint: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.directions_bike,
+                                        size: 20,
+                                        color: colorScheme.secondary,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        l10n.selectVehicle,
+                                        style: TextStyle(
+                                          fontFamily: 'Arial',
+                                          fontSize: 18,
+                                          color: colorScheme.onSurface
+                                              .withOpacity(0.5),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  icon: Icon(
+                                    Icons.keyboard_arrow_down,
+                                    color: colorScheme.secondary,
+                                  ),
+                                  dropdownColor: colorScheme.surface,
+                                  isExpanded: true,
+                                  style: TextStyle(
+                                    fontFamily: 'Arial',
+                                    fontSize: 18,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                  items: _vehicles.map((VehicleModel vehicle) {
+                                    return DropdownMenuItem<VehicleModel>(
+                                      value: vehicle,
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.directions_bike,
+                                            size: 20,
+                                            color: colorScheme.secondary,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              vehicle.title,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (VehicleModel? newValue) {
+                                    setState(() {
+                                      _selectedVehicle = newValue;
+                                    });
+                                  },
                                 ),
-                              );
-                            }).toList(),
-                            onChanged: (String? newValue) {
-                              setState(() {
-                                _selectedVehicle = newValue;
-                              });
-                            },
-                          ),
-                        ),
+                              ),
                       ),
                       const SizedBox(height: 20),
 
@@ -504,7 +637,7 @@ class _TambahJarakPageState extends State<TambahJarakPage> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: ElevatedButton(
-                              onPressed: _handleSave,
+                              onPressed: _isSaving ? null : _handleSave,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: colorScheme.primary,
                                 padding: const EdgeInsets.fromLTRB(
@@ -519,15 +652,27 @@ class _TambahJarakPageState extends State<TambahJarakPage> {
                                   borderRadius: BorderRadius.circular(100),
                                 ),
                               ),
-                              child: Text(
-                                l10n.save,
-                                style: const TextStyle(
-                                  fontFamily: 'Arial',
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w400,
-                                  color: Colors.white,
-                                ),
-                              ),
+                              child: _isSaving
+                                  ? const SizedBox(
+                                      height: 16,
+                                      width: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
+                                      ),
+                                    )
+                                  : Text(
+                                      l10n.save,
+                                      style: const TextStyle(
+                                        fontFamily: 'Arial',
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w400,
+                                        color: Colors.white,
+                                      ),
+                                    ),
                             ),
                           ),
                         ],

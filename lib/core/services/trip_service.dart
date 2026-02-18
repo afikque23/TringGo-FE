@@ -225,4 +225,48 @@ class TripService {
     print('✅ Synced $syncedCount/${localTrips.length} trips to backend');
     return syncedCount;
   }
+
+  /// Add manual distance to vehicle
+  /// Creates a trip record without GPS points and updates vehicle odometer
+  Future<Map<String, dynamic>?> addManualDistance({
+    required int vehicleId,
+    required double distanceKm,
+    required DateTime tripDate,
+    String? notes,
+  }) async {
+    try {
+      print('📤 Adding manual distance: $distanceKm km to vehicle $vehicleId');
+      final headers = await _getHeaders();
+
+      final data = {
+        'vehicle_id': vehicleId,
+        'distance_km': distanceKm,
+        'trip_date': tripDate.toIso8601String().split('T')[0], // YYYY-MM-DD
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      };
+
+      final response = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/trips/manual-distance'),
+            headers: headers,
+            body: json.encode(data),
+          )
+          .timeout(ApiConfig.connectTimeout);
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        print('✅ Manual distance added successfully');
+        final jsonData = json.decode(response.body);
+        return jsonData['data'];
+      } else {
+        print('❌ Failed to add manual distance: ${response.statusCode}');
+        print('Response: ${response.body}');
+        throw Exception(
+          'Failed to add manual distance: ${response.statusCode} - ${response.body}',
+        );
+      }
+    } catch (e) {
+      print('❌ Error adding manual distance: $e');
+      return null;
+    }
+  }
 }
