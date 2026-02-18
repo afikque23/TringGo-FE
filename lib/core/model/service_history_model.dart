@@ -67,15 +67,15 @@ class ServiceHistoryModel {
 
     return ServiceHistoryModel(
       id: json['id'] != null ? (json['id'] as num).toInt() : null,
-        vehicleId: json['vehicle_id'] != null
+      vehicleId: json['vehicle_id'] != null
           ? (json['vehicle_id'] as num).toInt()
           : 0,
-        serviceTypeId: json['service_type_id'] != null
+      serviceTypeId: json['service_type_id'] != null
           ? (json['service_type_id'] as num).toInt()
           : null,
-        serviceName: serviceName,
-        serviceDate: serviceDate,
-        odometer: json['odometer'] != null
+      serviceName: serviceName,
+      serviceDate: serviceDate,
+      odometer: json['odometer'] != null
           ? (json['odometer'] as num).toInt()
           : null,
       cost: json['cost'] != null ? (json['cost'] as num).toDouble() : null,

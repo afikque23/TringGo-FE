@@ -61,17 +61,22 @@ class ServiceHistoryService {
         print('📊 Data field value: $data');
 
         // API returns nested structure: {data: {service_histories: [...]}}
-        if (data is Map<String, dynamic> && data.containsKey('service_histories')) {
+        if (data is Map<String, dynamic> &&
+            data.containsKey('service_histories')) {
           final histories = data['service_histories'];
           if (histories is List) {
             print('✅ Found ${histories.length} service histories');
-            return histories.map((json) => ServiceHistoryModel.fromJson(json)).toList();
+            return histories
+                .map((json) => ServiceHistoryModel.fromJson(json))
+                .toList();
           }
         }
         // Fallback: check if data itself is a List (for backwards compatibility)
         if (data is List) {
           print('✅ Data is List with ${data.length} items');
-          return data.map((json) => ServiceHistoryModel.fromJson(json)).toList();
+          return data
+              .map((json) => ServiceHistoryModel.fromJson(json))
+              .toList();
         }
         print('⚠️ No service histories found, returning empty array');
         return [];

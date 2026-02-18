@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/model/service_schedule_model.dart';
+import '../../../core/model/vehicle_model.dart';
 import '../../../core/services/service_schedule_service.dart';
+import '../../../core/services/vehicle_service.dart';
+import '../../../core/utils/app_theme.dart';
 import '../../widget/page_transition.dart';
 import 'edit_jadwal.dart';
 
@@ -32,22 +35,157 @@ class DetailJadwalPage extends StatefulWidget {
 
 class _DetailJadwalPageState extends State<DetailJadwalPage> {
   final _scheduleService = ServiceScheduleService();
+  final _vehicleService = VehicleService();
   bool _isDeleting = false;
+  VehicleModel? _primaryVehicle;
+
+  // Dynamic schedule data
+  late String _status;
+  late Color _statusColor;
+  late String _kmRemaining;
+  late String _currentKm;
+  late String _targetKm;
+  late int _percentage;
+  late Color _progressColor;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize with passed parameters
+    _status = widget.status;
+    _statusColor = widget.statusColor;
+    _kmRemaining = widget.kmRemaining;
+    _currentKm = widget.currentKm;
+    _targetKm = widget.targetKm;
+    _percentage = widget.percentage;
+    _progressColor = widget.statusColor;
+    _loadVehicleAndRecalculate();
+  }
+
+  Future<void> _loadVehicleAndRecalculate() async {
+    try {
+      final vehicle = await _vehicleService.getPrimaryVehicle();
+      if (mounted) {
+        setState(() {
+          _primaryVehicle = vehicle;
+        });
+        _recalculateScheduleData();
+      }
+    } catch (e) {
+      // Error loading vehicle, just continue with initial values
+    }
+  }
+
+  void _recalculateScheduleData() {
+    final l10n = AppLocalizations.of(context)!;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    if (widget.schedule.intervalType == 'mileage') {
+      final currentKm = _primaryVehicle?.odometer ?? 0;
+      final nextKm = widget.schedule.nextServiceMileage ?? 0;
+      final lastKm =
+          widget.schedule.lastServiceMileage ??
+          (nextKm - widget.schedule.intervalValue);
+      final intervalValue = widget.schedule.intervalValue;
+
+      // Calculate remaining km
+      final kmRemaining = nextKm - currentKm;
+
+      // Calculate how much has been traveled since last service
+      final traveledSinceLastService = currentKm - lastKm;
+
+      // Calculate percentage (progress toward next service)
+      final percentage = intervalValue > 0
+          ? ((traveledSinceLastService / intervalValue) * 100)
+                .clamp(0, 100)
+                .toInt()
+          : 0;
+
+      // Determine status based on remaining km
+      String status;
+      Color statusColor;
+      Color progressColor;
+
+      if (kmRemaining <= 0) {
+        status = l10n.urgent;
+        statusColor = colorScheme.error;
+        progressColor = colorScheme.error;
+      } else if (kmRemaining <= intervalValue * 0.2) {
+        status = l10n.soon;
+        statusColor = colorScheme.warning;
+        progressColor = colorScheme.warning;
+      } else {
+        status = l10n.good;
+        statusColor = colorScheme.primary;
+        progressColor = colorScheme.primary;
+      }
+
+      setState(() {
+        _status = status;
+        _statusColor = statusColor;
+        _kmRemaining = kmRemaining.toString();
+        _currentKm = currentKm.toString();
+        _targetKm = nextKm.toString();
+        _percentage = percentage;
+        _progressColor = progressColor;
+      });
+    } else {
+      // Time-based schedule
+      final nextDate = widget.schedule.nextServiceDate;
+      final now = DateTime.now();
+      final daysRemaining = nextDate != null
+          ? nextDate.difference(now).inDays
+          : 0;
+      final intervalDays = widget.schedule.intervalValue;
+
+      // Calculate days since last service
+      final lastDate =
+          widget.schedule.lastServiceDate ??
+          (nextDate != null
+              ? nextDate.subtract(Duration(days: intervalDays))
+              : now);
+      final daysSinceLastService = now.difference(lastDate).inDays;
+
+      // Calculate percentage
+      final percentage = intervalDays > 0
+          ? ((daysSinceLastService / intervalDays) * 100).clamp(0, 100).toInt()
+          : 0;
+
+      String status;
+      Color statusColor;
+      Color progressColor;
+
+      if (daysRemaining <= 0) {
+        status = l10n.urgent;
+        statusColor = colorScheme.error;
+        progressColor = colorScheme.error;
+      } else if (daysRemaining <= intervalDays * 0.2) {
+        status = l10n.soon;
+        statusColor = colorScheme.warning;
+        progressColor = colorScheme.warning;
+      } else {
+        status = l10n.good;
+        statusColor = colorScheme.primary;
+        progressColor = colorScheme.primary;
+      }
+
+      setState(() {
+        _status = status;
+        _statusColor = statusColor;
+        _kmRemaining = daysRemaining.toString();
+        _currentKm = now.toString().split(' ')[0];
+        _targetKm = nextDate?.toString().split(' ')[0] ?? '-';
+        _percentage = percentage;
+        _progressColor = progressColor;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final title = widget.schedule.serviceName ?? l10n.serviceSchedule;
-    final interval = widget.schedule.intervalType == 'mileage'
-        ? 'Setiap ${widget.schedule.intervalValue} km'
-        : 'Setiap ${widget.schedule.intervalValue} bulan';
-    final lastService =
-        widget.schedule.lastServiceDate?.toString().split(' ')[0] ?? '-';
-    final reminder = widget.schedule.reminderEnabled
-        ? l10n.activeReminder
-        : 'Tidak Aktif';
-    final notes = widget.schedule.notes ?? '-';
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
@@ -75,8 +213,8 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
                         child: Icon(
-                          Icons.arrow_back,
-                          size: 24,
+                          Icons.arrow_back_ios,
+                          size: 20,
                           color: colorScheme.onSurfaceVariant,
                         ),
                       ),
@@ -119,6 +257,8 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
                             ),
                           );
                           if (result == true && mounted) {
+                            // Reload vehicle and recalculate before going back
+                            await _loadVehicleAndRecalculate();
                             // Schedule was updated, go back to refresh list
                             Navigator.pop(context, true);
                           }
@@ -195,17 +335,17 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            widget.status,
+            _status,
             style: TextStyle(
               fontFamily: 'Arial',
               fontSize: 14,
               fontWeight: FontWeight.w400,
-              color: widget.statusColor,
+              color: _statusColor,
               height: 1.43,
             ),
           ),
           Text(
-            '${widget.kmRemaining} ${l10n.kmRemaining}',
+            '$_kmRemaining ${l10n.kmRemaining}',
             style: TextStyle(
               fontFamily: 'Arial',
               fontSize: 14,
@@ -265,7 +405,7 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${widget.currentKm} km',
+                    '$_currentKm km',
                     style: TextStyle(
                       fontFamily: 'Arial',
                       fontSize: 18,
@@ -291,7 +431,7 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${widget.targetKm} km',
+                    '$_targetKm km',
                     style: TextStyle(
                       fontFamily: 'Arial',
                       fontSize: 18,
@@ -310,17 +450,15 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(999),
                 child: LinearProgressIndicator(
-                  value: widget.percentage / 100,
+                  value: _percentage / 100,
                   minHeight: 12,
                   backgroundColor: colorScheme.outlineVariant,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    colorScheme.primary,
-                  ),
+                  valueColor: AlwaysStoppedAnimation<Color>(_progressColor),
                 ),
               ),
               const SizedBox(height: 8),
               Text(
-                '${widget.percentage}% ${l10n.towardNextService}',
+                '$_percentage% ${l10n.towardNextService}',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Arial',
@@ -549,9 +687,9 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
               ),
             ),
             TextButton(
-              onPressed: () async {
+              onPressed: () {
                 Navigator.pop(dialogContext);
-                await _deleteSchedule();
+                _deleteSchedule();
               },
               child: Text(
                 l10n.delete,

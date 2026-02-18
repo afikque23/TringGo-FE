@@ -81,10 +81,14 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
       if (reminderText == l10n.reminderDistance500km) return 4; // 500 km
     } else {
       // Time based reminders (IDs: 6=3days, 7=7days, 8=14days, 9=1week, 10=2weeks, etc)
-      if (reminderText == l10n.reminderTime1Day) return 6; // 1 day -> map to 3 days (closest)
+      if (reminderText == l10n.reminderTime1Day) {
+        return 6; // 1 day -> map to 3 days (closest)
+      }
       if (reminderText == l10n.reminderTime3Days) return 6; // 3 days
       if (reminderText == l10n.reminderTime1Week) return 7; // 7 days / 1 week
-      if (reminderText == l10n.reminderTime2Weeks) return 8; // 14 days / 2 weeks
+      if (reminderText == l10n.reminderTime2Weeks) {
+        return 8; // 14 days / 2 weeks
+      }
       if (reminderText == l10n.reminderTime1Month) return 11; // 1 month
     }
 
@@ -557,12 +561,18 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
                                         _reminderEnabled = value;
                                       });
                                     },
-                                    activeThumbColor: colorScheme.onPrimary,
-                                    activeTrackColor: colorScheme.primary,
-                                    inactiveThumbColor:
-                                        colorScheme.onSurfaceVariant,
-                                    inactiveTrackColor:
-                                        colorScheme.surfaceContainerHighest,
+                                    thumbColor: WidgetStateProperty.resolveWith(
+                                      (states) =>
+                                          states.contains(WidgetState.selected)
+                                          ? colorScheme.onPrimary
+                                          : colorScheme.onSurfaceVariant,
+                                    ),
+                                    trackColor: WidgetStateProperty.resolveWith(
+                                      (states) =>
+                                          states.contains(WidgetState.selected)
+                                          ? colorScheme.primary
+                                          : colorScheme.surfaceContainerHighest,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -595,7 +605,9 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
                                         borderRadius: BorderRadius.circular(14),
                                       ),
                                       child: DropdownButtonFormField<String>(
-                                        initialValue: _reminderBefore,
+                                        value: _reminderBefore.isEmpty
+                                            ? null
+                                            : _reminderBefore,
                                         decoration: const InputDecoration(
                                           border: InputBorder.none,
                                           contentPadding: EdgeInsets.symmetric(

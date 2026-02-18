@@ -123,7 +123,21 @@ class _DashboardPageState extends State<DashboardPage> {
                             children: [
                               Expanded(
                                 child: _isLoadingVehicle
-                                    ? const CircularProgressIndicator()
+                                    ? Container(
+                                        width: 28,
+                                        height: 28,
+                                        alignment: Alignment.center,
+                                        child: SizedBox.square(
+                                          dimension: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  colorScheme.primary,
+                                                ),
+                                          ),
+                                        ),
+                                      )
                                     : Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,

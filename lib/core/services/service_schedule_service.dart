@@ -235,6 +235,7 @@ class ServiceScheduleService {
         'vehicle_id': schedule.vehicleId,
         'service_type_id': schedule.serviceTypeId ?? 1,
         'schedule_type': scheduleType, // 'km' or 'time'
+        'interval_value': schedule.intervalValue, // Add interval_value
         if (schedule.serviceName != null && schedule.serviceName!.isNotEmpty)
           'service_name': schedule.serviceName,
         if (schedule.notes != null && schedule.notes!.isNotEmpty)
@@ -292,9 +293,10 @@ class ServiceScheduleService {
           'service_name':
               apiData['service_name'] ??
               apiData['service_type']?['name'] ??
+              schedule.serviceName ??
               'Unknown Service',
           'interval_type': scheduleType == 'km' ? 'mileage' : 'time',
-          'interval_value': apiData['interval_value'] ?? 0,
+          'interval_value': apiData['interval_value'] ?? schedule.intervalValue,
           'last_service_mileage':
               apiData['start_odometer'] ?? apiData['last_service_mileage'],
           'last_service_date': apiData['last_service_date'],
@@ -336,6 +338,7 @@ class ServiceScheduleService {
       final body = <String, dynamic>{
         'service_type_id': schedule.serviceTypeId ?? 1,
         'schedule_type': scheduleType,
+        'interval_value': schedule.intervalValue, // Add interval_value
         if (schedule.serviceName != null && schedule.serviceName!.isNotEmpty)
           'service_name': schedule.serviceName,
         if (schedule.notes != null) 'notes': schedule.notes,
@@ -375,11 +378,10 @@ class ServiceScheduleService {
           'id': apiData['id'],
           'vehicle_id': apiData['vehicle_id'],
           'service_type_id': apiData['service_type']?['id'],
-          'service_name': apiData['service_type']?['name'],
+          'service_name':
+              apiData['service_type']?['name'] ?? schedule.serviceName,
           'interval_type': scheduleType == 'km' ? 'mileage' : 'time',
-          'interval_value':
-              apiData['interval_value'] ??
-              (scheduleType == 'km' ? apiData['target_km'] : 0),
+          'interval_value': apiData['interval_value'] ?? schedule.intervalValue,
           'last_service_mileage': apiData['start_odometer'],
           'last_service_date': apiData['last_service_date'],
           'next_service_mileage': apiData['target_km'],
