@@ -1,9 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../network/api_config.dart';
+import '../network/api_client.dart';
 import '../model/service_history_model.dart';
-import 'auth_service.dart';
-import 'device_service.dart';
+import 'auth_storage.dart';
 
 class ServiceHistoryService {
   // Singleton pattern
@@ -12,22 +13,13 @@ class ServiceHistoryService {
   factory ServiceHistoryService() => _instance;
   ServiceHistoryService._internal();
 
-  final _authService = AuthService();
-  final _deviceService = DeviceService();
+  final _authStorage = AuthStorage();
+  final _apiClient = ApiClient();
 
-  /// Get headers for API requests
-  /// If authenticated: uses Authorization Bearer token
-  /// If guest: uses X-Device-ID header
+  /// Get headers for API requests (for multipart requests)
   Future<Map<String, String>> _getHeaders() async {
     final headers = Map<String, String>.from(ApiConfig.defaultHeaders);
-    final token = await _authService.getToken();
-
-    // Always include device id header if available. Some endpoints require
-    // a device identifier even when the request is authenticated.
-    final deviceId = await _deviceService.getDeviceId();
-    if (deviceId.isNotEmpty) {
-      headers['X-Device-ID'] = deviceId;
-    }
+    final token = await _authStorage.getAccessToken();
 
     if (token != null && token.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
@@ -36,18 +28,91 @@ class ServiceHistoryService {
     return headers;
   }
 
+  /// Send multipart request with automatic token refresh on 401
+  Future<http.Response> _sendMultipartRequest(
+    http.MultipartRequest request,
+  ) async {
+    try {
+      final streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      // If 401, try to refresh token and retry once
+      if (response.statusCode == 401) {
+        print('🔄 Received 401, attempting token refresh...');
+
+        // Let ApiClient handle the refresh
+        final refreshed =
+            await _apiClient.authStorage.getRefreshToken() != null;
+
+        if (refreshed) {
+          // Manually call refresh endpoint
+          final refreshToken = await _authStorage.getRefreshToken();
+          if (refreshToken != null && refreshToken.isNotEmpty) {
+            final refreshResponse = await http.post(
+              Uri.parse('${ApiConfig.baseUrl}${ApiConfig.authRefreshToken}'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: jsonEncode({'refresh_token': refreshToken}),
+            );
+
+            if (refreshResponse.statusCode == 200) {
+              final data = jsonDecode(refreshResponse.body);
+              if (data['success'] == true && data['data'] != null) {
+                final newAccessToken = data['data']['access_token'];
+                final newRefreshToken = data['data']['refresh_token'];
+
+                await _authStorage.saveTokens(
+                  accessToken: newAccessToken,
+                  refreshToken: newRefreshToken,
+                );
+
+                print('✅ Token refreshed, retrying request...');
+
+                // Recreate the request with new token
+                final retryRequest = _cloneMultipartRequest(
+                  request,
+                  newAccessToken,
+                );
+                final retryStreamedResponse = await retryRequest.send();
+                response = await http.Response.fromStream(
+                  retryStreamedResponse,
+                );
+              }
+            }
+          }
+        }
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Multipart request failed: $e');
+      rethrow;
+    }
+  }
+
+  /// Clone a multipart request with new auth token
+  http.MultipartRequest _cloneMultipartRequest(
+    http.MultipartRequest original,
+    String newToken,
+  ) {
+    final cloned = http.MultipartRequest(original.method, original.url);
+    cloned.headers.addAll(original.headers);
+    cloned.headers['Authorization'] = 'Bearer $newToken';
+    cloned.fields.addAll(original.fields);
+    cloned.files.addAll(original.files);
+    return cloned;
+  }
+
   /// Get all service histories
   Future<List<ServiceHistoryModel>> getAllHistories() async {
     try {
-      final headers = await _getHeaders();
       print(
         '🔍 Fetching service histories from: ${ApiConfig.baseUrl}/service-histories',
       );
-      final response = await http
-          .get(
-            Uri.parse('${ApiConfig.baseUrl}/service-histories'),
-            headers: headers,
-          )
+      final response = await _apiClient
+          .get('/service-histories')
           .timeout(ApiConfig.connectTimeout);
 
       print('📥 Service histories response status: ${response.statusCode}');
@@ -92,23 +157,27 @@ class ServiceHistoryService {
   /// Get history by ID
   Future<ServiceHistoryModel> getHistoryById(int id) async {
     try {
-      final headers = await _getHeaders();
-      final response = await http
-          .get(
-            Uri.parse('${ApiConfig.baseUrl}/service-histories/$id'),
-            headers: headers,
-          )
+      print('🔍 Fetching service history detail: /service-histories/$id');
+      final response = await _apiClient
+          .get('/service-histories/$id')
           .timeout(ApiConfig.connectTimeout);
+
+      print('📥 Service history detail status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
+        print('📦 Service history detail response: $jsonData');
         final data = jsonData['data'];
         // Handle nested structure: {data: {service_history: {...}}}
         if (data is Map<String, dynamic> &&
             data.containsKey('service_history')) {
+          print(
+            '🔍 receipt_url field: ${data['service_history']['receipt_url']}',
+          );
           return ServiceHistoryModel.fromJson(data['service_history']);
         }
         // Fallback: data might be the object directly
+        print('🔍 receipt_url field: ${data['receipt_url']}');
         return ServiceHistoryModel.fromJson(data);
       } else {
         throw Exception('Failed to load history: ${response.statusCode}');
@@ -122,12 +191,8 @@ class ServiceHistoryService {
   /// Get cost summary
   Future<Map<String, dynamic>> getCostSummary() async {
     try {
-      final headers = await _getHeaders();
-      final response = await http
-          .get(
-            Uri.parse('${ApiConfig.baseUrl}/service-histories/cost-summary'),
-            headers: headers,
-          )
+      final response = await _apiClient
+          .get('/service-histories/cost-summary')
           .timeout(ApiConfig.connectTimeout);
 
       if (response.statusCode == 200) {
@@ -144,54 +209,112 @@ class ServiceHistoryService {
   }
 
   /// Create new service history
-  Future<ServiceHistoryModel> createHistory(ServiceHistoryModel history) async {
+  Future<ServiceHistoryModel> createHistory(
+    ServiceHistoryModel history, {
+    File? receiptFile,
+  }) async {
     try {
-      final headers = await _getHeaders();
-      // Build payload to match actual backend API fields (from working Postman request)
-      // Backend gets vehicle from session (primary vehicle), not from payload
-      final body = <String, dynamic>{
-        'service_type': history.serviceName,
-        'performed_at': history.serviceDate
+      final token = await _authStorage.getAccessToken();
+      if (token == null) {
+        throw Exception('No access token available');
+      }
+
+      // Create multipart request if there's a file, otherwise use JSON
+      if (receiptFile != null) {
+        var request = http.MultipartRequest(
+          'POST',
+          Uri.parse('${ApiConfig.baseUrl}/service-histories'),
+        );
+
+        // Add headers
+        request.headers['Authorization'] = 'Bearer $token';
+        request.headers['Accept'] = 'application/json';
+
+        // Add fields
+        request.fields['service_type'] = history.serviceName;
+        request.fields['performed_at'] = history.serviceDate
             .toIso8601String()
             .split('T')
-            .first, // YYYY-MM-DD format
-        if (history.odometer != null) 'odometer': history.odometer,
-        if (history.cost != null) 'cost': history.cost,
-        'currency': history.currency ?? 'IDR',
-        if (history.serviceProvider != null)
-          'service_provider': history.serviceProvider,
-        if (history.notes != null) 'notes': history.notes,
-        if (history.receiptUrl != null) 'receipt_photo': history.receiptUrl,
-      };
-
-      print('📤 Creating service history with body: $body');
-
-      final response = await http
-          .post(
-            Uri.parse('${ApiConfig.baseUrl}/service-histories'),
-            headers: headers,
-            body: json.encode(body),
-          )
-          .timeout(ApiConfig.connectTimeout);
-
-      print('📥 Create response status: ${response.statusCode}');
-      print('📄 Create response body: ${response.body}');
-
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
-        print('✅ Service history created successfully');
-        // API returns nested structure: {data: {service_history: {...}}}
-        final data = jsonData['data'];
-        if (data is Map<String, dynamic> &&
-            data.containsKey('service_history')) {
-          return ServiceHistoryModel.fromJson(data['service_history']);
+            .first;
+        if (history.odometer != null) {
+          request.fields['odometer'] = history.odometer.toString();
         }
-        // Fallback: data might be the object directly
-        return ServiceHistoryModel.fromJson(data);
-      } else {
-        throw Exception(
-          'Failed to create history: ${response.statusCode} - ${response.body}',
+        if (history.cost != null) {
+          request.fields['cost'] = history.cost.toString();
+        }
+        request.fields['currency'] = history.currency ?? 'IDR';
+        if (history.serviceProvider != null) {
+          request.fields['service_provider'] = history.serviceProvider!;
+        }
+        if (history.notes != null) {
+          request.fields['notes'] = history.notes!;
+        }
+
+        // Add receipt file
+        print('📷 Uploading receipt image...');
+        request.files.add(
+          await http.MultipartFile.fromPath('receipt_photo', receiptFile.path),
         );
+
+        print('📤 Creating service history with file upload');
+        final response = await _sendMultipartRequest(request);
+
+        print('📥 Create response status: ${response.statusCode}');
+        print('📄 Create response body: ${response.body}');
+
+        if (response.statusCode == 201 || response.statusCode == 200) {
+          final jsonData = json.decode(response.body);
+          print('✅ Service history created successfully with image');
+          final data = jsonData['data'];
+          if (data is Map<String, dynamic> &&
+              data.containsKey('service_history')) {
+            return ServiceHistoryModel.fromJson(data['service_history']);
+          }
+          return ServiceHistoryModel.fromJson(data);
+        } else {
+          throw Exception(
+            'Failed to create history: ${response.statusCode} - ${response.body}',
+          );
+        }
+      } else {
+        // JSON request without file
+        final body = <String, dynamic>{
+          'service_type': history.serviceName,
+          'performed_at': history.serviceDate
+              .toIso8601String()
+              .split('T')
+              .first, // YYYY-MM-DD format
+          if (history.odometer != null) 'odometer': history.odometer,
+          if (history.cost != null) 'cost': history.cost,
+          'currency': history.currency ?? 'IDR',
+          if (history.serviceProvider != null)
+            'service_provider': history.serviceProvider,
+          if (history.notes != null) 'notes': history.notes,
+        };
+
+        print('📤 Creating service history with body: $body');
+
+        final response = await _apiClient
+            .post('/service-histories', body: body)
+            .timeout(ApiConfig.connectTimeout);
+
+        print('📥 Create response status: ${response.statusCode}');
+        print('📄 Create response body: ${response.body}');
+
+        if (response.statusCode == 201 || response.statusCode == 200) {
+          final jsonData = json.decode(response.body);
+          print('✅ Service history created successfully');
+          final data = jsonData['data'];
+          if (data is Map<String, dynamic> &&
+              data.containsKey('service_history')) {
+            return ServiceHistoryModel.fromJson(data['service_history']);
+          }
+          return ServiceHistoryModel.fromJson(data);
+        } else {
+          throw Exception(
+            'Failed to create history: ${response.statusCode} - ${response.body}',
+          );
+        }
       }
     } catch (e) {
       print('❌ Failed to create history: $e');
@@ -202,48 +325,106 @@ class ServiceHistoryService {
   /// Update service history
   Future<ServiceHistoryModel> updateHistory(
     int id,
-    ServiceHistoryModel history,
-  ) async {
+    ServiceHistoryModel history, {
+    File? receiptFile,
+  }) async {
     try {
-      final headers = await _getHeaders();
-      // Build payload to match actual backend API fields
-      final body = <String, dynamic>{
-        'service_type': history.serviceName,
-        'performed_at': history.serviceDate
+      final token = await _authStorage.getAccessToken();
+      if (token == null) {
+        throw Exception('No access token available');
+      }
+
+      // Create multipart request if there's a file, otherwise use JSON
+      if (receiptFile != null) {
+        var request = http.MultipartRequest(
+          'POST',
+          Uri.parse('${ApiConfig.baseUrl}/service-histories/$id'),
+        );
+
+        // Add headers (using POST with _method override for file upload)
+        request.headers['Authorization'] = 'Bearer $token';
+        request.headers['Accept'] = 'application/json';
+        request.fields['_method'] = 'PUT';
+
+        // Add fields
+        request.fields['service_type'] = history.serviceName;
+        request.fields['performed_at'] = history.serviceDate
             .toIso8601String()
             .split('T')
-            .first, // YYYY-MM-DD format
-        if (history.odometer != null) 'odometer': history.odometer,
-        if (history.cost != null) 'cost': history.cost,
-        'currency': history.currency ?? 'IDR',
-        if (history.serviceProvider != null)
-          'service_provider': history.serviceProvider,
-        if (history.notes != null) 'notes': history.notes,
-        if (history.receiptUrl != null) 'receipt_photo': history.receiptUrl,
-      };
-
-      final response = await http
-          .put(
-            Uri.parse('${ApiConfig.baseUrl}/service-histories/$id'),
-            headers: headers,
-            body: json.encode(body),
-          )
-          .timeout(ApiConfig.connectTimeout);
-
-      if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
-        final data = jsonData['data'];
-        // Handle nested structure: {data: {service_history: {...}}}
-        if (data is Map<String, dynamic> &&
-            data.containsKey('service_history')) {
-          return ServiceHistoryModel.fromJson(data['service_history']);
+            .first;
+        if (history.odometer != null) {
+          request.fields['odometer'] = history.odometer.toString();
         }
-        // Fallback: data might be the object directly
-        return ServiceHistoryModel.fromJson(data);
-      } else {
-        throw Exception(
-          'Failed to update history: ${response.statusCode} - ${response.body}',
+        if (history.cost != null) {
+          request.fields['cost'] = history.cost.toString();
+        }
+        request.fields['currency'] = history.currency ?? 'IDR';
+        if (history.serviceProvider != null) {
+          request.fields['service_provider'] = history.serviceProvider!;
+        }
+        if (history.notes != null) {
+          request.fields['notes'] = history.notes!;
+        }
+
+        // Add receipt file
+        print('📷 Uploading receipt image...');
+        request.files.add(
+          await http.MultipartFile.fromPath('receipt_photo', receiptFile.path),
         );
+
+        print('📤 Updating service history with file upload');
+        final response = await _sendMultipartRequest(request);
+
+        print('📥 Update response status: ${response.statusCode}');
+        print('📄 Update response body: ${response.body}');
+
+        if (response.statusCode == 200) {
+          final jsonData = json.decode(response.body);
+          print('✅ Service history updated successfully with image');
+          final data = jsonData['data'];
+          if (data is Map<String, dynamic> &&
+              data.containsKey('service_history')) {
+            return ServiceHistoryModel.fromJson(data['service_history']);
+          }
+          return ServiceHistoryModel.fromJson(data);
+        } else {
+          throw Exception(
+            'Failed to update history: ${response.statusCode} - ${response.body}',
+          );
+        }
+      } else {
+        // JSON request without file
+        final body = <String, dynamic>{
+          'service_type': history.serviceName,
+          'performed_at': history.serviceDate
+              .toIso8601String()
+              .split('T')
+              .first, // YYYY-MM-DD format
+          if (history.odometer != null) 'odometer': history.odometer,
+          if (history.cost != null) 'cost': history.cost,
+          'currency': history.currency ?? 'IDR',
+          if (history.serviceProvider != null)
+            'service_provider': history.serviceProvider,
+          if (history.notes != null) 'notes': history.notes,
+        };
+
+        final response = await _apiClient
+            .put('/service-histories/$id', body: body)
+            .timeout(ApiConfig.connectTimeout);
+
+        if (response.statusCode == 200) {
+          final jsonData = json.decode(response.body);
+          final data = jsonData['data'];
+          if (data is Map<String, dynamic> &&
+              data.containsKey('service_history')) {
+            return ServiceHistoryModel.fromJson(data['service_history']);
+          }
+          return ServiceHistoryModel.fromJson(data);
+        } else {
+          throw Exception(
+            'Failed to update history: ${response.statusCode} - ${response.body}',
+          );
+        }
       }
     } catch (e) {
       print('Failed to update history: $e');
@@ -254,12 +435,8 @@ class ServiceHistoryService {
   /// Delete service history
   Future<void> deleteHistory(int id) async {
     try {
-      final headers = await _getHeaders();
-      final response = await http
-          .delete(
-            Uri.parse('${ApiConfig.baseUrl}/service-histories/$id'),
-            headers: headers,
-          )
+      final response = await _apiClient
+          .delete('/service-histories/$id')
           .timeout(ApiConfig.connectTimeout);
 
       if (response.statusCode != 200 && response.statusCode != 204) {

@@ -7,7 +7,8 @@ import '../dashboard/dashboard.dart';
 import '../widget/page_transition.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/network/api_config.dart';
-import '../../core/services/auth_service.dart';
+import '../../core/services/auth_storage.dart';
+import '../../core/services/notification_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -19,7 +20,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _authService = AuthService();
+  final _authStorage = AuthStorage();
   bool _obscurePassword = true;
   bool _isLoading = false;
 
@@ -54,27 +55,86 @@ class _LoginPageState extends State<LoginPage> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        
-        // Save the authentication token
-        if (data['data'] != null && data['data']['token'] != null) {
-          await _authService.saveToken(data['data']['token']);
-          
-          // Optionally save user data
-          if (data['data']['user'] != null) {
-            final user = data['data']['user'];
-            if (user['id'] != null && user['email'] != null) {
-              await _authService.saveUserData(
-                userId: user['id'],
-                email: user['email'],
-              );
-            }
-          }
-        }
 
-        Navigator.pushReplacement(
-          context,
-          SmoothPageRoute(page: const DashboardPage()),
-        );
+        // Check response structure
+        if (data['success'] == true && data['data'] != null) {
+          final responseData = data['data'];
+
+          // Save tokens (access_token and refresh_token for persistent login)
+          if (responseData['access_token'] != null &&
+              responseData['refresh_token'] != null) {
+            print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            print('🔐 LOGIN TOKEN DEBUG');
+            print(
+              'Access Token: ${responseData['access_token'].substring(0, 20)}...',
+            );
+            print(
+              'Refresh Token: ${responseData['refresh_token'].substring(0, 20)}...',
+            );
+            print(
+              'Access Token Length: ${responseData['access_token'].length}',
+            );
+            print(
+              'Refresh Token Length: ${responseData['refresh_token'].length}',
+            );
+
+            await _authStorage.saveTokens(
+              accessToken: responseData['access_token'],
+              refreshToken: responseData['refresh_token'],
+            );
+
+            // Verify tokens were saved
+            final savedAccessToken = await _authStorage.getAccessToken();
+            final savedRefreshToken = await _authStorage.getRefreshToken();
+            print('✅ Tokens saved to secure storage');
+            print(
+              'Saved Access Token: ${savedAccessToken?.substring(0, 20)}...',
+            );
+            print(
+              'Saved Refresh Token: ${savedRefreshToken?.substring(0, 20)}...',
+            );
+            print(
+              'Match Access: ${savedAccessToken == responseData['access_token']}',
+            );
+            print(
+              'Match Refresh: ${savedRefreshToken == responseData['refresh_token']}',
+            );
+            print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+            // Save user data
+            if (responseData['user'] != null) {
+              final user = responseData['user'];
+              if (user['id'] != null && user['email'] != null) {
+                await _authStorage.saveUserData(
+                  userId: user['id'],
+                  email: user['email'],
+                  name: user['name'],
+                );
+              }
+            }
+
+            print('✅ Login successful - Persistent login enabled (90 days)');
+
+            // Register FCM token after successful login
+            try {
+              await NotificationService.instance.registerTokenAfterLogin();
+            } catch (e) {
+              print('⚠️ Failed to register FCM token: $e');
+              // Don't block login flow if FCM registration fails
+            }
+
+            // Navigate to dashboard
+            if (!mounted) return;
+            Navigator.pushReplacement(
+              context,
+              SmoothPageRoute(page: const DashboardPage()),
+            );
+          } else {
+            _showErrorDialog('Response tidak lengkap dari server');
+          }
+        } else {
+          _showErrorDialog(data['message'] ?? 'Login gagal');
+        }
       } else {
         final error = jsonDecode(response.body);
         _showErrorDialog(error['message'] ?? 'Login gagal');

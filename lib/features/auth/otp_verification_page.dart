@@ -8,6 +8,8 @@ import 'registration_success_page.dart';
 import '../widget/page_transition.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/network/api_config.dart';
+import '../../core/services/auth_storage.dart';
+import '../../core/services/notification_service.dart';
 
 class OtpVerificationPage extends StatefulWidget {
   final String email;
@@ -119,6 +121,42 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         if (!mounted) return;
 
         if (response.statusCode == 200) {
+          final responseData = jsonDecode(response.body)['data'];
+
+          // Save tokens from response
+          if (responseData != null && responseData['access_token'] != null) {
+            final authStorage = AuthStorage();
+
+            // Save tokens
+            await authStorage.saveTokens(
+              accessToken: responseData['access_token'],
+              refreshToken: responseData['refresh_token'],
+            );
+
+            // Save user data
+            if (responseData['user'] != null) {
+              final user = responseData['user'];
+              if (user['id'] != null && user['email'] != null) {
+                await authStorage.saveUserData(
+                  userId: user['id'],
+                  email: user['email'],
+                  name: user['name'],
+                );
+              }
+            }
+
+            print('✅ Tokens saved after email verification');
+
+            // Register FCM token after successful verification and login
+            try {
+              await NotificationService.instance.registerTokenAfterLogin();
+            } catch (e) {
+              print('⚠️ Failed to register FCM token: $e');
+              // Don't block flow if FCM registration fails
+            }
+          }
+
+          // Navigate to success page
           Navigator.pushReplacement(
             context,
             SmoothPageRoute(page: RegistrationSuccessPage(email: widget.email)),

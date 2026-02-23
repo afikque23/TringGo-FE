@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../network/api_config.dart';
 import '../model/trip_model.dart';
-import 'auth_service.dart';
-import 'device_service.dart';
+import 'auth_storage.dart';
+import 'service_schedule_service.dart';
 
 /// Service untuk mengelola Trip API calls
 class TripService {
@@ -12,23 +12,20 @@ class TripService {
   factory TripService() => _instance;
   TripService._internal();
 
-  final _authService = AuthService();
-  final _deviceService = DeviceService();
+  final _authStorage = AuthStorage();
 
   /// Get headers for API requests
-  /// If authenticated: uses Authorization Bearer token
-  /// If guest: uses X-Device-ID header
+  /// ALL requests now require authentication (no guest mode)
   Future<Map<String, String>> _getHeaders() async {
     final headers = Map<String, String>.from(ApiConfig.defaultHeaders);
-    final token = await _authService.getToken();
+    final token = await _authStorage.getAccessToken();
 
     if (token != null && token.isNotEmpty) {
       // Authenticated mode
       headers['Authorization'] = 'Bearer $token';
     } else {
-      // Guest mode - use device ID
-      final deviceId = await _deviceService.getDeviceId();
-      headers['X-Device-ID'] = deviceId;
+      // No token - user must login
+      print('⚠️ No access token - user must login');
     }
 
     return headers;
@@ -195,6 +192,18 @@ class TripService {
 
       if (response.statusCode == 200) {
         print('✅ Odometer updated successfully');
+
+        // Check service reminders after odometer update
+        try {
+          await ServiceScheduleService().checkReminders(
+            vehicleId,
+            newOdometer.round(),
+          );
+        } catch (e) {
+          print('⚠️ Failed to check reminders: $e');
+          // Don't fail the odometer update if reminder check fails
+        }
+
         return true;
       } else {
         print('❌ Failed to update odometer: ${response.statusCode}');

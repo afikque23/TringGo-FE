@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../onboarding/onboarding_page.dart';
+import '../dashboard/dashboard.dart';
 import '../widget/page_transition.dart';
+import '../../core/services/auth_storage.dart';
 import 'splash_animation.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -14,6 +16,7 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late SplashAnimation _animation;
+  final _authStorage = AuthStorage();
 
   @override
   void initState() {
@@ -24,14 +27,34 @@ class _SplashScreenState extends State<SplashScreen>
 
     _animation.start();
 
-    // Navigasi setelah 5 detik
-    Future.delayed(SplashAnimationMixin.delayBeforeNavigation, () {
-      if (mounted) {
-        Navigator.of(
-          context,
-        ).pushReplacement(SmoothPageRoute(page: const OnboardingPage()));
-      }
-    });
+    // Navigasi setelah animasi - cek login status
+    _navigateAfterDelay();
+  }
+
+  /// Check login status and navigate accordingly
+  Future<void> _navigateAfterDelay() async {
+    await Future.delayed(SplashAnimationMixin.delayBeforeNavigation);
+
+    if (!mounted) return;
+
+    // Check if user is already logged in (has refresh token)
+    final isLoggedIn = await _authStorage.isLoggedIn();
+
+    print('🔐 Login status: ${isLoggedIn ? "LOGGED IN" : "NOT LOGGED IN"}');
+
+    if (isLoggedIn) {
+      // User has valid refresh token, navigate to dashboard
+      print('✅ Auto-login: Navigating to Dashboard (Persistent Login)');
+      Navigator.of(
+        context,
+      ).pushReplacement(SmoothPageRoute(page: const DashboardPage()));
+    } else {
+      // User not logged in, show onboarding/login
+      print('👤 No active session: Navigating to Onboarding');
+      Navigator.of(
+        context,
+      ).pushReplacement(SmoothPageRoute(page: const OnboardingPage()));
+    }
   }
 
   @override

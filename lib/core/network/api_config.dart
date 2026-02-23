@@ -9,19 +9,20 @@ class ApiConfig {
   /// For iOS Simulator: use localhost or 127.0.0.1
   /// For Physical Device: use your computer's IP address (e.g., 192.168.1.125)
 
-  // ACTIVE: Using 127.0.0.1 with adb reverse tcp:8000 tcp:8000
-  // Note: Laravel in this project exposes routes under the `/motorcycle` prefix
-  // so include that segment in the base URL to avoid "route not found" errors.
-  // static const String baseUrl = 'http://127.0.0.1:8000/api/v1/motorcycle';
+  // ========================================
+  // PILIH SALAH SATU (uncomment yang mau dipakai):
+  // ========================================
 
-  // OPTION 2: Android Emulator via 10.0.2.2 (no adb reverse)
-  static const String baseUrl = 'http://192.168.1.11:8000/api/v1/motorcycle';
+  // EMULATOR (Default)
+  static const String baseUrl = 'http://10.0.2.2:8000/api/v1/motorcycle';
 
-  // OPTION 3: Physical Device - use your computer's actual IP (replace .125)
-  // static const String baseUrl = 'http://192.168.1.125:8000/api/v1/motorcycle';
+  // PHYSICAL DEVICE (HP Fisik) ✅ AKTIF
+  // static const String baseUrl = 'http://172.20.10.2:8000/api/v1/motorcycle';
 
-  // OPTION 4: iOS Simulator
-  // static const String baseUrl = 'http://localhost:8000/api/v1/motorcycle';
+  // NGROK (Universal)
+  // Works on: Emulator, Physical Device, Postman, All devices!
+  // static const String baseUrl =
+  // 'https://leguminous-nonshredding-felicia.ngrok-free.dev/api/v1/motorcycle';
 
   /// API Endpoints
   // Motorcycle
@@ -42,6 +43,12 @@ class ApiConfig {
   static const String authForgotPassword = '/auth/forgot-password';
   static const String authResetPassword = '/auth/reset-password';
   static const String authRefreshToken = '/auth/refresh-token';
+  static const String authLogout = '/auth/logout';
+
+  // Profile
+  static const String profile = '/profile';
+  static const String profileUpdate = '/profile/update';
+  static const String profileAvatar = '/profile/avatar';
 
   /// Full URLs
   // Motorcycle URLs
@@ -63,6 +70,7 @@ class ApiConfig {
   static String get forgotPasswordUrl => '$baseUrl$authForgotPassword';
   static String get resetPasswordUrl => '$baseUrl$authResetPassword';
   static String get refreshTokenUrl => '$baseUrl$authRefreshToken';
+  static String get logoutUrl => '$baseUrl$authLogout';
 
   /// Timeout durations
   static const Duration connectTimeout = Duration(seconds: 30);

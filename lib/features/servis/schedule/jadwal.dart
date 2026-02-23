@@ -48,13 +48,26 @@ class _JadwalPageState extends State<JadwalPage> {
           _schedules = schedules;
           _isLoading = false;
         });
+
+        // Check service reminders when refreshing schedule page
+        if (vehicle != null) {
+          try {
+            await _scheduleService.checkReminders(
+              vehicle.id!,
+              vehicle.odometer,
+            );
+          } catch (e) {
+            print('⚠️ Failed to check reminders on schedule refresh: $e');
+            // Don't fail the page load if reminder check fails
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal memuat jadwal: \${e.toString()}'),
+            content: Text('Gagal memuat jadwal: ${e.toString()}'),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
@@ -184,7 +197,12 @@ class _JadwalPageState extends State<JadwalPage> {
       final nextKm = schedule.nextServiceMileage ?? 0;
       final lastKm =
           schedule.lastServiceMileage ?? (nextKm - schedule.intervalValue);
-      final intervalValue = schedule.intervalValue;
+
+      // Fallback: If intervalValue is 0 or null, calculate from next - last
+      var intervalValue = schedule.intervalValue;
+      if (intervalValue == 0 && nextKm > 0 && lastKm >= 0) {
+        intervalValue = nextKm - lastKm;
+      }
 
       // Calculate remaining km
       final kmRemaining = nextKm - currentKm;
@@ -235,7 +253,15 @@ class _JadwalPageState extends State<JadwalPage> {
       final daysRemaining = nextDate != null
           ? nextDate.difference(now).inDays
           : 0;
-      final intervalDays = schedule.intervalValue;
+
+      // Calculate interval in days if not provided
+      var intervalDays = schedule.intervalValue;
+      if (intervalDays == 0 && nextDate != null) {
+        final lastDate = schedule.lastServiceDate;
+        if (lastDate != null) {
+          intervalDays = nextDate.difference(lastDate).inDays;
+        }
+      }
 
       // Calculate days since last service
       final lastDate =
@@ -421,8 +447,11 @@ class _JadwalPageState extends State<JadwalPage> {
     required bool isTimeBased,
   }) {
     final l10n = AppLocalizations.of(context)!;
-    final unit = isTimeBased ? 'hari' : 'km';
-    final remainingLabel = isTimeBased ? 'hari tersisa' : l10n.kmRemaining;
+
+    // Format tampilan berbeda untuk jarak vs waktu
+    final remainingText = isTimeBased
+        ? '$kmRemaining hari lagi'
+        : '$kmRemaining ${l10n.kmRemaining}';
 
     return GestureDetector(
       onTap: () async {
@@ -548,7 +577,7 @@ class _JadwalPageState extends State<JadwalPage> {
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
-                              '• $kmRemaining $remainingLabel',
+                              '• $remainingText',
                               style: TextStyle(
                                 fontFamily: 'Arial',
                                 fontSize: 12,
@@ -564,7 +593,7 @@ class _JadwalPageState extends State<JadwalPage> {
                     ],
                   ),
                 ),
-                // Next KM
+                // Next service info (KM or Date)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -580,7 +609,7 @@ class _JadwalPageState extends State<JadwalPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$nextValue $unit',
+                      isTimeBased ? nextValue : '$nextValue km',
                       style: TextStyle(
                         fontFamily: 'Arial',
                         fontSize: 16,
@@ -613,7 +642,9 @@ class _JadwalPageState extends State<JadwalPage> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '${l10n.currently}: $currentValue $unit',
+                      isTimeBased
+                          ? '${l10n.currently}: $currentValue'
+                          : '${l10n.currently}: $currentValue km',
                       style: TextStyle(
                         fontFamily: 'Arial',
                         fontSize: 12,

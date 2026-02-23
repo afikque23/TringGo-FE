@@ -24,7 +24,7 @@ class LocalVehicleStorage {
     try {
       final prefs = await SharedPreferences.getInstance();
       final vehiclesJson = prefs.getString(_vehiclesKey);
-      
+
       if (vehiclesJson == null || vehiclesJson.isEmpty) {
         return [];
       }
@@ -47,35 +47,35 @@ class LocalVehicleStorage {
   /// Add new vehicle
   Future<VehicleModel> addVehicle(VehicleModel vehicle) async {
     final vehicles = await getAllVehicles();
-    
+
     // Assign local ID if not set
     final newVehicle = vehicle.copyWith(
       id: vehicle.id ?? await _getNextId(),
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
-    
+
     vehicles.add(newVehicle);
     await _saveAllVehicles(vehicles);
-    
+
     return newVehicle;
   }
 
   /// Update vehicle
-  Future<VehicleModel?> updateVehicle(int id, VehicleModel updatedVehicle) async {
+  Future<VehicleModel?> updateVehicle(
+    int id,
+    VehicleModel updatedVehicle,
+  ) async {
     final vehicles = await getAllVehicles();
     final index = vehicles.indexWhere((v) => v.id == id);
-    
+
     if (index == -1) return null;
-    
-    final updated = updatedVehicle.copyWith(
-      id: id,
-      updatedAt: DateTime.now(),
-    );
-    
+
+    final updated = updatedVehicle.copyWith(id: id, updatedAt: DateTime.now());
+
     vehicles[index] = updated;
     await _saveAllVehicles(vehicles);
-    
+
     return updated;
   }
 
@@ -83,14 +83,14 @@ class LocalVehicleStorage {
   Future<bool> deleteVehicle(int id) async {
     final vehicles = await getAllVehicles();
     final initialLength = vehicles.length;
-    
+
     vehicles.removeWhere((v) => v.id == id);
-    
+
     if (vehicles.length < initialLength) {
       await _saveAllVehicles(vehicles);
       return true;
     }
-    
+
     return false;
   }
 
@@ -107,11 +107,11 @@ class LocalVehicleStorage {
   /// Set vehicle as primary
   Future<VehicleModel?> setPrimaryVehicle(int id) async {
     final vehicles = await getAllVehicles();
-    
+
     // Find the vehicle
     final vehicleIndex = vehicles.indexWhere((v) => v.id == id);
     if (vehicleIndex == -1) return null;
-    
+
     // Update all vehicles: set all to not primary, then set selected one as primary
     for (var i = 0; i < vehicles.length; i++) {
       vehicles[i] = vehicles[i].copyWith(
@@ -119,7 +119,7 @@ class LocalVehicleStorage {
         updatedAt: DateTime.now(),
       );
     }
-    
+
     await _saveAllVehicles(vehicles);
     return vehicles[vehicleIndex];
   }
@@ -139,16 +139,16 @@ class LocalVehicleStorage {
     try {
       // Get local vehicles
       final localVehicles = await getAllVehicles();
-      
+
       // Get server vehicles
       final serverVehicles = await fetchFromServer();
-      
+
       // If no local vehicles, just use server data
       if (localVehicles.isEmpty) {
         await _saveAllVehicles(serverVehicles);
         return;
       }
-      
+
       // If no server vehicles, upload all local vehicles
       if (serverVehicles.isEmpty) {
         for (var vehicle in localVehicles) {
@@ -156,7 +156,7 @@ class LocalVehicleStorage {
         }
         return;
       }
-      
+
       // Merge logic: prefer server data as source of truth
       await _saveAllVehicles(serverVehicles);
     } catch (e) {

@@ -57,5 +57,11 @@
 	<string>Aplikasi membutuhkan akses lokasi untuk tracking perjalanan motor Anda bahkan saat aplikasi tidak aktif.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Aplikasi membutuhkan akses lokasi untuk tracking perjalanan motor Anda.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Aplikasi membutuhkan akses kamera untuk mengambil foto profil Anda.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Aplikasi membutuhkan akses galeri untuk memilih foto profil Anda.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Aplikasi membutuhkan akses untuk menyimpan foto.</string>
 </dict>
 </plist>

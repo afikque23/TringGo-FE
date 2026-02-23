@@ -2,8 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../network/api_config.dart';
 import '../model/service_schedule_model.dart';
-import 'auth_service.dart';
-import 'device_service.dart';
+import 'auth_storage.dart';
 
 class ServiceScheduleService {
   // Singleton pattern
@@ -12,22 +11,13 @@ class ServiceScheduleService {
   factory ServiceScheduleService() => _instance;
   ServiceScheduleService._internal();
 
-  final _authService = AuthService();
-  final _deviceService = DeviceService();
+  final _authStorage = AuthStorage();
 
   /// Get headers for API requests
-  /// If authenticated: uses Authorization Bearer token
-  /// If guest: uses X-Device-ID header
+  /// ALL requests now require authentication (no guest mode)
   Future<Map<String, String>> _getHeaders() async {
     final headers = Map<String, String>.from(ApiConfig.defaultHeaders);
-    final token = await _authService.getToken();
-
-    // Always include device id header if available. Some endpoints require
-    // a device identifier even when the request is authenticated.
-    final deviceId = await _deviceService.getDeviceId();
-    if (deviceId.isNotEmpty) {
-      headers['X-Device-ID'] = deviceId;
-    }
+    final token = await _authStorage.getAccessToken();
 
     if (token != null && token.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
@@ -80,7 +70,7 @@ class ServiceScheduleService {
             'last_service_date': apiData['last_service_date'],
             'next_service_mileage': apiData['target_km'],
             'next_service_date': apiData['target_date'],
-            'reminder_threshold': apiData['reminder_option']?['id'],
+            'reminder_threshold': apiData['reminder_threshold'],
             'reminder_enabled': apiData['is_active'] ?? true,
             'status': apiData['status'] ?? 'active',
             'notes': apiData['notes'],
@@ -146,7 +136,7 @@ class ServiceScheduleService {
           'last_service_date': apiData['last_service_date'],
           'next_service_mileage': apiData['target_km'],
           'next_service_date': apiData['target_date'],
-          'reminder_threshold': apiData['reminder_option']?['id'],
+          'reminder_threshold': apiData['reminder_threshold'],
           'reminder_enabled': apiData['is_active'] ?? true,
           'status': apiData['status'] ?? 'active',
           'notes': apiData['notes'],
@@ -236,8 +226,8 @@ class ServiceScheduleService {
         'service_type_id': schedule.serviceTypeId ?? 1,
         'schedule_type': scheduleType, // 'km' or 'time'
         'interval_value': schedule.intervalValue, // Add interval_value
-        if (schedule.serviceName != null && schedule.serviceName!.isNotEmpty)
-          'service_name': schedule.serviceName,
+        // Don't send service_name - backend doesn't support this column
+        // Backend will get it from service_type relationship
         if (schedule.notes != null && schedule.notes!.isNotEmpty)
           'notes': schedule.notes,
       };
@@ -247,17 +237,44 @@ class ServiceScheduleService {
         body['target_km'] =
             schedule.nextServiceMileage ?? schedule.intervalValue;
       } else if (scheduleType == 'time') {
-        body['target_date'] = schedule.nextServiceDate != null
-            ? schedule.nextServiceDate!.toIso8601String().split('T')[0]
-            : DateTime.now()
-                  .add(Duration(days: schedule.intervalValue))
-                  .toIso8601String()
-                  .split('T')[0];
+        // Ensure target_date is always in the future (at least tomorrow)
+        DateTime targetDate;
+        if (schedule.nextServiceDate != null) {
+          // User manually selected a date - use it directly
+          targetDate = schedule.nextServiceDate!;
+        } else {
+          // No date selected - calculate from interval_value (in MONTHS)
+          // Add interval months from now
+          final now = DateTime.now();
+          final monthsToAdd = schedule.intervalValue > 0
+              ? schedule.intervalValue
+              : 1;
+
+          // Add months to current date
+          targetDate = DateTime(now.year, now.month + monthsToAdd, now.day);
+
+          // Handle edge case: if target date is today or in the past, add 1 more month
+          if (!targetDate.isAfter(now)) {
+            targetDate = DateTime(
+              now.year,
+              now.month + monthsToAdd + 1,
+              now.day,
+            );
+          }
+        }
+
+        body['target_date'] = targetDate.toIso8601String().split('T')[0];
       }
 
-      // Add reminder option if provided
+      // Add custom reminder threshold if provided
       if (schedule.reminderThreshold != null) {
-        body['reminder_option_id'] = schedule.reminderThreshold;
+        body['reminder_threshold'] = schedule.reminderThreshold;
+        // Temporary workaround: Send null for reminder_option_id when using custom threshold
+        // Backend should make reminder_option_id nullable in the migration
+        body['reminder_option_id'] = null;
+      } else {
+        // If no custom reminder, also ensure reminder_option_id is null
+        body['reminder_option_id'] = null;
       }
 
       // Debug logging
@@ -302,7 +319,7 @@ class ServiceScheduleService {
           'last_service_date': apiData['last_service_date'],
           'next_service_mileage': apiData['target_km'],
           'next_service_date': apiData['target_date'],
-          'reminder_threshold': apiData['reminder_option']?['id'],
+          'reminder_threshold': apiData['reminder_threshold'],
           'reminder_enabled': apiData['is_active'] ?? true,
           'status': apiData['status'] ?? 'active',
           'notes': apiData['notes'],
@@ -355,9 +372,15 @@ class ServiceScheduleService {
         )[0];
       }
 
-      // Add reminder option if provided
+      // Add custom reminder threshold if provided
       if (schedule.reminderThreshold != null) {
-        body['reminder_option_id'] = schedule.reminderThreshold;
+        body['reminder_threshold'] = schedule.reminderThreshold;
+        // Temporary workaround: Send null for reminder_option_id when using custom threshold
+        // Backend should make reminder_option_id nullable in the migration
+        body['reminder_option_id'] = null;
+      } else {
+        // If no custom reminder, also ensure reminder_option_id is null
+        body['reminder_option_id'] = null;
       }
 
       final response = await http
@@ -386,7 +409,7 @@ class ServiceScheduleService {
           'last_service_date': apiData['last_service_date'],
           'next_service_mileage': apiData['target_km'],
           'next_service_date': apiData['target_date'],
-          'reminder_threshold': apiData['reminder_option']?['id'],
+          'reminder_threshold': apiData['reminder_threshold'],
           'reminder_enabled': apiData['is_active'] ?? true,
           'status': apiData['status'] ?? 'active',
           'notes': apiData['notes'],
@@ -422,6 +445,101 @@ class ServiceScheduleService {
       }
     } catch (e) {
       print('Failed to delete schedule: $e');
+      rethrow;
+    }
+  }
+
+  /// Check reminders for a vehicle based on current odometer
+  /// Triggers notifications for schedules that reached their reminder threshold
+  Future<Map<String, dynamic>> checkReminders(
+    int vehicleId,
+    int currentOdometer,
+  ) async {
+    try {
+      final headers = await _getHeaders();
+      final body = {'current_odometer': currentOdometer};
+
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('🔔 CHECKING SERVICE REMINDERS');
+      print('Vehicle ID: $vehicleId');
+      print('Current Odometer: $currentOdometer km');
+
+      final response = await http
+          .post(
+            Uri.parse(
+              '${ApiConfig.baseUrl}/service-schedules/check-reminders/$vehicleId',
+            ),
+            headers: headers,
+            body: json.encode(body),
+          )
+          .timeout(ApiConfig.connectTimeout);
+
+      print('📥 Response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        final data = jsonData['data'] ?? {};
+
+        final remindersTriggered = data['reminders_triggered'] ?? 0;
+        final reminders = data['reminders'] ?? [];
+
+        if (remindersTriggered > 0) {
+          print('⚠️ Reminders triggered: $remindersTriggered');
+          for (var reminder in reminders) {
+            print('  • ${reminder['service_type']}: ${reminder['message']}');
+          }
+        } else {
+          print('✅ No reminders triggered');
+        }
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+        return data;
+      } else {
+        print('❌ Failed to check reminders: ${response.statusCode}');
+        print('Response: ${response.body}');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        throw Exception('Failed to check reminders: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error checking reminders: $e');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      rethrow;
+    }
+  }
+
+  /// Reset reminder flag for a schedule
+  /// Call this after updating a schedule with new target to re-enable reminders
+  Future<void> resetReminder(int scheduleId) async {
+    try {
+      final headers = await _getHeaders();
+
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('🔄 RESETTING REMINDER FLAG');
+      print('Schedule ID: $scheduleId');
+
+      final response = await http
+          .post(
+            Uri.parse(
+              '${ApiConfig.baseUrl}/service-schedules/$scheduleId/reset-reminder',
+            ),
+            headers: headers,
+          )
+          .timeout(ApiConfig.connectTimeout);
+
+      print('📥 Response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        print('✅ Reminder flag reset successfully');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      } else {
+        print('❌ Failed to reset reminder: ${response.statusCode}');
+        print('Response: ${response.body}');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        throw Exception('Failed to reset reminder: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error resetting reminder: $e');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       rethrow;
     }
   }

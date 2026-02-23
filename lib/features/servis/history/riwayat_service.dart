@@ -162,14 +162,15 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: colorScheme.surfaceContainerLow,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: Column(
           children: [
             _buildHeader(),

@@ -1,4 +1,5 @@
 import 'package:json_annotation/json_annotation.dart';
+import '../network/api_config.dart';
 
 part 'service_history_model.g.dart';
 
@@ -26,6 +27,12 @@ class ServiceHistoryModel {
   @JsonKey(name: 'updated_at')
   final DateTime? updatedAt;
 
+  // Manual reminder fields
+  @JsonKey(name: 'manual_reminder_enabled')
+  final bool? manualReminderEnabled;
+  @JsonKey(name: 'reminder_interval_km')
+  final int? reminderIntervalKm;
+
   // (no computed properties)
 
   ServiceHistoryModel({
@@ -42,6 +49,8 @@ class ServiceHistoryModel {
     this.receiptUrl,
     this.createdAt,
     this.updatedAt,
+    this.manualReminderEnabled,
+    this.reminderIntervalKm,
   });
 
   factory ServiceHistoryModel.fromJson(Map<String, dynamic> json) {
@@ -65,6 +74,33 @@ class ServiceHistoryModel {
       serviceDate = DateTime.now();
     }
 
+    // Convert relative receipt URL to full URL
+    String? receiptUrl;
+    if (json['receipt_url'] != null) {
+      final rawUrl = json['receipt_url'] as String;
+      if (rawUrl.isNotEmpty) {
+        // If URL starts with '/', it's a relative path - add base URL
+        if (rawUrl.startsWith('/')) {
+          // Remove '/api/v1/motorcycle' from baseUrl to get the domain
+          final baseUrlWithoutApi = ApiConfig.baseUrl.replaceAll(
+            '/api/v1/motorcycle',
+            '',
+          );
+          receiptUrl = '$baseUrlWithoutApi$rawUrl';
+        } else if (!rawUrl.startsWith('http')) {
+          // If no protocol, assume relative and add base
+          final baseUrlWithoutApi = ApiConfig.baseUrl.replaceAll(
+            '/api/v1/motorcycle',
+            '',
+          );
+          receiptUrl = '$baseUrlWithoutApi/$rawUrl';
+        } else {
+          // Already a full URL
+          receiptUrl = rawUrl;
+        }
+      }
+    }
+
     return ServiceHistoryModel(
       id: json['id'] != null ? (json['id'] as num).toInt() : null,
       vehicleId: json['vehicle_id'] != null
@@ -82,13 +118,17 @@ class ServiceHistoryModel {
       currency: json['currency'] as String? ?? 'IDR',
       serviceProvider: json['service_provider'] as String?,
       notes: json['notes'] as String?,
-      receiptUrl: json['receipt_url'] as String?,
+      receiptUrl: receiptUrl,
       createdAt: json['created_at'] == null
           ? null
           : DateTime.parse(json['created_at'] as String),
       updatedAt: json['updated_at'] == null
           ? null
           : DateTime.parse(json['updated_at'] as String),
+      manualReminderEnabled: json['manual_reminder_enabled'] as bool?,
+      reminderIntervalKm: json['reminder_interval_km'] != null
+          ? (json['reminder_interval_km'] as num).toInt()
+          : null,
     );
   }
 
@@ -108,6 +148,8 @@ class ServiceHistoryModel {
     String? receiptUrl,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? manualReminderEnabled,
+    int? reminderIntervalKm,
   }) {
     return ServiceHistoryModel(
       id: id ?? this.id,
@@ -123,6 +165,9 @@ class ServiceHistoryModel {
       receiptUrl: receiptUrl ?? this.receiptUrl,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      manualReminderEnabled:
+          manualReminderEnabled ?? this.manualReminderEnabled,
+      reminderIntervalKm: reminderIntervalKm ?? this.reminderIntervalKm,
     );
   }
 }

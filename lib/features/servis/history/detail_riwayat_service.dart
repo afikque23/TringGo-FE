@@ -33,6 +33,7 @@ class _DetailRiwayatServicePageState extends State<DetailRiwayatServicePage> {
     setState(() => _isLoading = true);
     try {
       final history = await _historyService.getHistoryById(widget.serviceId);
+      print('🖼️ Receipt URL: ${history.receiptUrl}');
       if (mounted) {
         setState(() {
           _serviceHistory = history;
@@ -141,17 +142,100 @@ class _DetailRiwayatServicePageState extends State<DetailRiwayatServicePage> {
     }
   }
 
+  void _showImageModal(String imageUrl) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.9),
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: EdgeInsets.zero,
+          child: Stack(
+            children: [
+              Center(
+                child: InteractiveViewer(
+                  panEnabled: true,
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.cloud_off_outlined,
+                              size: 64,
+                              color: Colors.white.withValues(alpha: 0.7),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Foto tidak dapat dimuat',
+                              style: TextStyle(
+                                fontFamily: 'Arial',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white.withValues(alpha: 0.9),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'File mungkin tidak tersimpan di server',
+                              style: TextStyle(
+                                fontFamily: 'Arial',
+                                fontSize: 14,
+                                color: Colors.white.withValues(alpha: 0.6),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 40,
+                right: 16,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: colorScheme.surfaceContainerLow,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SafeArea(
           child: Column(
             children: [
@@ -211,12 +295,9 @@ class _DetailRiwayatServicePageState extends State<DetailRiwayatServicePage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      padding: const EdgeInsets.fromLTRB(24, 14, 24, 14),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
-        border: Border(
-          bottom: BorderSide(color: colorScheme.outlineVariant, width: 0.65),
-        ),
+        color: Theme.of(context).scaffoldBackgroundColor,
       ),
       child: Row(
         children: [
@@ -285,9 +366,6 @@ class _DetailRiwayatServicePageState extends State<DetailRiwayatServicePage> {
           const SizedBox(height: 16),
           _buildPhotoSection(service, colorScheme),
           const SizedBox(height: 16),
-          if (service.odometer != null)
-            _buildNextServiceSection(service, colorScheme),
-          if (service.odometer != null) const SizedBox(height: 16),
           _buildActionButtons(service, colorScheme),
         ],
       ),
@@ -567,50 +645,86 @@ class _DetailRiwayatServicePageState extends State<DetailRiwayatServicePage> {
           ),
           const SizedBox(height: 12),
           if (hasPhoto)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerLow,
-                  border: Border.all(
-                    color: colorScheme.outlineVariant,
-                    width: 0.65,
+            GestureDetector(
+              onTap: () => _showImageModal(service.receiptUrl!),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerLow,
+                    border: Border.all(
+                      color: colorScheme.outlineVariant,
+                      width: 0.65,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Image.network(
-                  service.receiptUrl!,
-                  width: double.infinity,
-                  height: 264,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      width: double.infinity,
-                      height: 264,
-                      color: colorScheme.surfaceContainerLow,
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.broken_image_outlined,
-                              size: 48,
-                              color: colorScheme.textSecondary,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Gagal memuat gambar',
-                              style: TextStyle(
-                                fontFamily: 'Arial',
-                                fontSize: 12,
-                                color: colorScheme.textSecondary,
-                              ),
-                            ),
-                          ],
+                  child: Image.network(
+                    service.receiptUrl!,
+                    width: double.infinity,
+                    height: 264,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        width: double.infinity,
+                        height: 264,
+                        color: colorScheme.surfaceContainerLow,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                : null,
+                            color: colorScheme.primary,
+                          ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      print('❌ Image load error: $error');
+                      print('🔗 URL: ${service.receiptUrl}');
+                      return Container(
+                        width: double.infinity,
+                        height: 264,
+                        color: colorScheme.surfaceContainerLow,
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.cloud_off_outlined,
+                                  size: 48,
+                                  color: colorScheme.textSecondary,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Foto tidak dapat dimuat',
+                                  style: TextStyle(
+                                    fontFamily: 'Arial',
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'File mungkin tidak tersimpan di server',
+                                  style: TextStyle(
+                                    fontFamily: 'Arial',
+                                    fontSize: 11,
+                                    color: colorScheme.textSecondary,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
             )
@@ -625,77 +739,6 @@ class _DetailRiwayatServicePageState extends State<DetailRiwayatServicePage> {
                 height: 1.6,
               ),
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNextServiceSection(
-    ServiceHistoryModel service,
-    ColorScheme colorScheme,
-  ) {
-    // Calculate next service (every 2000 km from current odometer)
-    const serviceInterval = 2000;
-    final currentOdometer = service.odometer ?? 0;
-    final nextServiceOdometer =
-        ((currentOdometer / serviceInterval).ceil() + 1) * serviceInterval;
-    final remainingKm = nextServiceOdometer - currentOdometer;
-
-    return Container(
-      padding: const EdgeInsets.all(16.65),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141511),
-        border: Border.all(
-          color: colorScheme.primary.withValues(alpha: 0.3),
-          width: 0.65,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.build_circle_outlined,
-            size: 20,
-            color: colorScheme.primary,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Servis Berikutnya',
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: colorScheme.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${nextServiceOdometer.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')} km',
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Sisa ${remainingKm.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')} km lagi',
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: colorScheme.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -719,12 +762,13 @@ class _DetailRiwayatServicePageState extends State<DetailRiwayatServicePage> {
                       serviceData: {
                         'id': service.id,
                         'vehicleId': service.vehicleId,
-                        'serviceName': service.serviceName,
+                        'type': service.serviceName,
                         'serviceDate': service.serviceDate.toIso8601String(),
                         'odometer': service.odometer,
                         'cost': service.cost,
                         'serviceProvider': service.serviceProvider,
                         'notes': service.notes,
+                        'receiptUrl': service.receiptUrl,
                       },
                     ),
                   ),

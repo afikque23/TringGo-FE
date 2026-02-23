@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:motorcycle_management/features/profil/tambah_tips_page.dart';
 import '../../l10n/app_localizations.dart';
@@ -12,7 +11,10 @@ import 'preferensi_aplikasi/preferensi_aplikasi.dart';
 import 'bantuan_dukungan/bantuan_dukungan.dart';
 import 'tentang/tentang.dart';
 import '../auth/login_page.dart';
-import '../../core/services/auth_service.dart';
+import '../../core/network/api_client.dart';
+import '../../core/services/notification_service.dart';
+import '../../core/services/profile_service.dart';
+import '../../core/model/user_profile_model.dart';
 
 class ProfilPage extends StatefulWidget {
   const ProfilPage({super.key});
@@ -23,6 +25,41 @@ class ProfilPage extends StatefulWidget {
 
 class _ProfilPageState extends State<ProfilPage> {
   int _selectedTabIndex = 0;
+  bool _isLoading = true;
+  UserProfileModel? _profile;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+
+      final profile = await ProfileService().getProfile();
+
+      if (mounted) {
+        setState(() {
+          _profile = profile;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('❌ Error loading profile: $e');
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   void _showLogoutConfirmation(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -70,16 +107,54 @@ class _ProfilPageState extends State<ProfilPage> {
             ),
             TextButton(
               onPressed: () async {
-                Navigator.of(context).pop(); // Close dialog
-                
-                // Clear authentication data
-                await AuthService().clearAuth();
-                
-                // Navigate to login page and remove all previous routes
-                Navigator.of(context).pushAndRemoveUntil(
-                  SmoothPageRoute(page: const LoginPage()),
-                  (route) => false,
-                );
+                // Store the navigator and close confirmation dialog
+                final navigator = Navigator.of(context);
+                navigator.pop(); // Close confirmation dialog
+
+                try {
+                  print('🔓 Starting logout process...');
+
+                  // Show loading indicator
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) =>
+                        const Center(child: CircularProgressIndicator()),
+                  );
+
+                  // Unregister FCM token before logout (with timeout)
+                  try {
+                    await NotificationService.instance
+                        .unregisterToken()
+                        .timeout(const Duration(seconds: 5));
+                    print('✅ FCM token unregistered');
+                  } catch (e) {
+                    print('⚠️ Failed to unregister FCM token: $e');
+                    // Continue with logout even if unregister fails
+                  }
+
+                  // Clear authentication data (calls logout API and clears tokens)
+                  await ApiClient().logout();
+                  print('✅ Auth tokens cleared');
+
+                  // Navigate to login page and remove all routes (including loading dialog)
+                  // Using the stored navigator to ensure we're using the correct context
+                  navigator.pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                    (route) => false,
+                  );
+
+                  print('✅ Logout successful - Navigated to login page');
+                } catch (e) {
+                  print('⚠️ Logout error: $e');
+
+                  // Even if API fails, still navigate to login
+                  // This will also remove the loading dialog
+                  navigator.pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                    (route) => false,
+                  );
+                }
               },
               child: Text(
                 l10n.signOut,
@@ -97,10 +172,178 @@ class _ProfilPageState extends State<ProfilPage> {
     );
   }
 
+  /// Test refresh token mechanism (DEBUG)
+  Future<void> _testRefreshToken() async {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('🧪 MANUAL REFRESH TOKEN TEST');
+
+      // Get current tokens from storage
+      final authStorage = ApiClient().authStorage;
+      final currentAccessToken = await authStorage.getAccessToken();
+      final currentRefreshToken = await authStorage.getRefreshToken();
+
+      print(
+        'Current Access Token: ${currentAccessToken?.substring(0, 30) ?? 'NULL'}...',
+      );
+      print(
+        'Current Refresh Token: ${currentRefreshToken?.substring(0, 30) ?? 'NULL'}...',
+      );
+
+      // Try to make a request that will trigger refresh
+      print('Making API request to trigger refresh...');
+      final apiClient = ApiClient();
+      final response = await apiClient.get('/profile');
+
+      print('Response Status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        print('✅ Request successful (token refreshed if needed)');
+      } else {
+        print('❌ Request failed: ${response.statusCode}');
+        print('Response: ${response.body}');
+      }
+
+      // Get tokens after refresh attempt
+      final newAccessToken = await authStorage.getAccessToken();
+      final newRefreshToken = await authStorage.getRefreshToken();
+
+      print('After Request:');
+      print('Access Token: ${newAccessToken?.substring(0, 30) ?? 'NULL'}...');
+      print('Refresh Token: ${newRefreshToken?.substring(0, 30) ?? 'NULL'}...');
+      print('Token Changed: ${currentAccessToken != newAccessToken}');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading
+
+      // Show result dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: colorScheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            response.statusCode == 200 ? '✅ Test Success' : '❌ Test Failed',
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: colorScheme.onSurface,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Status Code: ${response.statusCode}',
+                style: TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 14,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Token Changed: ${currentAccessToken != newAccessToken}',
+                style: TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 14,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Check console logs for details',
+                style: TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'OK',
+                style: TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 16,
+                  color: colorScheme.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      print('❌ Test error: $e');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading
+
+      // Show error dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: colorScheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            '❌ Test Error',
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: colorScheme.error,
+            ),
+          ),
+          content: Text(
+            e.toString(),
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 14,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'OK',
+                style: TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 16,
+                  color: colorScheme.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
@@ -285,6 +528,16 @@ class _ProfilPageState extends State<ProfilPage> {
                         );
                       },
                     ),
+                    // DEBUG: Test Refresh Token
+                    _buildMenuModalItem(
+                      context: context,
+                      icon: Icons.bug_report_outlined,
+                      title: '🔧 Test Refresh Token (Debug)',
+                      onTap: () {
+                        Navigator.pop(context);
+                        _testRefreshToken();
+                      },
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -382,6 +635,28 @@ class _ProfilPageState extends State<ProfilPage> {
 
   Widget _buildProfileHeader(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+
+    if (_isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(48.0),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_profile == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(48.0),
+          child: Text(
+            _error ?? 'Failed to load profile',
+            style: TextStyle(color: colorScheme.error),
+          ),
+        ),
+      );
+    }
+
     return Column(
       children: [
         // Avatar
@@ -389,32 +664,42 @@ class _ProfilPageState extends State<ProfilPage> {
           width: 96,
           height: 96,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                colorScheme.primary,
-                colorScheme.primary.withValues(alpha: 0.7),
-              ],
-            ),
+            gradient: _profile!.avatar == null
+                ? LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      colorScheme.primary,
+                      colorScheme.primary.withValues(alpha: 0.7),
+                    ],
+                  )
+                : null,
             borderRadius: BorderRadius.circular(100),
+            image: _profile!.avatar != null
+                ? DecorationImage(
+                    image: NetworkImage(_profile!.avatar!),
+                    fit: BoxFit.cover,
+                  )
+                : null,
           ),
-          child: Center(
-            child: Text(
-              'A',
-              style: TextStyle(
-                fontFamily: 'Arial',
-                fontSize: 30,
-                fontWeight: FontWeight.w700,
-                color: colorScheme.onPrimary,
-              ),
-            ),
-          ),
+          child: _profile!.avatar == null
+              ? Center(
+                  child: Text(
+                    _profile!.initials,
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 30,
+                      fontWeight: FontWeight.w700,
+                      color: colorScheme.onPrimary,
+                    ),
+                  ),
+                )
+              : null,
         ),
         const SizedBox(height: 16),
         // Name
         Text(
-          'Ahmad Rifai',
+          _profile!.name,
           style: TextStyle(
             fontFamily: 'Arial',
             fontSize: 20,
@@ -426,7 +711,7 @@ class _ProfilPageState extends State<ProfilPage> {
         const SizedBox(height: 4),
         // Email
         Text(
-          'ahmad.rifai@example.com',
+          _profile!.email,
           style: TextStyle(
             fontFamily: 'Arial',
             fontSize: 14,
@@ -440,16 +725,18 @@ class _ProfilPageState extends State<ProfilPage> {
   }
 
   Widget _buildStatsRow(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+
+    final totalVehicles = _profile?.stats.totalVehicles.toString() ?? '-';
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _buildStatColumn(context, '2', l10n.statMotor),
+        _buildStatColumn(context, totalVehicles, l10n.statMotor),
         const SizedBox(width: 32),
-        _buildStatColumn(context, '3', l10n.statTrip),
+        _buildStatColumn(context, '4', 'Template'),
         const SizedBox(width: 32),
-        _buildStatColumn(context, '97', l10n.statTotalKm),
+        _buildStatColumn(context, '161', 'Likes'),
       ],
     );
   }
@@ -489,11 +776,18 @@ class _ProfilPageState extends State<ProfilPage> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       child: GestureDetector(
-        onTap: () {
-          Navigator.push(
+        onTap: () async {
+          final result = await Navigator.push(
             context,
             SmoothPageRoute(page: const EditProfilPage()),
           );
+
+          // Refresh profile if updated
+          if (result != null && result is UserProfileModel) {
+            setState(() {
+              _profile = result;
+            });
+          }
         },
         child: Container(
           height: 52,

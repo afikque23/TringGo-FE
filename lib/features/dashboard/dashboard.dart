@@ -13,6 +13,9 @@ import '../servis/schedule/tambah_jadwal.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/services/vehicle_service.dart';
 import '../../core/model/vehicle_model.dart';
+import '../../core/services/notification_api_service.dart';
+import '../../core/services/service_schedule_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -28,12 +31,37 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _isLoadingVehicle = true;
   Map<String, dynamic> _serviceMetrics = {};
   bool _isLoadingMetrics = true;
+  int _unreadNotificationCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadPrimaryVehicle();
     _loadServiceMetrics();
+    _loadUnreadCount();
+    _setupNotificationListener();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    try {
+      final count = await NotificationApiService.getUnreadCount();
+      if (mounted) {
+        setState(() {
+          _unreadNotificationCount = count;
+        });
+      }
+    } catch (e) {
+      print('Failed to load unread count: $e');
+    }
+  }
+
+  void _setupNotificationListener() {
+    // Listen for new notifications while app is open
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      print('🔔 New notification received: ${message.notification?.title}');
+      // Reload unread count when new notification arrives
+      _loadUnreadCount();
+    });
   }
 
   Future<void> _loadPrimaryVehicle() async {
@@ -47,6 +75,19 @@ class _DashboardPageState extends State<DashboardPage> {
           _primaryVehicle = vehicle;
           _isLoadingVehicle = false;
         });
+
+        // Check service reminders after loading vehicle on app startup
+        if (vehicle != null) {
+          try {
+            await ServiceScheduleService().checkReminders(
+              vehicle.id!,
+              vehicle.odometer,
+            );
+          } catch (e) {
+            print('⚠️ Failed to check reminders on startup: $e');
+            // Don't fail the app startup if reminder check fails
+          }
+        }
       }
     } catch (e) {
       print('Failed to load primary vehicle: $e');
@@ -158,7 +199,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 'Belum ada kendaraan',
                                             style: TextStyle(
                                               fontFamily: 'Arial',
-                                              fontSize: 24,
+                                              fontSize: 20,
                                               fontWeight: FontWeight.w400,
                                               height: 1.33,
                                               color: colorScheme.onSurface,
@@ -186,11 +227,13 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                       // Notification Bell
                       GestureDetector(
-                        onTap: () {
-                          Navigator.push(
+                        onTap: () async {
+                          await Navigator.push(
                             context,
                             SmoothPageRoute(page: const NotificationPage()),
                           );
+                          // Reload count after returning from notification page
+                          _loadUnreadCount();
                         },
                         child: Stack(
                           children: [
@@ -206,29 +249,38 @@ class _DashboardPageState extends State<DashboardPage> {
                                 size: 24,
                               ),
                             ),
-                            Positioned(
-                              right: 0,
-                              top: 0,
-                              child: Container(
-                                width: 20,
-                                height: 20,
-                                decoration: BoxDecoration(
-                                  color: colorScheme.primary,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Center(
-                                  child: Text(
-                                    '1',
-                                    style: TextStyle(
-                                      fontFamily: 'Arial',
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
+                            if (_unreadNotificationCount > 0)
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                child: Container(
+                                  constraints: const BoxConstraints(
+                                    minWidth: 20,
+                                    minHeight: 20,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.primary,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      _unreadNotificationCount > 99
+                                          ? '99+'
+                                          : '$_unreadNotificationCount',
+                                      style: const TextStyle(
+                                        fontFamily: 'Arial',
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
                           ],
                         ),
                       ),
@@ -488,18 +540,21 @@ class _DashboardPageState extends State<DashboardPage> {
                                       : Colors.white,
                                 ),
                                 const SizedBox(width: 12),
-                                Text(
-                                  _primaryVehicle == null
-                                      ? 'Tambah kendaraan terlebih dahulu'
-                                      : l10n.startTracking,
-                                  style: TextStyle(
-                                    fontFamily: 'Arial',
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w400,
-                                    height: 1.56,
-                                    color: _primaryVehicle == null
-                                        ? colorScheme.onSurfaceVariant
-                                        : Colors.white,
+                                Flexible(
+                                  child: Text(
+                                    _primaryVehicle == null
+                                        ? 'Tambah kendaraan terlebih dahulu'
+                                        : l10n.startTracking,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontFamily: 'Arial',
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w400,
+                                      height: 1.56,
+                                      color: _primaryVehicle == null
+                                          ? colorScheme.onSurfaceVariant
+                                          : Colors.white,
+                                    ),
                                   ),
                                 ),
                               ],

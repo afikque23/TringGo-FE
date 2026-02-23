@@ -1,9 +1,8 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../network/api_config.dart';
+import '../network/api_client.dart';
 import '../model/vehicle_model.dart';
-import 'auth_service.dart';
-import 'device_service.dart';
+import 'auth_storage.dart';
 import 'local_vehicle_storage.dart';
 
 class VehicleService {
@@ -12,46 +11,13 @@ class VehicleService {
   factory VehicleService() => _instance;
   VehicleService._internal();
 
-  final _authService = AuthService();
-  final _deviceService = DeviceService();
+  final _apiClient = ApiClient();
+  final _authStorage = AuthStorage();
   final _localStorage = LocalVehicleStorage();
 
   /// Check if user is logged in
   Future<bool> _isLoggedIn() async {
-    return await _authService.isLoggedIn();
-  }
-
-  /// Get headers for API requests
-  /// If authenticated: uses Authorization Bearer token
-  /// If guest: uses X-Device-ID header
-  Future<Map<String, String>> _getHeaders() async {
-    final headers = Map<String, String>.from(ApiConfig.defaultHeaders);
-    final token = await _authService.getToken();
-
-    if (token != null && token.isNotEmpty) {
-      // Authenticated mode
-      headers['Authorization'] = 'Bearer $token';
-      print(
-        '🔐 Auth mode: AUTHENTICATED (token: ${token.substring(0, 20)}...)',
-      );
-    } else {
-      // Guest mode - use device ID
-      final deviceId = await _deviceService.getDeviceId();
-      headers['X-Device-ID'] = deviceId;
-      print('👤 Auth mode: GUEST (device: $deviceId)');
-    }
-
-    return headers;
-  }
-
-  /// Sanitize headers for logging (hide sensitive data)
-  String _sanitizeHeaders(Map<String, String> headers) {
-    final sanitized = Map<String, String>.from(headers);
-    if (sanitized.containsKey('Authorization')) {
-      final token = sanitized['Authorization']!;
-      sanitized['Authorization'] = '${token.substring(0, 20)}...';
-    }
-    return sanitized.toString();
+    return await _authStorage.isLoggedIn();
   }
 
   /// Debug: Print current auth status
@@ -62,19 +28,16 @@ class VehicleService {
     final isLoggedIn = await _isLoggedIn();
     print('Logged in: $isLoggedIn');
 
-    final token = await _authService.getToken();
+    final token = await _authStorage.getAccessToken();
     if (token != null && token.isNotEmpty) {
-      print('Token: ${token.substring(0, 30)}...');
+      print('Access Token: ${token.substring(0, 30)}...');
       print('Token length: ${token.length}');
     } else {
-      print('Token: null/empty');
+      print('Access Token: null/empty');
     }
 
-    final userId = await _authService.getUserId();
+    final userId = await _authStorage.getUserId();
     print('User ID: $userId');
-
-    final deviceId = await _deviceService.getDeviceId();
-    print('Device ID: $deviceId');
 
     final localVehicles = await _localStorage.getAllVehicles();
     print('Local vehicles count: ${localVehicles.length}');
@@ -93,15 +56,20 @@ class VehicleService {
   /// Get all vehicles (server-first, fallback to local if offline)
   Future<List<VehicleModel>> getAllVehicles() async {
     try {
-      // Always try server first (works for both authenticated and guest mode)
-      final headers = await _getHeaders();
+      // Check if user is logged in
+      if (!await _isLoggedIn()) {
+        print('⚠️ User not logged in. Returning empty list.');
+        print('💡 User must login to access vehicles.');
+        return [];
+      }
+
+      // Try server first (requires authentication)
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       print('🔍 FETCHING VEHICLES FROM SERVER');
       print('URL: ${ApiConfig.baseUrl}/vehicles');
-      print('Headers: ${_sanitizeHeaders(headers)}');
 
-      final response = await http
-          .get(Uri.parse('${ApiConfig.baseUrl}/vehicles'), headers: headers)
+      final response = await _apiClient
+          .get('/vehicles')
           .timeout(ApiConfig.connectTimeout);
 
       print('📥 Server response: ${response.statusCode}');
@@ -183,16 +151,10 @@ class VehicleService {
   /// Get primary vehicle (server-first, fallback to local)
   Future<VehicleModel?> getPrimaryVehicle() async {
     try {
-      final headers = await _getHeaders();
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       print('🔍 FETCHING PRIMARY VEHICLE');
 
-      final response = await http
-          .get(
-            Uri.parse('${ApiConfig.baseUrl}/vehicles/primary'),
-            headers: headers,
-          )
-          .timeout(ApiConfig.connectTimeout);
+      final response = await _apiClient.get('/vehicles/primary');
 
       print('📥 Primary vehicle response: ${response.statusCode}');
 
@@ -248,14 +210,10 @@ class VehicleService {
   /// Create new vehicle (server-first, fallback to local)
   Future<VehicleModel> createVehicle(VehicleModel vehicle) async {
     try {
-      final headers = await _getHeaders();
-      final response = await http
-          .post(
-            Uri.parse('${ApiConfig.baseUrl}/vehicles'),
-            headers: headers,
-            body: json.encode(vehicle.toJson()),
-          )
-          .timeout(ApiConfig.connectTimeout);
+      final response = await _apiClient.post(
+        '/vehicles',
+        body: vehicle.toJson(),
+      );
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         final jsonData = json.decode(response.body);
@@ -279,14 +237,10 @@ class VehicleService {
   /// Update vehicle (server-first, fallback to local)
   Future<VehicleModel> updateVehicle(int id, VehicleModel vehicle) async {
     try {
-      final headers = await _getHeaders();
-      final response = await http
-          .put(
-            Uri.parse('${ApiConfig.baseUrl}/vehicles/$id'),
-            headers: headers,
-            body: json.encode(vehicle.toJson()),
-          )
-          .timeout(ApiConfig.connectTimeout);
+      final response = await _apiClient.put(
+        '/vehicles/$id',
+        body: vehicle.toJson(),
+      );
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
@@ -313,13 +267,7 @@ class VehicleService {
   /// Delete vehicle (server-first, fallback to local)
   Future<void> deleteVehicle(int id) async {
     try {
-      final headers = await _getHeaders();
-      final response = await http
-          .delete(
-            Uri.parse('${ApiConfig.baseUrl}/vehicles/$id'),
-            headers: headers,
-          )
-          .timeout(ApiConfig.connectTimeout);
+      final response = await _apiClient.delete('/vehicles/$id');
 
       if (response.statusCode == 200 || response.statusCode == 204) {
         // Successfully deleted on server, now delete locally
@@ -337,14 +285,10 @@ class VehicleService {
   /// Set vehicle as primary (server-first, fallback to local)
   Future<VehicleModel> setPrimaryVehicle(int id) async {
     try {
-      final headers = await _getHeaders();
-      final response = await http
-          .post(
-            Uri.parse('${ApiConfig.baseUrl}/vehicles/$id/set-primary'),
-            headers: headers,
-            body: json.encode({}), // Empty body for POST request
-          )
-          .timeout(ApiConfig.connectTimeout);
+      final response = await _apiClient.post(
+        '/vehicles/$id/set-primary',
+        body: {}, // Empty body for POST request
+      );
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
@@ -372,13 +316,9 @@ class VehicleService {
   /// Get service metrics (distance since last service, until next service)
   Future<Map<String, dynamic>> getServiceMetrics() async {
     try {
-      final headers = await _getHeaders();
-      final response = await http
-          .get(
-            Uri.parse('${ApiConfig.baseUrl}/vehicles/primary/service-metrics'),
-            headers: headers,
-          )
-          .timeout(ApiConfig.connectTimeout);
+      final response = await _apiClient.get(
+        '/vehicles/primary/service-metrics',
+      );
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
@@ -401,13 +341,7 @@ class VehicleService {
   /// Get usage pattern statistics
   Future<Map<String, dynamic>> getUsagePattern() async {
     try {
-      final headers = await _getHeaders();
-      final response = await http
-          .get(
-            Uri.parse('${ApiConfig.baseUrl}/vehicles/primary/usage-pattern'),
-            headers: headers,
-          )
-          .timeout(ApiConfig.connectTimeout);
+      final response = await _apiClient.get('/vehicles/primary/usage-pattern');
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);

@@ -18,6 +18,15 @@ dependencies:
   # Local storage untuk token auth
   shared_preferences: ^2.2.2
 
+  # Secure storage untuk tokens (persistent login)
+  flutter_secure_storage: ^9.0.0
+
+  # Firebase untuk push notification
+  firebase_core: ^3.12.1
+  firebase_messaging: ^15.2.4
+  flutter_local_notifications: ^18.0.1
+  device_info_plus: ^11.2.0
+
   # UUID untuk device ID
   uuid: ^4.5.1
 

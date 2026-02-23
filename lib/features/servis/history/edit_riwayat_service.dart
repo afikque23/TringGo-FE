@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:motorcycle_management/core/utils/app_theme.dart';
 import '../../../l10n/app_localizations.dart';
@@ -18,6 +20,7 @@ class EditRiwayatServicePage extends StatefulWidget {
 class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
   final _formKey = GlobalKey<FormState>();
   final _historyService = ServiceHistoryService();
+  final ImagePicker _picker = ImagePicker();
 
   // Controllers
   late TextEditingController _odometerController;
@@ -27,6 +30,8 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
 
   DateTime? _selectedDate;
   String _selectedServiceType = 'other'; // Initialize with default value
+  File? _selectedImage;
+  String? _existingImageUrl;
   bool _isLoading = false;
 
   // Mapping tipe servis dari database ke key yang sesuai
@@ -66,6 +71,7 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
     _catatanController = TextEditingController(
       text: widget.serviceData['notes'] ?? '',
     );
+    _existingImageUrl = widget.serviceData['receiptUrl'];
   }
 
   @override
@@ -143,9 +149,9 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      backgroundColor: colorScheme.surfaceContainerLow,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: colorScheme.surfaceContainerLow,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         leadingWidth: 64,
         leading: Padding(
@@ -308,29 +314,136 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
               _buildFormSection(
                 label: l10n.receiptOptional,
                 icon: Icons.receipt_long,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 32),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: colorScheme.outline, width: 1.5),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.cloud_upload_outlined,
-                        color: colorScheme.textSecondary,
-                        size: 32,
+                child: _selectedImage == null && _existingImageUrl == null
+                    ? GestureDetector(
+                        onTap: _showImageSourceOptions,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 32),
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: colorScheme.outline,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.cloud_upload_outlined,
+                                color: colorScheme.textSecondary,
+                                size: 32,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                l10n.uploadReceipt,
+                                style: TextStyle(
+                                  color: colorScheme.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: _selectedImage != null
+                                ? Image.file(
+                                    _selectedImage!,
+                                    width: double.infinity,
+                                    height: 200,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Image.network(
+                                    _existingImageUrl!,
+                                    width: double.infinity,
+                                    height: 200,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        width: double.infinity,
+                                        height: 200,
+                                        color:
+                                            colorScheme.surfaceContainerHighest,
+                                        child: Center(
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.broken_image_outlined,
+                                                size: 48,
+                                                color:
+                                                    colorScheme.textSecondary,
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                'Gagal memuat gambar',
+                                                style: TextStyle(
+                                                  color:
+                                                      colorScheme.textSecondary,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                          ),
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Row(
+                              children: [
+                                GestureDetector(
+                                  onTap: _showImageSourceOptions,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.6,
+                                      ),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.edit,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedImage = null;
+                                      _existingImageUrl = null;
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.6,
+                                      ),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.close,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        l10n.uploadReceipt,
-                        style: TextStyle(color: colorScheme.textSecondary),
-                      ),
-                    ],
-                  ),
-                ),
               ),
               const SizedBox(height: 32),
 
@@ -409,6 +522,163 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
+  void _showImageSourceOptions() {
+    final colorScheme = Theme.of(context).colorScheme;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Pilih Sumber Foto',
+                  style: TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ListTile(
+                  leading: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.camera_alt, color: colorScheme.primary),
+                  ),
+                  title: Text(
+                    'Ambil Foto',
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Gunakan kamera',
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 14,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _pickImageFromCamera();
+                  },
+                ),
+                const SizedBox(height: 8),
+                ListTile(
+                  leading: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.photo_library,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                  title: Text(
+                    'Pilih dari Galeri',
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Pilih foto yang ada',
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 14,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _pickImageFromGallery();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickImageFromGallery() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() {
+          _selectedImage = File(image.path);
+        });
+        print('📷 Image selected from gallery: ${image.path}');
+      }
+    } catch (e) {
+      print('❌ Error picking image from gallery: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memilih gambar: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickImageFromCamera() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() {
+          _selectedImage = File(image.path);
+        });
+        print('📷 Image captured from camera: ${image.path}');
+      }
+    } catch (e) {
+      print('❌ Error capturing image from camera: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mengambil foto: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _updateServiceRecord() async {
     final l10n = AppLocalizations.of(context)!;
 
@@ -470,8 +740,12 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
         notes: _catatanController.text.isEmpty ? null : _catatanController.text,
       );
 
-      // Call API
-      await _historyService.updateHistory(historyId, updatedHistory);
+      // Call API with receipt file
+      await _historyService.updateHistory(
+        historyId,
+        updatedHistory,
+        receiptFile: _selectedImage,
+      );
 
       if (!mounted) return;
 

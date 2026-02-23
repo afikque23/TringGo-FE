@@ -21,6 +21,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
   final _kmController = TextEditingController();
   final _bulanController = TextEditingController();
   final _catatanController = TextEditingController();
+  final _customReminderController = TextEditingController();
 
   bool _isJarakSelected = true; // true = jarak, false = waktu
   bool _reminderEnabled = true;
@@ -30,6 +31,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
 
   List<String> _reminderOptionsJarak = [];
   List<String> _reminderOptionsWaktu = [];
+  final String _customOption = '✏️ Custom (Input Manual)';
 
   @override
   void dispose() {
@@ -37,6 +39,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
     _kmController.dispose();
     _bulanController.dispose();
     _catatanController.dispose();
+    _customReminderController.dispose();
     super.dispose();
   }
 
@@ -57,6 +60,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
         l10n.reminderDistance200km,
         l10n.reminderDistance300km,
         l10n.reminderDistance500km,
+        _customOption, // Custom option
       ];
       _reminderOptionsWaktu = [
         l10n.reminderTime1Day,
@@ -64,6 +68,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
         l10n.reminderTime1Week,
         l10n.reminderTime2Weeks,
         l10n.reminderTime1Month,
+        _customOption, // Custom option
       ];
     });
   }
@@ -93,6 +98,36 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
     }
 
     return null; // No reminder
+  }
+
+  /// Get reminder threshold value (km or days before service)
+  int? _getReminderThreshold(String reminderText, bool isJarak) {
+    final l10n = AppLocalizations.of(context)!;
+
+    // If custom option, get value from custom input field
+    if (reminderText == _customOption) {
+      final customValue = _customReminderController.text.trim();
+      if (customValue.isEmpty) return null;
+      return int.tryParse(customValue);
+    }
+
+    // Extract threshold from predefined options
+    if (isJarak) {
+      // Jarak/KM based reminders
+      if (reminderText == l10n.reminderDistance100km) return 100;
+      if (reminderText == l10n.reminderDistance200km) return 200;
+      if (reminderText == l10n.reminderDistance300km) return 300;
+      if (reminderText == l10n.reminderDistance500km) return 500;
+    } else {
+      // Time based reminders (in days)
+      if (reminderText == l10n.reminderTime1Day) return 1;
+      if (reminderText == l10n.reminderTime3Days) return 3;
+      if (reminderText == l10n.reminderTime1Week) return 7;
+      if (reminderText == l10n.reminderTime2Weeks) return 14;
+      if (reminderText == l10n.reminderTime1Month) return 30;
+    }
+
+    return null;
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -253,6 +288,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
                                         _isJarakSelected = true;
                                         _reminderBefore =
                                             l10n.reminderDistance200km;
+                                        _customReminderController.clear();
                                       });
                                     },
                                   ),
@@ -267,6 +303,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
                                         _isJarakSelected = false;
                                         _reminderBefore =
                                             l10n.reminderTime1Week;
+                                        _customReminderController.clear();
                                       });
                                     },
                                   ),
@@ -443,7 +480,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                l10n.serviceDate,
+                                '${l10n.serviceDate} (Opsional)',
                                 style: TextStyle(
                                   fontFamily: 'Arial',
                                   fontSize: 14,
@@ -478,7 +515,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
                                       const SizedBox(width: 12),
                                       Text(
                                         _selectedDate == null
-                                            ? l10n.selectDate
+                                            ? 'Kosongkan untuk dihitung otomatis'
                                             : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
                                         style: TextStyle(
                                           fontFamily: 'Arial',
@@ -643,6 +680,11 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
                                           if (newValue != null) {
                                             setState(() {
                                               _reminderBefore = newValue;
+                                              // Clear custom input when switching from custom
+                                              if (newValue != _customOption) {
+                                                _customReminderController
+                                                    .clear();
+                                              }
                                             });
                                           }
                                         },
@@ -650,6 +692,154 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
                                     ),
                                   ],
                                 ),
+
+                                // Custom reminder input field
+                                if (_reminderBefore == _customOption) ...[
+                                  const SizedBox(height: 16),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _isJarakSelected
+                                            ? 'Masukkan jarak (km)'
+                                            : 'Masukkan waktu (hari)',
+                                        style: TextStyle(
+                                          fontFamily: 'Arial',
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w400,
+                                          color: colorScheme.onSurface,
+                                          height: 1.43,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      TextFormField(
+                                        controller: _customReminderController,
+                                        keyboardType: TextInputType.number,
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter
+                                              .digitsOnly,
+                                        ],
+                                        style: TextStyle(
+                                          fontFamily: 'Arial',
+                                          fontSize: 16,
+                                          color: colorScheme.onSurface,
+                                        ),
+                                        decoration: InputDecoration(
+                                          hintText: _isJarakSelected
+                                              ? 'Contoh: 50 (untuk 50 km sebelumnya)'
+                                              : 'Contoh: 7 (untuk 7 hari sebelumnya)',
+                                          hintStyle: TextStyle(
+                                            color: colorScheme.onSurfaceVariant,
+                                            fontSize: 14,
+                                          ),
+                                          filled: true,
+                                          fillColor: colorScheme
+                                              .surfaceContainerHighest,
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                            borderSide: BorderSide(
+                                              color: colorScheme.outline,
+                                              width: 0.65,
+                                            ),
+                                          ),
+                                          enabledBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                            borderSide: BorderSide(
+                                              color: colorScheme.outline,
+                                              width: 0.65,
+                                            ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                            borderSide: BorderSide(
+                                              color: colorScheme.primary,
+                                              width: 1.5,
+                                            ),
+                                          ),
+                                          errorBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                            borderSide: BorderSide(
+                                              color: colorScheme.error,
+                                              width: 0.65,
+                                            ),
+                                          ),
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 16,
+                                                vertical: 14,
+                                              ),
+                                        ),
+                                        validator: (value) {
+                                          if (_reminderEnabled &&
+                                              _reminderBefore ==
+                                                  _customOption &&
+                                              (value == null ||
+                                                  value.isEmpty)) {
+                                            return _isJarakSelected
+                                                ? 'Masukkan jarak pengingat'
+                                                : 'Masukkan waktu pengingat';
+                                          }
+                                          if (_reminderEnabled &&
+                                              _reminderBefore ==
+                                                  _customOption &&
+                                              int.tryParse(value!) == null) {
+                                            return 'Masukkan angka yang valid';
+                                          }
+                                          if (_reminderEnabled &&
+                                              _reminderBefore ==
+                                                  _customOption &&
+                                              int.parse(value!) <= 0) {
+                                            return 'Nilai harus lebih dari 0';
+                                          }
+                                          return null;
+                                        },
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: colorScheme.primaryContainer
+                                              .withOpacity(0.3),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.info_outline,
+                                              size: 16,
+                                              color: colorScheme.primary,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                _isJarakSelected
+                                                    ? 'Notifikasi akan muncul beberapa km sebelum jadwal servis'
+                                                    : 'Notifikasi akan muncul beberapa hari sebelum jadwal servis',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: colorScheme.onSurface,
+                                                  height: 1.4,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+
                                 const SizedBox(height: 16),
                               ],
                             ],
@@ -930,21 +1120,16 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
       if (_bulanController.text.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Mohon isi interval waktu'),
+            content: Text('Mohon isi interval waktu (bulan)'),
             backgroundColor: colorScheme.error,
           ),
         );
         return;
       }
-      if (_selectedDate == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Mohon pilih tanggal servis berikutnya'),
-            backgroundColor: colorScheme.error,
-          ),
-        );
-        return;
-      }
+      // Removed date validation - allow auto-calculation from interval
+      // User can either:
+      // 1. Input interval (months) only -> auto-calculate target date
+      // 2. Input interval AND pick specific date -> use picked date
     }
 
     setState(() => _isLoading = true);
@@ -993,8 +1178,13 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
 
       // Map reminder text to reminder_option_id
       int? reminderOptionId;
+      int? reminderThreshold;
       if (_reminderEnabled && _reminderBefore.isNotEmpty) {
         reminderOptionId = _getReminderOptionId(
+          _reminderBefore,
+          _isJarakSelected,
+        );
+        reminderThreshold = _getReminderThreshold(
           _reminderBefore,
           _isJarakSelected,
         );
@@ -1027,7 +1217,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
         lastServiceMileage: lastServiceMileage,
         nextServiceMileage: nextServiceMileage,
         nextServiceDate: nextServiceDate,
-        reminderThreshold: reminderOptionId,
+        reminderThreshold: reminderThreshold, // Use calculated threshold value
         reminderEnabled: _reminderEnabled,
         status: 'active',
         notes: notes.isNotEmpty ? notes : null,

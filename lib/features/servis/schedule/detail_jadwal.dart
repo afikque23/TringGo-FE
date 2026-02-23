@@ -47,6 +47,7 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
   late String _targetKm;
   late int _percentage;
   late Color _progressColor;
+  int _calculatedInterval = 0; // Store calculated interval for display
 
   @override
   void initState() {
@@ -59,6 +60,7 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
     _targetKm = widget.targetKm;
     _percentage = widget.percentage;
     _progressColor = widget.statusColor;
+    _calculatedInterval = widget.schedule.intervalValue; // Initialize
     _loadVehicleAndRecalculate();
   }
 
@@ -86,7 +88,24 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
       final lastKm =
           widget.schedule.lastServiceMileage ??
           (nextKm - widget.schedule.intervalValue);
-      final intervalValue = widget.schedule.intervalValue;
+
+      // Fallback: If intervalValue is 0 or null, calculate from next - last
+      var intervalValue = widget.schedule.intervalValue;
+      if (intervalValue == 0 && nextKm > 0 && lastKm >= 0) {
+        intervalValue = nextKm - lastKm;
+        print(
+          '⚠️ intervalValue was 0, calculated from next-last: $intervalValue km',
+        );
+      }
+
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('🔍 SCHEDULE CALCULATION DEBUG (Jarak)');
+      print('Schedule ID: ${widget.schedule.id}');
+      print('Current KM: $currentKm');
+      print('Last Service KM: $lastKm');
+      print('Next Service KM: $nextKm');
+      print('Interval Value: $intervalValue km');
+      print('Traveled Since Last: ${currentKm - lastKm} km');
 
       // Calculate remaining km
       final kmRemaining = nextKm - currentKm;
@@ -100,6 +119,9 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
                 .clamp(0, 100)
                 .toInt()
           : 0;
+
+      print('Percentage: $percentage%');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
       // Determine status based on remaining km
       String status;
@@ -128,6 +150,7 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
         _targetKm = nextKm.toString();
         _percentage = percentage;
         _progressColor = progressColor;
+        _calculatedInterval = intervalValue; // Save calculated interval
       });
     } else {
       // Time-based schedule
@@ -136,7 +159,26 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
       final daysRemaining = nextDate != null
           ? nextDate.difference(now).inDays
           : 0;
-      final intervalDays = widget.schedule.intervalValue;
+
+      // Calculate interval in days if not provided
+      var intervalDays = widget.schedule.intervalValue;
+      if (intervalDays == 0 && nextDate != null) {
+        final lastDate = widget.schedule.lastServiceDate;
+        if (lastDate != null) {
+          intervalDays = nextDate.difference(lastDate).inDays;
+          print(
+            '⚠️ intervalDays was 0, calculated from dates: $intervalDays days',
+          );
+        }
+      }
+
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('🔍 SCHEDULE CALCULATION DEBUG (Waktu)');
+      print('Schedule ID: ${widget.schedule.id}');
+      print('Current Date: $now');
+      print('Next Service Date: $nextDate');
+      print('Interval Value: $intervalDays days');
+      print('Days Remaining: $daysRemaining');
 
       // Calculate days since last service
       final lastDate =
@@ -150,6 +192,10 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
       final percentage = intervalDays > 0
           ? ((daysSinceLastService / intervalDays) * 100).clamp(0, 100).toInt()
           : 0;
+
+      print('Days Since Last Service: $daysSinceLastService');
+      print('Percentage: $percentage%');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
       String status;
       Color statusColor;
@@ -177,6 +223,7 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
         _targetKm = nextDate?.toString().split(' ')[0] ?? '-';
         _percentage = percentage;
         _progressColor = progressColor;
+        _calculatedInterval = intervalDays; // Save calculated interval
       });
     }
   }
@@ -320,6 +367,7 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
   Widget _buildStatusCard(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    final isTimeBased = widget.schedule.intervalType == 'time';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
@@ -345,7 +393,9 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
             ),
           ),
           Text(
-            '$_kmRemaining ${l10n.kmRemaining}',
+            isTimeBased
+                ? '$_kmRemaining hari lagi'
+                : '$_kmRemaining ${l10n.kmRemaining}',
             style: TextStyle(
               fontFamily: 'Arial',
               fontSize: 14,
@@ -362,9 +412,16 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
   Widget _buildProgressCard(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    final interval = widget.schedule.intervalType == 'mileage'
-        ? 'Setiap ${widget.schedule.intervalValue} km'
-        : 'Setiap ${widget.schedule.intervalValue} bulan';
+    final isTimeBased = widget.schedule.intervalType == 'time';
+
+    // Use calculated interval if available, otherwise fallback to schedule's interval
+    final displayInterval = _calculatedInterval > 0
+        ? _calculatedInterval
+        : widget.schedule.intervalValue;
+
+    final interval = isTimeBased
+        ? 'Setiap $displayInterval bulan'
+        : 'Setiap $displayInterval km';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -394,7 +451,7 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    l10n.currentOdometer,
+                    isTimeBased ? 'Tanggal Sekarang' : l10n.currentOdometer,
                     style: TextStyle(
                       fontFamily: 'Arial',
                       fontSize: 14,
@@ -405,7 +462,7 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '$_currentKm km',
+                    isTimeBased ? _currentKm : '$_currentKm km',
                     style: TextStyle(
                       fontFamily: 'Arial',
                       fontSize: 18,
@@ -420,7 +477,7 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    l10n.serviceTarget,
+                    isTimeBased ? 'Target Tanggal' : l10n.serviceTarget,
                     style: TextStyle(
                       fontFamily: 'Arial',
                       fontSize: 14,
@@ -431,7 +488,7 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '$_targetKm km',
+                    isTimeBased ? _targetKm : '$_targetKm km',
                     style: TextStyle(
                       fontFamily: 'Arial',
                       fontSize: 18,

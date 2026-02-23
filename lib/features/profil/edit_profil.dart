@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import '../../l10n/app_localizations.dart';
+import '../../core/services/profile_service.dart';
+import '../../core/model/user_profile_model.dart';
 
 class EditProfilPage extends StatefulWidget {
   const EditProfilPage({super.key});
@@ -10,18 +14,52 @@ class EditProfilPage extends StatefulWidget {
 }
 
 class _EditProfilPageState extends State<EditProfilPage> {
-  final TextEditingController _nameController = TextEditingController(
-    text: 'Ahmad Rifai',
-  );
-  final TextEditingController _emailController = TextEditingController(
-    text: 'ahmad.rifai@example.com',
-  );
-  final TextEditingController _phoneController = TextEditingController(
-    text: '+62 812 3456 7890',
-  );
-  final TextEditingController _locationController = TextEditingController(
-    text: 'Jakarta, Indonesia',
-  );
+  bool _isLoading = true;
+  bool _isSaving = false;
+  UserProfileModel? _profile;
+  File? _selectedImage;
+  final ImagePicker _picker = ImagePicker();
+
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      setState(() => _isLoading = true);
+
+      final profile = await ProfileService().getProfile();
+
+      if (mounted) {
+        setState(() {
+          _profile = profile;
+          _nameController.text = profile.name;
+          _emailController.text = profile.email;
+          _phoneController.text = profile.phone ?? '';
+          _locationController.text = profile.location ?? '';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('❌ Error loading profile: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load profile: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -32,63 +70,323 @@ class _EditProfilPageState extends State<EditProfilPage> {
     super.dispose();
   }
 
-  void _saveChanges() {
+  void _saveChanges() async {
     final l10n = AppLocalizations.of(context)!;
-    // TODO: Implement save logic
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(l10n.saveChanges),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-    Navigator.of(context).pop();
+
+    // Validate required fields
+    if (_nameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Name is required'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    if (_emailController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Email is required'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    try {
+      setState(() => _isSaving = true);
+
+      final updatedProfile = await ProfileService().updateProfile(
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        phone: _phoneController.text.trim().isNotEmpty
+            ? _phoneController.text.trim()
+            : null,
+        location: _locationController.text.trim().isNotEmpty
+            ? _locationController.text.trim()
+            : null,
+        avatarFile: _selectedImage,
+      );
+
+      if (mounted) {
+        setState(() => _isSaving = false);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.saveChanges),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+
+        // Return updated profile to previous page
+        Navigator.of(context).pop(updatedProfile);
+      }
+    } catch (e) {
+      print('❌ Error saving profile: $e');
+      if (mounted) {
+        setState(() => _isSaving = false);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to save: ${e.toString().replaceAll('Exception: ', '')}',
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickImageFromGallery() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() {
+          _selectedImage = File(image.path);
+        });
+        print('📷 Image selected from gallery: ${image.path}');
+      }
+    } catch (e) {
+      print('❌ Error picking image from gallery: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to pick image: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickImageFromCamera() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() {
+          _selectedImage = File(image.path);
+        });
+        print('📷 Image captured from camera: ${image.path}');
+      }
+    } catch (e) {
+      print('❌ Error capturing image from camera: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to capture image: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
   }
 
   void _changeProfilePhoto() {
-    final l10n = AppLocalizations.of(context)!;
-    // TODO: Implement photo picker logic
-    showDialog(
+    final colorScheme = Theme.of(context).colorScheme;
+    showModalBottomSheet(
       context: context,
-      builder: (BuildContext dialogContext) {
-        final dialogColorScheme = Theme.of(dialogContext).colorScheme;
-        return AlertDialog(
-          backgroundColor: dialogColorScheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            l10n.updateProfilePhoto,
-            style: TextStyle(
-              fontFamily: 'Arial',
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: dialogColorScheme.onSurface,
-            ),
-          ),
-          content: Text(
-            'Fitur mengubah foto profil akan segera tersedia.',
-            style: TextStyle(
-              fontFamily: 'Arial',
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: dialogColorScheme.onSurfaceVariant,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(
-                'OK',
-                style: TextStyle(
-                  fontFamily: 'Arial',
-                  fontSize: 16,
-                  fontWeight: FontWeight.w400,
-                  color: dialogColorScheme.primary,
+      backgroundColor: colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header
+                Text(
+                  'Pilih Foto Profil',
+                  style: TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onSurface,
+                  ),
                 ),
-              ),
+                const SizedBox(height: 24),
+                // Camera Option
+                ListTile(
+                  leading: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.camera_alt, color: colorScheme.primary),
+                  ),
+                  title: Text(
+                    'Ambil Foto',
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Gunakan kamera',
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 14,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _pickImageFromCamera();
+                  },
+                ),
+                const SizedBox(height: 8),
+                // Gallery Option
+                ListTile(
+                  leading: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.photo_library,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                  title: Text(
+                    'Pilih dari Galeri',
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Pilih foto yang ada',
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 14,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _pickImageFromGallery();
+                  },
+                ),
+                // Remove Photo Option (if image exists)
+                if (_selectedImage != null || _profile?.avatar != null) ...[
+                  const SizedBox(height: 8),
+                  ListTile(
+                    leading: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: colorScheme.error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.delete_outline,
+                        color: colorScheme.error,
+                      ),
+                    ),
+                    title: Text(
+                      'Hapus Foto',
+                      style: TextStyle(
+                        fontFamily: 'Arial',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w400,
+                        color: colorScheme.error,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Gunakan inisial saja',
+                      style: TextStyle(
+                        fontFamily: 'Arial',
+                        fontSize: 14,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    onTap: () async {
+                      Navigator.pop(sheetContext);
+                      if (_profile?.avatar != null) {
+                        // Delete from server
+                        try {
+                          await ProfileService().deleteAvatar();
+                          setState(() {
+                            _selectedImage = null;
+                            if (_profile != null) {
+                              _profile = UserProfileModel(
+                                id: _profile!.id,
+                                name: _profile!.name,
+                                email: _profile!.email,
+                                phone: _profile!.phone,
+                                location: _profile!.location,
+                                avatar: null,
+                                role: _profile!.role,
+                                isActive: _profile!.isActive,
+                                emailVerifiedAt: _profile!.emailVerifiedAt,
+                                phoneVerifiedAt: _profile!.phoneVerifiedAt,
+                                lastLoginAt: _profile!.lastLoginAt,
+                                createdAt: _profile!.createdAt,
+                                updatedAt: _profile!.updatedAt,
+                                stats: _profile!.stats,
+                              );
+                            }
+                          });
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text('Avatar deleted'),
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.primary,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to delete avatar: $e'),
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.error,
+                              ),
+                            );
+                          }
+                        }
+                      } else {
+                        setState(() {
+                          _selectedImage = null;
+                        });
+                      }
+                    },
+                  ),
+                ],
+                const SizedBox(height: 16),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
@@ -168,25 +466,27 @@ class _EditProfilPageState extends State<EditProfilPage> {
             ),
             // Form Content
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                child: Column(
-                  children: [
-                    // Profile Photo Section
-                    _buildProfilePhotoCard(),
-                    const SizedBox(height: 24),
-                    // Form Fields
-                    _buildFormFields(),
-                    const SizedBox(height: 24),
-                    // Tips Section
-                    _buildTipsCard(),
-                    const SizedBox(height: 24),
-                    // Save Button
-                    _buildSaveButton(),
-                    const SizedBox(height: 16),
-                  ],
-                ),
-              ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                      child: Column(
+                        children: [
+                          // Profile Photo Section
+                          _buildProfilePhotoCard(),
+                          const SizedBox(height: 24),
+                          // Form Fields
+                          _buildFormFields(),
+                          const SizedBox(height: 24),
+                          // Tips Section
+                          _buildTipsCard(),
+                          const SizedBox(height: 24),
+                          // Save Button
+                          _buildSaveButton(),
+                          const SizedBox(height: 16),
+                        ],
+                      ),
+                    ),
             ),
           ],
         ),
@@ -214,28 +514,43 @@ class _EditProfilPageState extends State<EditProfilPage> {
                 width: 96,
                 height: 96,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      colorScheme.primary,
-                      colorScheme.primary.withValues(alpha: 0.8),
-                    ],
-                  ),
+                  gradient: _selectedImage == null && _profile?.avatar == null
+                      ? LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            colorScheme.primary,
+                            colorScheme.primary.withValues(alpha: 0.8),
+                          ],
+                        )
+                      : null,
                   borderRadius: BorderRadius.circular(100),
+                  image: _selectedImage != null
+                      ? DecorationImage(
+                          image: FileImage(_selectedImage!),
+                          fit: BoxFit.cover,
+                        )
+                      : _profile?.avatar != null
+                      ? DecorationImage(
+                          image: NetworkImage(_profile!.avatar!),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
                 ),
-                child: Center(
-                  child: Text(
-                    'A',
-                    style: TextStyle(
-                      fontFamily: 'Arial',
-                      fontSize: 30,
-                      fontWeight: FontWeight.w700,
-                      color: colorScheme.onPrimary,
-                      height: 1.2,
-                    ),
-                  ),
-                ),
+                child: _selectedImage == null && _profile?.avatar == null
+                    ? Center(
+                        child: Text(
+                          _profile?.initials ?? 'A',
+                          style: TextStyle(
+                            fontFamily: 'Arial',
+                            fontSize: 30,
+                            fontWeight: FontWeight.w700,
+                            color: colorScheme.onPrimary,
+                            height: 1.2,
+                          ),
+                        ),
+                      )
+                    : null,
               ),
               // Camera Button
               Positioned(
@@ -466,11 +781,13 @@ class _EditProfilPageState extends State<EditProfilPage> {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     return GestureDetector(
-      onTap: _saveChanges,
+      onTap: _isSaving ? null : _saveChanges,
       child: Container(
         height: 56,
         decoration: BoxDecoration(
-          color: colorScheme.primary,
+          color: _isSaving
+              ? colorScheme.primary.withValues(alpha: 0.5)
+              : colorScheme.primary,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -488,10 +805,22 @@ class _EditProfilPageState extends State<EditProfilPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.check, size: 20, color: colorScheme.onPrimary),
+            if (_isSaving)
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    colorScheme.onPrimary,
+                  ),
+                ),
+              )
+            else
+              Icon(Icons.check, size: 20, color: colorScheme.onPrimary),
             const SizedBox(width: 8),
             Text(
-              l10n.save,
+              _isSaving ? 'Saving...' : l10n.save,
               style: TextStyle(
                 fontFamily: 'Arial',
                 fontSize: 16,
