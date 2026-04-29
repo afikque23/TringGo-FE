@@ -327,8 +327,16 @@ class _ListMotorPageState extends State<ListMotorPage> {
                               odometer: vehicle.odometer.toString(),
                               isMainVehicle: vehicle.isPrimary,
                               tipeMotor: vehicle.tipeMotor,
+                              kapasitasCc: vehicle.kapasitasCc,
+                              transmisi: vehicle.transmisi,
                               licensePlate: vehicle.licensePlate,
                               color: vehicle.color,
+                              defaultBeban: vehicle.defaultBeban,
+                              defaultPenumpang: vehicle.defaultPenumpang,
+                              defaultGayaBerkendara:
+                                  vehicle.defaultGayaBerkendara,
+                              defaultKondisiJalan: vehicle.defaultKondisiJalan,
+                              defaultMedan: vehicle.defaultMedan,
                             ),
                           ),
                         );

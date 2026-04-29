@@ -284,11 +284,19 @@ class _MaintenancePageState extends State<MaintenancePage> {
       statusText = l10n.soon;
       statusColor = colorScheme.warning;
       progressValue = 0.6;
-    } else {
+    } else if (totalSchedules > 0) {
       statusText = l10n.good;
       statusColor = colorScheme.primary;
-      progressValue = totalSchedules > 0 ? 0.85 : 0.0;
+      progressValue = 0.85;
+    } else {
+      statusText = 'Belum ada data';
+      statusColor = colorScheme.secondary;
+      progressValue = 0.0;
     }
+
+    final String statusSubtext = totalSchedules > 0
+        ? 'Kondisi kendaraan ${(progressValue * 100).toInt()}%'
+        : 'Belum ada jadwal perawatan';
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -319,7 +327,9 @@ class _MaintenancePageState extends State<MaintenancePage> {
                 child: Icon(
                   urgentCount > 0
                       ? Icons.warning_amber_outlined
-                      : Icons.check_circle_outline,
+                      : totalSchedules > 0
+                      ? Icons.check_circle_outline
+                      : Icons.info_outline,
                   color: statusColor,
                   size: 24,
                 ),
@@ -352,7 +362,7 @@ class _MaintenancePageState extends State<MaintenancePage> {
               ),
               const SizedBox(height: 8),
               Text(
-                l10n.vehicleCondition,
+                statusSubtext,
                 style: TextStyle(
                   fontFamily: 'Arial',
                   fontSize: 12,
@@ -615,8 +625,19 @@ class _MaintenancePageState extends State<MaintenancePage> {
     final urgentCount = statuses['urgent'] ?? 0;
     final soonCount = statuses['soon'] ?? 0;
 
-    // Only show if there are recommendations
+    // Only show if there are no urgent/soon recommendations
+    final bool hasSchedules = _schedules.isNotEmpty;
     if (urgentCount == 0 && soonCount == 0) {
+      final IconData statusIcon = hasSchedules
+          ? Icons.check_circle_outline
+          : Icons.schedule_outlined;
+      final Color statusIconColor = hasSchedules
+          ? colorScheme.primary
+          : colorScheme.secondary;
+      final String statusMessage = hasSchedules
+          ? 'Semua komponen dalam kondisi baik'
+          : 'Belum ada jadwal perawatan yang dikonfigurasi';
+
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -626,15 +647,11 @@ class _MaintenancePageState extends State<MaintenancePage> {
         ),
         child: Row(
           children: [
-            Icon(
-              Icons.check_circle_outline,
-              color: colorScheme.primary,
-              size: 20,
-            ),
+            Icon(statusIcon, color: statusIconColor, size: 20),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Semua komponen dalam kondisi baik',
+                statusMessage,
                 style: TextStyle(
                   fontFamily: 'Arial',
                   fontSize: 14,
@@ -745,6 +762,41 @@ class _MaintenancePageState extends State<MaintenancePage> {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
 
+    final bool hasUsageData =
+        !_isLoadingPattern &&
+        ((_usagePattern['average_km_per_day'] ?? 0.0) > 0.0 ||
+            (_usagePattern['weekly_km'] ?? 0.0) > 0.0);
+
+    String usageIntensityText;
+    String usageDescription;
+
+    if (_isLoadingPattern) {
+      usageIntensityText = '...';
+      usageDescription = '';
+    } else if (!hasUsageData) {
+      usageIntensityText = 'Belum ada data';
+      usageDescription =
+          'Mulai berkendara untuk melihat analisis pola penggunaan Anda';
+    } else {
+      final avgKm = (_usagePattern['average_km_per_day'] ?? 0.0) is int
+          ? (_usagePattern['average_km_per_day'] ?? 0.0).toDouble()
+          : (_usagePattern['average_km_per_day'] ?? 0.0) as double;
+      final intensity = _usagePattern['usage_intensity'] ?? 'light';
+      if (intensity == 'heavy') {
+        usageIntensityText = 'Penggunaan Berat';
+        usageDescription =
+            'Pola penggunaan berat Anda (rata-rata ${avgKm.toStringAsFixed(1)} km/hari) mempersingkat interval perawatan. Pantau kondisi kendaraan lebih sering.';
+      } else if (intensity == 'moderate') {
+        usageIntensityText = 'Penggunaan Sedang';
+        usageDescription =
+            'Pola penggunaan sedang Anda (rata-rata ${avgKm.toStringAsFixed(1)} km/hari) sesuai dengan interval perawatan standar.';
+      } else {
+        usageIntensityText = l10n.lightUsage;
+        usageDescription =
+            'Pola penggunaan ringan Anda (rata-rata ${avgKm.toStringAsFixed(1)} km/hari) memperpanjang interval perawatan.';
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -827,33 +879,30 @@ class _MaintenancePageState extends State<MaintenancePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _isLoadingPattern
-                            ? l10n.lightUsage
-                            : (_usagePattern['usage_intensity'] == 'heavy'
-                                  ? 'Penggunaan Berat'
-                                  : _usagePattern['usage_intensity'] ==
-                                        'moderate'
-                                  ? 'Penggunaan Sedang'
-                                  : l10n.lightUsage),
+                        usageIntensityText,
                         style: TextStyle(
                           fontFamily: 'Arial',
                           fontSize: 14,
                           fontWeight: FontWeight.w400,
-                          color: colorScheme.tertiary,
+                          color: hasUsageData
+                              ? colorScheme.tertiary
+                              : colorScheme.secondary,
                           height: 1.43,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        l10n.lightUsageDesc,
-                        style: TextStyle(
-                          fontFamily: 'Arial',
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                          color: colorScheme.onSurface,
-                          height: 1.62,
+                      if (usageDescription.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          usageDescription,
+                          style: TextStyle(
+                            fontFamily: 'Arial',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                            color: colorScheme.onSurface,
+                            height: 1.62,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

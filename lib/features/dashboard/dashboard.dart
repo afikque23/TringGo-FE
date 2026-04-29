@@ -11,8 +11,10 @@ import '../notification/notification_page.dart';
 import '../servis/service.dart';
 import '../servis/schedule/tambah_jadwal.dart';
 import '../../l10n/app_localizations.dart';
+import '../../core/utils/app_theme.dart';
 import '../../core/services/vehicle_service.dart';
 import '../../core/model/vehicle_model.dart';
+import '../../core/model/service_schedule_model.dart';
 import '../../core/services/notification_api_service.dart';
 import '../../core/services/service_schedule_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -27,11 +29,14 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   final int _selectedIndex = 0;
   final _vehicleService = VehicleService();
+  final _scheduleService = ServiceScheduleService();
   VehicleModel? _primaryVehicle;
   bool _isLoadingVehicle = true;
   Map<String, dynamic> _serviceMetrics = {};
   bool _isLoadingMetrics = true;
   int _unreadNotificationCount = 0;
+  List<ServiceScheduleModel> _dashboardSchedules = [];
+  bool _isLoadingSchedules = true;
 
   @override
   void initState() {
@@ -39,7 +44,25 @@ class _DashboardPageState extends State<DashboardPage> {
     _loadPrimaryVehicle();
     _loadServiceMetrics();
     _loadUnreadCount();
+    _loadDashboardSchedules();
     _setupNotificationListener();
+  }
+
+  Future<void> _loadDashboardSchedules() async {
+    try {
+      final schedules = await _scheduleService.getAllSchedules();
+      if (mounted) {
+        setState(() {
+          _dashboardSchedules = schedules;
+          _isLoadingSchedules = false;
+        });
+      }
+    } catch (e) {
+      print('Failed to load dashboard schedules: $e');
+      if (mounted) {
+        setState(() => _isLoadingSchedules = false);
+      }
+    }
   }
 
   Future<void> _loadUnreadCount() async {
@@ -122,6 +145,48 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+
+    // Compute vehicle condition dynamically from schedules
+    String conditionText;
+    Color conditionColor;
+    double conditionProgress;
+    if (_isLoadingSchedules || _isLoadingVehicle) {
+      conditionText = '...';
+      conditionColor = colorScheme.secondary;
+      conditionProgress = 0.0;
+    } else if (_dashboardSchedules.isEmpty) {
+      conditionText = 'Belum ada jadwal';
+      conditionColor = colorScheme.secondary;
+      conditionProgress = 0.0;
+    } else {
+      int urgentCount = 0;
+      int soonCount = 0;
+      final currentOdometer = _primaryVehicle?.odometer ?? 0;
+      for (final schedule in _dashboardSchedules) {
+        if (schedule.intervalType == 'mileage') {
+          final nextService = schedule.nextServiceMileage ?? 0;
+          final remaining = nextService - currentOdometer;
+          if (remaining <= 0) {
+            urgentCount++;
+          } else if (remaining <= 500) {
+            soonCount++;
+          }
+        }
+      }
+      if (urgentCount > 0) {
+        conditionText = l10n.urgent;
+        conditionColor = colorScheme.error;
+        conditionProgress = 0.3;
+      } else if (soonCount > 0) {
+        conditionText = l10n.soon;
+        conditionColor = colorScheme.warning;
+        conditionProgress = 0.6;
+      } else {
+        conditionText = l10n.goodCondition;
+        conditionColor = colorScheme.primary;
+        conditionProgress = 0.85;
+      }
+    }
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -351,9 +416,9 @@ class _DashboardPageState extends State<DashboardPage> {
                         Container(
                           padding: const EdgeInsets.fromLTRB(20, 20, 20, 1),
                           decoration: BoxDecoration(
-                            color: colorScheme.primary.withValues(alpha: 0.1),
+                            color: conditionColor.withValues(alpha: 0.1),
                             border: Border.all(
-                              color: colorScheme.primary,
+                              color: conditionColor,
                               width: 0.65,
                             ),
                             borderRadius: BorderRadius.circular(16),
@@ -380,19 +445,19 @@ class _DashboardPageState extends State<DashboardPage> {
                                           width: 12,
                                           height: 12,
                                           decoration: BoxDecoration(
-                                            color: colorScheme.primary,
+                                            color: conditionColor,
                                             shape: BoxShape.circle,
                                           ),
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
-                                          l10n.goodCondition,
+                                          conditionText,
                                           style: TextStyle(
                                             fontFamily: 'Arial',
                                             fontSize: 16,
                                             fontWeight: FontWeight.w400,
                                             height: 1.5,
-                                            color: colorScheme.primary,
+                                            color: conditionColor,
                                           ),
                                         ),
                                       ],
@@ -483,11 +548,11 @@ class _DashboardPageState extends State<DashboardPage> {
                                     ),
                                   ),
                                   FractionallySizedBox(
-                                    widthFactor: 0.42, // 950/(950+1550)
+                                    widthFactor: conditionProgress,
                                     child: Container(
                                       height: 8,
                                       decoration: BoxDecoration(
-                                        color: colorScheme.primary,
+                                        color: conditionColor,
                                         borderRadius: BorderRadius.circular(
                                           100,
                                         ),

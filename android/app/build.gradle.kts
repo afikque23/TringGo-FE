@@ -26,7 +26,7 @@ android {
         applicationId = "com.example.motorcycle_management"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 21  // Required for Firebase Cloud Messaging
+        minSdk = flutter.minSdkVersion  // Required for Firebase Cloud Messaging
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
