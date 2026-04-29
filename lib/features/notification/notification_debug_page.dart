@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../core/services/notification_service.dart';
@@ -176,7 +175,7 @@ class _NotificationDebugPageState extends State<NotificationDebugPage> {
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
       // Reinitialize notification service to recreate channels
-      await NotificationService.instance.initialize();
+      await NotificationService.instance.initialize(forceReinitialize: true);
 
       setState(() {
         _isLoading = false;
@@ -247,32 +246,7 @@ class _NotificationDebugPageState extends State<NotificationDebugPage> {
     });
 
     try {
-      // Import flutter_local_notifications untuk test
-      final FlutterLocalNotificationsPlugin localNotifications =
-          FlutterLocalNotificationsPlugin();
-
-      const AndroidNotificationDetails androidDetails =
-          AndroidNotificationDetails(
-            'mototracker_default',
-            'Default Notifications',
-            channelDescription: 'Test notification channel',
-            importance: Importance.max,
-            priority: Priority.high,
-            ticker: 'Test',
-            playSound: true,
-            enableVibration: true,
-          );
-
-      const NotificationDetails notificationDetails = NotificationDetails(
-        android: androidDetails,
-      );
-
-      await localNotifications.show(
-        99999,
-        '🧪 Test Local Notification',
-        'Jika Anda melihat notifikasi ini, berarti local notification BERFUNGSI! Masalahnya ada di FCM handler.',
-        notificationDetails,
-      );
+      await NotificationService.instance.showTestLocalNotification();
 
       setState(() {
         _isLoading = false;

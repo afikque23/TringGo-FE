@@ -1,7 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'device_token_service.dart';
@@ -18,6 +18,13 @@ class NotificationService {
   NotificationService._();
   static final NotificationService instance = NotificationService._();
 
+  bool _initialized = false;
+  bool _fcmHandlersSetup = false;
+
+  StreamSubscription<RemoteMessage>? _onMessageSubscription;
+  StreamSubscription<RemoteMessage>? _onMessageOpenedAppSubscription;
+  StreamSubscription<String>? _onTokenRefreshSubscription;
+
   // Lazy initialization untuk Firebase Messaging
   FirebaseMessaging? _messagingInstance;
   FirebaseMessaging get _messaging {
@@ -29,8 +36,13 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   /// Initialize semua notification service
-  Future<void> initialize() async {
+  Future<void> initialize({bool forceReinitialize = false}) async {
     try {
+      if (_initialized && !forceReinitialize) {
+        print('ℹ️ NotificationService already initialized (skipped)');
+        return;
+      }
+
       // 1. Request permission
       await _requestPermission();
 
@@ -58,7 +70,9 @@ class NotificationService {
       }
 
       // 6. Listen token refresh (only register if user is logged in)
-      _messaging.onTokenRefresh.listen((newToken) async {
+      _onTokenRefreshSubscription ??= _messaging.onTokenRefresh.listen((
+        newToken,
+      ) async {
         print('🔄 FCM Token refreshed');
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('fcm_token', newToken);
@@ -74,6 +88,7 @@ class NotificationService {
       });
 
       print('✅ NotificationService initialized successfully');
+      _initialized = true;
     } catch (e) {
       print('❌ Error initializing NotificationService: $e');
       // Don't throw, let the app continue without notifications
@@ -113,12 +128,25 @@ class NotificationService {
         print('📱 Local notification permission granted: $permissionGranted');
 
         // DELETE OLD CHANNELS (untuk fix cached importance level)
+        // NOTE: Android tidak bisa mengubah sound untuk channel yang sudah ada.
+        // Solusi paling aman adalah pakai ID baru (v2) + delete channel lama.
         try {
           await androidPlugin.deleteNotificationChannel('mototracker_default');
           await androidPlugin.deleteNotificationChannel('mototracker_service');
           await androidPlugin.deleteNotificationChannel('mototracker_trip');
           await androidPlugin.deleteNotificationChannel('mototracker_alert');
           await androidPlugin.deleteNotificationChannel('mototracker_insight');
+          await androidPlugin.deleteNotificationChannel(
+            'mototracker_default_v2',
+          );
+          await androidPlugin.deleteNotificationChannel(
+            'mototracker_service_v2',
+          );
+          await androidPlugin.deleteNotificationChannel('mototracker_trip_v2');
+          await androidPlugin.deleteNotificationChannel('mototracker_alert_v2');
+          await androidPlugin.deleteNotificationChannel(
+            'mototracker_insight_v2',
+          );
           print('🗑️ Old notification channels deleted');
         } catch (e) {
           print('⚠️ Error deleting old channels (might not exist): $e');
@@ -126,50 +154,56 @@ class NotificationService {
       }
 
       // Android channels dengan importance levels berbeda
+      const AndroidNotificationSound tringSound =
+          RawResourceAndroidNotificationSound('tringgg');
 
       // DEFAULT: High importance - general notifications
-      const AndroidNotificationChannel defaultChannel =
+      final AndroidNotificationChannel defaultChannel =
           AndroidNotificationChannel(
-            'mototracker_default',
+            'mototracker_default_v2',
             'Default Notifications',
             description: 'General notifications',
             importance: Importance.high,
             playSound: true,
+            sound: tringSound,
             showBadge: true,
             enableVibration: true,
           );
 
       // SERVICE: High importance - service reminders, pop-up + sound
-      const AndroidNotificationChannel serviceChannel =
+      final AndroidNotificationChannel serviceChannel =
           AndroidNotificationChannel(
-            'mototracker_service',
+            'mototracker_service_v2',
             'Service Reminders',
             description: 'Service and maintenance reminders',
             importance: Importance.high,
             playSound: true,
+            sound: tringSound,
             showBadge: true,
             enableVibration: true,
           );
 
       // TRIP: High importance - trip completed, pop-up + sound
-      const AndroidNotificationChannel tripChannel = AndroidNotificationChannel(
-        'mototracker_trip',
+      final AndroidNotificationChannel tripChannel = AndroidNotificationChannel(
+        'mototracker_trip_v2',
         'Trip Notifications',
         description: 'Trip tracking and completion notifications',
         importance: Importance.high,
         playSound: true,
+        sound: tringSound,
         showBadge: true,
         enableVibration: true,
       );
 
       // ALERT: Max importance - critical alerts, pop-up with loud sound
-      const AndroidNotificationChannel alertChannel =
+      final AndroidNotificationChannel alertChannel =
           AndroidNotificationChannel(
-            'mototracker_alert',
+            'mototracker_alert_v2',
             'Alert Notifications',
             description: 'Critical alerts and warnings',
             importance: Importance.max,
             playSound: true,
+            sound: tringSound,
             showBadge: true,
             enableVibration: true,
           );
@@ -177,7 +211,7 @@ class NotificationService {
       // INSIGHT: Low importance - tips and insights, no pop-up, no sound
       const AndroidNotificationChannel insightChannel =
           AndroidNotificationChannel(
-            'mototracker_insight',
+            'mototracker_insight_v2',
             'Insights & Tips',
             description: 'Riding insights and tips',
             importance: Importance.low,
@@ -226,8 +260,14 @@ class NotificationService {
   /// Setup FCM message handlers
   void _setupFCMHandlers() {
     try {
+      if (_fcmHandlersSetup) {
+        return;
+      }
+
       // Foreground messages (app sedang terbuka)
-      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      _onMessageSubscription ??= FirebaseMessaging.onMessage.listen((
+        RemoteMessage message,
+      ) {
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         print('🔔 FOREGROUND NOTIFICATION RECEIVED!');
         print('Message ID: ${message.messageId}');
@@ -247,12 +287,16 @@ class NotificationService {
       });
 
       // Notification opened from background
-      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-        print('📬 Notification opened from background: ${message.messageId}');
-        _handleNotificationData(message.data);
-      });
+      _onMessageOpenedAppSubscription ??= FirebaseMessaging.onMessageOpenedApp
+          .listen((RemoteMessage message) {
+            print(
+              '📬 Notification opened from background: ${message.messageId}',
+            );
+            _handleNotificationData(message.data);
+          });
 
       print('✅ FCM handlers setup successfully');
+      _fcmHandlersSetup = true;
     } catch (e) {
       print('⚠️ Error setting up FCM handlers: $e');
     }
@@ -280,33 +324,21 @@ class NotificationService {
 
       final categoryKey = data['category_key'] ?? 'default';
 
-      // CRITICAL FIX: ALWAYS use default channel for heads-up notifications
-      // Karena channel spesifik (trip, service, etc) sering di-suppress oleh Android
-      final channelId = 'mototracker_default'; // FORCE use default channel
+      final channelId = _getChannelId(categoryKey);
+      final channelName = _getChannelName(categoryKey);
+      final importance = _getImportanceForCategory(categoryKey);
+      final priority = _getPriorityForCategory(categoryKey);
 
-      // Log original category for debugging
-      if (categoryKey != 'default') {
-        print('⚠️ Using default channel instead of: mototracker_$categoryKey');
-      }
+      final playSound = categoryKey != 'insight';
+      final enableVibration = categoryKey != 'insight';
+      final AndroidNotificationSound? sound = playSound
+          ? RawResourceAndroidNotificationSound('tringgg')
+          : null;
 
       print('📢 Title: $title');
       print('📢 Body: $body');
-      print('📢 Channel: $channelId (FORCED DEFAULT)');
+      print('📢 Channel: $channelId');
       print('📢 Category: $categoryKey');
-
-      // Get importance and priority based on category
-      // ALWAYS use HIGH for heads-up notifications
-      final importance = Importance.max; // FORCE MAX importance
-      final priority = Priority.max; // FORCE MAX priority
-      final playSound = true; // ALWAYS play sound
-      final enableVibration = true; // ALWAYS vibrate
-
-      print(
-        '🎯 Importance: FORCED MAX (was: ${_getImportanceForCategory(categoryKey)})',
-      );
-      print(
-        '🎯 Priority: FORCED MAX (was: ${_getPriorityForCategory(categoryKey)})',
-      );
 
       // Generate unique notification ID
       final notificationId = DateTime.now().millisecondsSinceEpoch.remainder(
@@ -320,35 +352,24 @@ class NotificationService {
         NotificationDetails(
           android: AndroidNotificationDetails(
             channelId,
-            'Default Notifications', // FORCE use default channel name
+            channelName,
             channelDescription: 'MotoTracker notifications',
             importance: importance,
             priority: priority,
             icon: android?.smallIcon ?? '@mipmap/ic_launcher',
             showWhen: true,
             enableVibration: enableVibration,
+            vibrationPattern: enableVibration
+                ? Int64List.fromList([0, 250, 250, 250])
+                : null,
             playSound: playSound,
-            // CRITICAL: Set visibility to PUBLIC for heads-up
-            visibility: NotificationVisibility.public,
-            // CRITICAL: Use CALL category for MAXIMUM priority (always heads-up)
-            category: AndroidNotificationCategory.call,
-            // FORCE heads-up notification
-            ticker: title, // Show in status bar immediately
-            autoCancel: true, // Dismiss when tapped
-            ongoing: false, // Not persistent
-            // CRITICAL: Full screen intent untuk FORCE heads-up notification
-            fullScreenIntent: true,
-            // Styling
+            sound: sound,
+            autoCancel: true,
             styleInformation: BigTextStyleInformation(
               body ?? '',
               contentTitle: title,
               summaryText: 'MotoTracker',
             ),
-            // LED and vibration for extra attention
-            ledColor: const Color.fromARGB(255, 255, 0, 0),
-            ledOnMs: 1000,
-            ledOffMs: 500,
-            vibrationPattern: Int64List.fromList([0, 250, 250, 250]),
           ),
           iOS: const DarwinNotificationDetails(
             presentAlert: true,
@@ -369,22 +390,24 @@ class NotificationService {
   }
 
   /// Get channel ID berdasarkan category
+  // ignore: unused_element
   String _getChannelId(String categoryKey) {
     switch (categoryKey) {
       case 'service':
-        return 'mototracker_service';
+        return 'mototracker_service_v2';
       case 'trip':
-        return 'mototracker_trip';
+        return 'mototracker_trip_v2';
       case 'alert':
-        return 'mototracker_alert';
+        return 'mototracker_alert_v2';
       case 'insight':
-        return 'mototracker_insight';
+        return 'mototracker_insight_v2';
       default:
-        return 'mototracker_default';
+        return 'mototracker_default_v2';
     }
   }
 
   /// Get channel name berdasarkan category
+  // ignore: unused_element
   String _getChannelName(String categoryKey) {
     switch (categoryKey) {
       case 'service':
@@ -537,6 +560,36 @@ class NotificationService {
     } catch (e) {
       print('❌ Error getting FCM token: $e');
       return null;
+    }
+  }
+
+  /// Debug helper: show a local notification immediately.
+  /// Useful to verify channel + permission setup (independent of FCM delivery).
+  Future<void> showTestLocalNotification() async {
+    try {
+      // Ensure plugin + channels are ready
+      if (!_initialized) {
+        await initialize();
+      }
+
+      await _localNotifications.show(
+        99999,
+        '🧪 Test Local Notification',
+        'Jika Anda melihat notifikasi ini, berarti local notification BERFUNGSI!',
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'mototracker_default_v2',
+            'Default Notifications',
+            channelDescription: 'Test notification channel',
+            importance: Importance.max,
+            priority: Priority.high,
+            ticker: 'Test',
+          ),
+        ),
+      );
+    } catch (e) {
+      print('❌ Error showing test local notification: $e');
+      rethrow;
     }
   }
 }

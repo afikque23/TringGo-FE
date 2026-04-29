@@ -1,4 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
+import '../../core/model/tip_model.dart';
+import '../../core/services/tips_service.dart';
 import '../widget/bottom_navbar.dart';
 import 'detail_tips_perawatan.dart';
 
@@ -10,9 +15,29 @@ class TipsPerawatanPage extends StatefulWidget {
 }
 
 class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
+  final _tipsService = TipsService();
+  final _searchController = TextEditingController();
+  Timer? _searchDebounce;
+
   bool _showFilter = false;
+  bool _isLoading = false;
+  String? _errorMessage;
+  List<TipModel> _tips = [];
   String _selectedBrand = 'Semua Merek';
   String _selectedDifficulty = 'Semua Tingkat';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTips();
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
 
   void _toggleFilter() {
     setState(() {
@@ -25,6 +50,88 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
       _selectedBrand = 'Semua Merek';
       _selectedDifficulty = 'Semua Tingkat';
     });
+    _loadTips();
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {});
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 450), _loadTips);
+  }
+
+  Map<String, String?> _buildSearchParams(String rawInput) {
+    final input = rawInput.trim();
+    if (input.isEmpty) {
+      return {'search': null, 'hashtags': null};
+    }
+
+    final hashtagMatches = RegExp(r'#([^#,;\n]+)').allMatches(input);
+    final hashtags = <String>[];
+    final seenHashtags = <String>{};
+
+    for (final match in hashtagMatches) {
+      final rawTag = (match.group(1) ?? '').trim();
+      final normalized = rawTag.replaceAll(RegExp(r'\s+'), ' ');
+      if (normalized.isEmpty) {
+        continue;
+      }
+
+      final key = normalized.toLowerCase();
+      if (seenHashtags.add(key)) {
+        hashtags.add(normalized);
+      }
+    }
+
+    final keyword = input
+        .replaceAll(RegExp(r'#([^#,;\n]+)'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    return {
+      'search': keyword.isEmpty ? null : keyword,
+      'hashtags': hashtags.isEmpty ? null : hashtags.join(','),
+    };
+  }
+
+  Future<void> _loadTips() async {
+    final queryParams = _buildSearchParams(_searchController.text);
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final response = await _tipsService.getAllTips(
+        page: 1,
+        limit: 20,
+        search: queryParams['search'],
+        hashtags: queryParams['hashtags'],
+        brand: _selectedBrand == 'Semua Merek' ? null : _selectedBrand,
+        difficulty: _selectedDifficulty == 'Semua Tingkat'
+            ? null
+            : _selectedDifficulty,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _tips = response.data.tips;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _tips = [];
+        _isLoading = false;
+        _errorMessage = 'Gagal memuat data tips. Silakan coba lagi.';
+      });
+    }
   }
 
   @override
@@ -39,18 +146,17 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
               _buildHeader(),
               _buildSearchBar(),
 
-              // Scrollable content: tips list + ranking
+              // Scrollable content: tips list
               Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                  children: [
-                    // Tips list
-                    _buildTipsList(),
-                    const SizedBox(height: 12),
-                    // Ranking button
-                    _buildRankingButton(),
-                    const SizedBox(height: 24),
-                  ],
+                child: RefreshIndicator(
+                  onRefresh: _loadTips,
+                  color: const Color(0xFF6B7C4F),
+                  backgroundColor: const Color(0xFF1A1A1A),
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    children: [_buildTipsContent(), const SizedBox(height: 24)],
+                  ),
                 ),
               ),
             ],
@@ -62,7 +168,7 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
               top: MediaQuery.of(context).padding.top,
               child: GestureDetector(
                 onTap: _toggleFilter,
-                child: Container(color: Colors.black.withOpacity(0.5)),
+                child: Container(color: Colors.black.withValues(alpha: 0.5)),
               ),
             ),
             // Filter sidebar
@@ -121,28 +227,44 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
                 border: Border.all(color: const Color(0xFF1E2939), width: 0.65),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Row(
-                children: const [
-                  Padding(
-                    padding: EdgeInsets.only(left: 16, right: 12),
-                    child: Icon(
-                      Icons.search,
-                      size: 20,
-                      color: Color(0xFF99A1AF),
-                    ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: _onSearchChanged,
+                style: const TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                  color: Color(0xFFFFFFFF),
+                ),
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    size: 20,
+                    color: Color(0xFF99A1AF),
                   ),
-                  Expanded(
-                    child: Text(
-                      'Cari tips sesuai motor anda....',
-                      style: TextStyle(
-                        fontFamily: 'Arial',
-                        fontSize: 16,
-                        fontWeight: FontWeight.w400,
-                        color: Color(0xFF6A7282),
-                      ),
-                    ),
+                  suffixIcon: _searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {});
+                            _loadTips();
+                          },
+                          icon: const Icon(
+                            Icons.close,
+                            size: 18,
+                            color: Color(0xFF99A1AF),
+                          ),
+                        ),
+                  hintText: 'Cari tips atau #hashtag...',
+                  hintStyle: const TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF6A7282),
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -168,121 +290,119 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
     );
   }
 
-  Widget _buildTipsList() {
+  Widget _buildTipsContent() {
+    if (_isLoading && _tips.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 64),
+        child: Center(
+          child: CircularProgressIndicator(
+            color: Color(0xFF6B7C4F),
+            strokeWidth: 2,
+          ),
+        ),
+      );
+    }
+
+    if (_errorMessage != null && _tips.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A),
+          border: Border.all(color: const Color(0xFF1E2939), width: 0.65),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          children: [
+            const Icon(Icons.error_outline, color: Color(0xFFFF6467), size: 28),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Arial',
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: Color(0xFF99A1AF),
+              ),
+            ),
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: _loadTips,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6B7C4F),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text(
+                  'Coba Lagi',
+                  style: TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFFFFFFF),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_tips.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A),
+          border: Border.all(color: const Color(0xFF1E2939), width: 0.65),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: const Column(
+          children: [
+            Icon(Icons.search_off, color: Color(0xFF6A7282), size: 28),
+            SizedBox(height: 8),
+            Text(
+              'Belum ada tips yang cocok dengan pencarian atau filter Anda.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Arial',
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: Color(0xFF99A1AF),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Column(
-      children: [
-        _buildTipCard(
-          tags: [
-            _TagData('Trending', const Color(0xFFFF8904), Icons.trending_up),
-            _TagData(
-              'Rekomendasi AI',
-              const Color(0xFF6B7C4F),
-              Icons.psychology,
-            ),
-            _TagData('Terbukti', const Color(0xFF51A2FF), Icons.verified),
-          ],
-          title: 'Cara Efisien Ganti Oli untuk Pemakaian Harian',
-          description:
-              'Metode ganti oli yang terbukti memperpanjang umur mesin hingga 30%',
-          author: 'Budi Santoso',
-          vehicle: 'Honda PCX 160 • 2023',
-          authorEmoji: '👨‍🔧',
-          authorBadge: 'Top Creator',
-          difficulty: 'Mudah',
-          difficultyColor: const Color(0xFF6B7C4F),
-          rating: '4.8',
-          likes: '234',
-          bookmarks: '89',
-          percentage: '96%',
-        ),
-        const SizedBox(height: 12),
-        _buildTipCard(
-          tags: [
-            _TagData('Trending', const Color(0xFFFF8904), Icons.trending_up),
-            _TagData('Terbukti', const Color(0xFF51A2FF), Icons.verified),
-          ],
-          title: 'Perawatan Rantai untuk Long Trip',
-          description:
-              'Teknik khusus merawat rantai motor agar tetap optimal saat perjalanan jauh',
-          author: 'Andi Wijaya',
-          vehicle: 'Yamaha NMAX • 2022',
-          authorEmoji: '🧑‍🔧',
-          authorBadge: 'AI Verified',
-          difficulty: 'Sedang',
-          difficultyColor: const Color(0xFFF0B100),
-          rating: '4.6',
-          likes: '189',
-          bookmarks: '67',
-          percentage: '94%',
-        ),
-        const SizedBox(height: 12),
-        _buildTipCard(
-          tags: [
-            _TagData(
-              'Rekomendasi AI',
-              const Color(0xFF6B7C4F),
-              Icons.psychology,
-            ),
-            _TagData('Terbukti', const Color(0xFF51A2FF), Icons.verified),
-          ],
-          title: 'Cek Kampas Rem untuk Berkendara Agresif',
-          description:
-              'Panduan lengkap mengecek dan mengganti kampas rem untuk gaya berkendara agresif',
-          author: 'Dimas Racing',
-          vehicle: 'Kawasaki Ninja 250 • 2023',
-          authorEmoji: '🏍️',
-          authorBadge: 'Expert',
-          difficulty: 'Sulit',
-          difficultyColor: const Color(0xFFFB2C36),
-          rating: '4.9',
-          likes: '312',
-          bookmarks: '124',
-          percentage: '98%',
-        ),
-        const SizedBox(height: 12),
-        _buildTipCard(
-          tags: [_TagData('Terbukti', const Color(0xFF51A2FF), Icons.verified)],
-          title: 'Pembersihan Filter Udara Motor Matic',
-          description:
-              'Cara mudah dan cepat membersihkan filter udara untuk performa maksimal',
-          author: 'Ibu Sri',
-          vehicle: 'Honda Vario 125 • 2023',
-          authorEmoji: '👩‍🔧',
-          authorBadge: 'Top Creator',
-          difficulty: 'Mudah',
-          difficultyColor: const Color(0xFF6B7C4F),
-          rating: '4.7',
-          likes: '167',
-          bookmarks: '54',
-          percentage: '92%',
-        ),
-      ],
+      children: _tips.asMap().entries.map((entry) {
+        final index = entry.key;
+        final tip = entry.value;
+        return Padding(
+          padding: EdgeInsets.only(bottom: index == _tips.length - 1 ? 0 : 12),
+          child: _buildTipCard(tip),
+        );
+      }).toList(),
     );
   }
 
-  Widget _buildTipCard({
-    required List<_TagData> tags,
-    required String title,
-    required String description,
-    required String author,
-    required String vehicle,
-    required String authorEmoji,
-    String? authorBadge,
-    required String difficulty,
-    required Color difficultyColor,
-    required String rating,
-    required String likes,
-    required String bookmarks,
-    required String percentage,
-  }) {
+  Widget _buildTipCard(TipModel tip) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const DetailTipsPerawatanPage(),
+            builder: (context) => DetailTipsPerawatanPage(tipId: tip.id),
           ),
-        );
+        ).then((_) => _loadTips());
       },
       child: Container(
         width: double.infinity,
@@ -295,17 +415,9 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Tags
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: tags.map((tag) => _buildTag(tag)).toList(),
-            ),
-            const SizedBox(height: 12),
-
             // Title
             Text(
-              title,
+              tip.title,
               style: const TextStyle(
                 fontFamily: 'Arial',
                 fontSize: 16,
@@ -318,7 +430,7 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
 
             // Description
             Text(
-              description,
+              tip.description,
               style: const TextStyle(
                 fontFamily: 'Arial',
                 fontSize: 14,
@@ -327,6 +439,41 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
                 color: Color(0xFF99A1AF),
               ),
             ),
+            if (tip.hashtags != null && tip.hashtags!.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: tip.hashtags!
+                    .take(3)
+                    .map(
+                      (tag) => Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0A0A0A),
+                          border: Border.all(
+                            color: const Color(0xFF1E2939),
+                            width: 0.65,
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '#$tag',
+                          style: const TextStyle(
+                            fontFamily: 'Arial',
+                            fontSize: 11,
+                            fontWeight: FontWeight.w400,
+                            color: Color(0xFF99A1AF),
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
             const SizedBox(height: 12),
 
             // Author Info
@@ -346,11 +493,24 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
                       color: const Color(0x336B7C4F),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      authorEmoji,
-                      style: const TextStyle(fontSize: 18),
-                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: tip.author.avatarUrl != null
+                        ? Image.network(
+                            tip.author.avatarUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Center(
+                              child: Text(
+                                tip.author.avatarEmoji ?? '👨‍🔧',
+                                style: const TextStyle(fontSize: 18),
+                              ),
+                            ),
+                          )
+                        : Center(
+                            child: Text(
+                              tip.author.avatarEmoji ?? '👨‍🔧',
+                              style: const TextStyle(fontSize: 18),
+                            ),
+                          ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -358,7 +518,7 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          author,
+                          tip.author.name,
                           style: const TextStyle(
                             fontFamily: 'Arial',
                             fontSize: 14,
@@ -368,7 +528,7 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
                           ),
                         ),
                         Text(
-                          vehicle,
+                          '${tip.vehicle.brand} ${tip.vehicle.model} • ${tip.vehicle.year}',
                           style: const TextStyle(
                             fontFamily: 'Arial',
                             fontSize: 12,
@@ -380,31 +540,6 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
                       ],
                     ),
                   ),
-                  if (authorBadge != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8.65,
-                        vertical: 4.5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0x336B7C4F),
-                        border: Border.all(
-                          color: const Color(0x4D6B7C4F),
-                          width: 0.65,
-                        ),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        authorBadge,
-                        style: const TextStyle(
-                          fontFamily: 'Arial',
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                          height: 1.33,
-                          color: Color(0xFF6B7C4F),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),
@@ -414,32 +549,12 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: difficultyColor.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    difficulty,
-                    style: TextStyle(
-                      fontFamily: 'Arial',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      height: 1.33,
-                      color: difficultyColor,
-                    ),
-                  ),
-                ),
                 Row(
                   children: [
                     const Icon(Icons.star, size: 12, color: Color(0xFFF0B100)),
                     const SizedBox(width: 4),
                     Text(
-                      rating,
+                      tip.stats.rating.toStringAsFixed(1),
                       style: const TextStyle(
                         fontFamily: 'Arial',
                         fontSize: 12,
@@ -450,35 +565,65 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
                     ),
                   ],
                 ),
-                Text(
-                  '❤️ $likes',
-                  style: const TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    height: 1.33,
-                    color: Color(0xFF99A1AF),
-                  ),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.favorite,
+                      size: 12,
+                      color: Color(0xFFFB2C36),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${tip.stats.likesCount}',
+                      style: const TextStyle(
+                        fontFamily: 'Arial',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        height: 1.33,
+                        color: Color(0xFF99A1AF),
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  '📋 $bookmarks',
-                  style: const TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    height: 1.33,
-                    color: Color(0xFF99A1AF),
-                  ),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.bookmark,
+                      size: 12,
+                      color: Color(0xFF6B7C4F),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${tip.stats.bookmarksCount}',
+                      style: const TextStyle(
+                        fontFamily: 'Arial',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        height: 1.33,
+                        color: Color(0xFF99A1AF),
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  percentage,
-                  style: const TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    height: 1.33,
-                    color: Color(0xFF6B7C4F),
-                  ),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle,
+                      size: 12,
+                      color: Color(0xFF6B7C4F),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${tip.stats.successPercentage}%',
+                      style: const TextStyle(
+                        fontFamily: 'Arial',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        height: 1.33,
+                        color: Color(0xFF6B7C4F),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -488,98 +633,58 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
     );
   }
 
-  Widget _buildTag(_TagData tag) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8.65, vertical: 4.5),
-      decoration: BoxDecoration(
-        color: tag.color.withOpacity(0.2),
-        border: Border.all(color: tag.color.withOpacity(0.3), width: 0.65),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(tag.icon, size: 12, color: tag.color),
-          const SizedBox(width: 4),
-          Text(
-            tag.label,
-            style: TextStyle(
-              fontFamily: 'Arial',
-              fontSize: 12,
-              fontWeight: FontWeight.w400,
-              height: 1.33,
-              color: tag.color,
-            ),
-          ),
-        ],
-      ),
-    );
+  List<String> _buildBrandOptions() {
+    final brands = <String>{};
+
+    for (final tip in _tips) {
+      final brand = tip.vehicle.brand.trim();
+      if (brand.isNotEmpty) {
+        brands.add(brand);
+      }
+    }
+
+    final sortedBrands = brands.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    final options = <String>['Semua Merek', ...sortedBrands];
+
+    if (_selectedBrand != 'Semua Merek' && !options.contains(_selectedBrand)) {
+      options.insert(1, _selectedBrand);
+    }
+
+    return options;
   }
 
-  Widget _buildRankingButton() {
-    return Container(
-      height: 73,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
-        border: Border.all(color: const Color(0xFF1E2939), width: 0.65),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: const Color(0x33F0B100),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.leaderboard,
-                  size: 24,
-                  color: Color(0xFFF0B100),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Ranking Kontributor',
-                    style: TextStyle(
-                      fontFamily: 'Arial',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w400,
-                      height: 1.5,
-                      color: Color(0xFFFFFFFF),
-                    ),
-                  ),
-                  Text(
-                    'Lihat pengguna paling berdampak',
-                    style: TextStyle(
-                      fontFamily: 'Arial',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      height: 1.33,
-                      color: Color(0xFF99A1AF),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const Icon(
-            Icons.arrow_forward_ios,
-            size: 20,
-            color: Color(0xFF99A1AF),
-          ),
-        ],
-      ),
-    );
+  List<String> _buildDifficultyOptions() {
+    final levels = <String>{};
+
+    for (final tip in _tips) {
+      final level = tip.difficulty?.level.trim();
+      if (level != null && level.isNotEmpty) {
+        levels.add(level);
+      }
+    }
+
+    const preferredOrder = ['Mudah', 'Sedang', 'Sulit'];
+    final ordered = <String>[];
+
+    for (final level in preferredOrder) {
+      if (levels.remove(level)) {
+        ordered.add(level);
+      }
+    }
+
+    final remaining = levels.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    final options = <String>['Semua Tingkat', ...ordered, ...remaining];
+
+    if (_selectedDifficulty != 'Semua Tingkat' &&
+        !options.contains(_selectedDifficulty)) {
+      options.insert(1, _selectedDifficulty);
+    }
+
+    return options;
   }
 
   Widget _buildFilterSidebar() {
@@ -667,34 +772,26 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
                           // Merek Motor Section
                           _buildFilterSection(
                             title: 'Merek Motor',
-                            options: [
-                              'Semua Merek',
-                              'Honda',
-                              'Yamaha',
-                              'Kawasaki',
-                            ],
+                            options: _buildBrandOptions(),
                             selectedValue: _selectedBrand,
                             onSelect: (value) {
                               setState(() {
                                 _selectedBrand = value;
                               });
+                              _loadTips();
                             },
                           ),
                           const SizedBox(height: 24),
                           // Tingkat Kesulitan Section
                           _buildFilterSection(
                             title: 'Tingkat Kesulitan',
-                            options: [
-                              'Semua Tingkat',
-                              'Mudah',
-                              'Sedang',
-                              'Sulit',
-                            ],
+                            options: _buildDifficultyOptions(),
                             selectedValue: _selectedDifficulty,
                             onSelect: (value) {
                               setState(() {
                                 _selectedDifficulty = value;
                               });
+                              _loadTips();
                             },
                           ),
                           const SizedBox(height: 24),
@@ -804,12 +901,4 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
       ],
     );
   }
-}
-
-class _TagData {
-  final String label;
-  final Color color;
-  final IconData icon;
-
-  _TagData(this.label, this.color, this.icon);
 }

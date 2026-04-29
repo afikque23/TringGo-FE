@@ -40,7 +40,11 @@ class _JadwalPageState extends State<JadwalPage> {
     try {
       // Load primary vehicle first to get current mileage
       final vehicle = await _vehicleService.getPrimaryVehicle();
-      final schedules = await _scheduleService.getAllSchedules();
+
+      // Get schedules filtered by vehicle ID
+      final schedules = vehicle != null
+          ? await _scheduleService.getAllSchedules(vehicleId: vehicle.id)
+          : <ServiceScheduleModel>[];
 
       if (mounted) {
         setState(() {

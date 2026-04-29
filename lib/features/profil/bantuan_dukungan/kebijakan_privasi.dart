@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/model/content_model.dart';
+import '../../../core/services/content_service.dart';
 import '../../../l10n/app_localizations.dart';
 
 class KebijakanPrivasiPage extends StatelessWidget {
@@ -22,25 +24,50 @@ class KebijakanPrivasiPage extends StatelessWidget {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildCommitmentSection(context),
-                    const SizedBox(height: 16),
-                    _buildSection1(context),
-                    const SizedBox(height: 16),
-                    _buildSection2(context),
-                    const SizedBox(height: 16),
-                    _buildSection3(context),
-                    const SizedBox(height: 16),
-                    _buildSection4(context),
-                    const SizedBox(height: 16),
-                    _buildSection5(context),
-                    const SizedBox(height: 16),
-                    _buildContactSection(context),
-                    const SizedBox(height: 16),
-                    _buildFooter(),
-                  ],
+                child: FutureBuilder<List<DocumentSectionModel>>(
+                  future: ContentService().getDocumentSections(
+                    'privacy',
+                    mergeAll: true,
+                  ),
+                  builder: (context, snapshot) {
+                    final dynamicSections = snapshot.data ?? const [];
+                    if (dynamicSections.isNotEmpty) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ..._buildDynamicDocumentSections(
+                            context,
+                            dynamicSections,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildContactSection(context),
+                          const SizedBox(height: 16),
+                          _buildFooter(),
+                        ],
+                      );
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildCommitmentSection(context),
+                        const SizedBox(height: 16),
+                        _buildSection1(context),
+                        const SizedBox(height: 16),
+                        _buildSection2(context),
+                        const SizedBox(height: 16),
+                        _buildSection3(context),
+                        const SizedBox(height: 16),
+                        _buildSection4(context),
+                        const SizedBox(height: 16),
+                        _buildSection5(context),
+                        const SizedBox(height: 16),
+                        _buildContactSection(context),
+                        const SizedBox(height: 16),
+                        _buildFooter(),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -48,6 +75,48 @@ class KebijakanPrivasiPage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  List<Widget> _buildDynamicDocumentSections(
+    BuildContext context,
+    List<DocumentSectionModel> sections,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+
+    return sections.map((section) {
+      final title = section.title.isNotEmpty
+          ? section.title
+          : l10n.privacyPolicy;
+
+      final children = <Widget>[];
+
+      for (final paragraph in section.paragraphs) {
+        children.add(_buildParagraph(context, paragraph));
+        children.add(const SizedBox(height: 12));
+      }
+      if (children.isNotEmpty) {
+        children.removeLast();
+      }
+
+      if (section.bullets.isNotEmpty) {
+        if (children.isNotEmpty) {
+          children.add(const SizedBox(height: 12));
+        }
+        children.add(_buildBulletList(context, section.bullets));
+      }
+
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: _buildSectionContainer(
+          context,
+          icon: Icons.shield_outlined,
+          iconColor: colorScheme.primary,
+          title: title,
+          children: children,
+        ),
+      );
+    }).toList();
   }
 
   Widget _buildHeader(BuildContext context) {
@@ -116,9 +185,9 @@ class KebijakanPrivasiPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: colorScheme.primary.withOpacity(0.1),
+        color: colorScheme.primary.withValues(alpha: 0.1),
         border: Border.all(
-          color: colorScheme.primary.withOpacity(0.3),
+          color: colorScheme.primary.withValues(alpha: 0.3),
           width: 0.65,
         ),
         borderRadius: BorderRadius.circular(14),
@@ -149,7 +218,7 @@ class KebijakanPrivasiPage extends StatelessWidget {
                     fontFamily: 'Arial',
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
-                    color: colorScheme.onSurface.withOpacity(0.85),
+                    color: colorScheme.onSurface.withValues(alpha: 0.85),
                     height: 1.64,
                   ),
                 ),
@@ -361,9 +430,9 @@ class KebijakanPrivasiPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: colorScheme.primary.withOpacity(0.1),
+        color: colorScheme.primary.withValues(alpha: 0.1),
         border: Border.all(
-          color: colorScheme.primary.withOpacity(0.3),
+          color: colorScheme.primary.withValues(alpha: 0.3),
           width: 0.65,
         ),
         borderRadius: BorderRadius.circular(14),
@@ -388,7 +457,7 @@ class KebijakanPrivasiPage extends StatelessWidget {
               fontFamily: 'Arial',
               fontSize: 14,
               fontWeight: FontWeight.w400,
-              color: colorScheme.onSurface.withOpacity(0.85),
+              color: colorScheme.onSurface.withValues(alpha: 0.85),
               height: 1.64,
             ),
           ),
@@ -507,6 +576,20 @@ class KebijakanPrivasiPage extends StatelessWidget {
         fontWeight: FontWeight.w400,
         color: colorScheme.onSurface,
         height: 1.5,
+      ),
+    );
+  }
+
+  Widget _buildParagraph(BuildContext context, String text) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Text(
+      text,
+      style: TextStyle(
+        fontFamily: 'Arial',
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+        color: colorScheme.onSurfaceVariant,
+        height: 1.64,
       ),
     );
   }

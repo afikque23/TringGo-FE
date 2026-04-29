@@ -71,6 +71,7 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
     return 'Rp. ${value.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
   }
 
+  // ignore: unused_element
   void _showDeleteConfirmation(
     BuildContext context,
     ServiceHistoryModel service,
@@ -163,7 +164,6 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final l10n = AppLocalizations.of(context)!;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -410,7 +410,6 @@ class _RiwayatServicePageState extends State<RiwayatServicePage> {
 
   Widget _buildServiceCard(ServiceHistoryModel service) {
     final colorScheme = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
 
     // Format date
     final dateStr = DateFormat(

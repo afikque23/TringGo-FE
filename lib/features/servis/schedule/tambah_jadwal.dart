@@ -25,7 +25,6 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
 
   bool _isJarakSelected = true; // true = jarak, false = waktu
   bool _reminderEnabled = true;
-  bool _isLoading = false;
   String _reminderBefore = '';
   DateTime? _selectedDate;
 
@@ -75,6 +74,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
 
   /// Map reminder UI text to backend reminder_option_id
   /// Based on ReminderOptionSeeder data
+  // ignore: unused_element
   int? _getReminderOptionId(String reminderText, bool isJarak) {
     final l10n = AppLocalizations.of(context)!;
 
@@ -1132,8 +1132,6 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
       // 2. Input interval AND pick specific date -> use picked date
     }
 
-    setState(() => _isLoading = true);
-
     try {
       // Get primary vehicle from server first
       final vehicle = await _vehicleService.getPrimaryVehicle();
@@ -1177,13 +1175,8 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
           : int.tryParse(_bulanController.text) ?? 0;
 
       // Map reminder text to reminder_option_id
-      int? reminderOptionId;
       int? reminderThreshold;
       if (_reminderEnabled && _reminderBefore.isNotEmpty) {
-        reminderOptionId = _getReminderOptionId(
-          _reminderBefore,
-          _isJarakSelected,
-        );
         reminderThreshold = _getReminderThreshold(
           _reminderBefore,
           _isJarakSelected,
@@ -1250,10 +1243,6 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
           backgroundColor: colorScheme.error,
         ),
       );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+    } finally {}
   }
 }

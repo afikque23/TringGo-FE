@@ -27,10 +27,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize Firebase with error handling
-  bool firebaseInitialized = false;
   try {
     await Firebase.initializeApp();
-    firebaseInitialized = true;
     print('✅ Firebase initialized successfully');
 
     // Set background handler hanya jika Firebase berhasil
