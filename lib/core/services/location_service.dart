@@ -155,7 +155,7 @@ class LocationService {
       altitude: position.altitude,
       speed: position.speed, // dalam m/s
       accuracy: position.accuracy,
-      timestamp: position.timestamp ?? DateTime.now(),
+      timestamp: position.timestamp,
     );
   }
 

@@ -1,9 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:async';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-import '../../../../core/services/tracking_service.dart';
-import '../../../../core/model/trip_model.dart';
 
 class GpsTrackingActivePage extends StatefulWidget {
   const GpsTrackingActivePage({super.key});
@@ -12,163 +8,19 @@ class GpsTrackingActivePage extends StatefulWidget {
   State<GpsTrackingActivePage> createState() => _GpsTrackingActivePageState();
 }
 
-class _GpsTrackingActivePageState extends State<GpsTrackingActivePage>
-    with WidgetsBindingObserver {
-  final TrackingService _trackingService = TrackingService();
-  StreamSubscription<TripModel>? _tripSubscription;
+class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
+  // UI-only: Backend tracking will be integrated via IoT later.
+  final double _distance = 0.0;
+  final int _duration = 0; // in seconds
+  final double _averageSpeed = 0.0;
+  final double _maxSpeed = 0.0;
+  final double _currentSpeed = 0.0;
+  final bool _isStarting = false;
 
-  // Tracking state
-  double _distance = 0.0;
-  int _duration = 0; // in seconds
-  double _averageSpeed = 0.0;
-  double _maxSpeed = 0.0;
-  double _currentSpeed = 0.0;
-  bool _isStarting = true;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _startTracking();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _tripSubscription?.cancel();
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-
-    // Handle lifecycle changes
-    if (state == AppLifecycleState.resumed) {
-      // App kembali ke foreground, check dan resume jika tracking masih aktif
-      print('App resumed, checking tracking status...');
-      if (_trackingService.isTracking) {
-        // Re-subscribe to stream jika belum
-        if (_tripSubscription == null || _tripSubscription!.isPaused) {
-          _subscribeToTracking();
-        }
-      }
-    } else if (state == AppLifecycleState.paused) {
-      // App ke background, tracking tetap jalan via foreground service
-      print('App paused, tracking continues in background...');
-    }
-  }
-
-  void _startTracking() async {
-    // Start tracking dengan nama motor (bisa diganti dengan data dari form)
-    final started = await _trackingService.startTracking(
-      motorcycleName: 'My Ninja',
-    );
-
-    if (!mounted) return;
-
-    if (!started) {
-      setState(() {
-        _isStarting = false;
-      });
-      _showErrorDialog();
-      return;
-    }
-
-    setState(() {
-      _isStarting = false;
-    });
-
-    _subscribeToTracking();
-  }
-
-  void _subscribeToTracking() {
-    // Listen untuk updates
-    _tripSubscription?.cancel();
-    _tripSubscription = _trackingService.tripStream.listen((trip) {
-      if (!mounted) return;
-
-      // Get current speed from last point (convert m/s to km/h)
-      double currentSpeed = 0.0;
-      if (trip.points.isNotEmpty) {
-        final lastPoint = trip.points.last;
-        currentSpeed = lastPoint.speed * 3.6; // m/s to km/h
-      }
-
-      print(
-        '📊 UI Update - Distance: ${trip.totalDistance.toStringAsFixed(3)} km, '
-        'Current: ${currentSpeed.toStringAsFixed(1)} km/h, '
-        'Avg: ${trip.averageSpeed.toStringAsFixed(1)} km/h, '
-        'Max: ${trip.maxSpeed.toStringAsFixed(1)} km/h',
-      );
-
-      setState(() {
-        _distance = trip.totalDistance;
-        _duration = trip.duration;
-        _averageSpeed = trip.averageSpeed;
-        _maxSpeed = trip.maxSpeed;
-        _currentSpeed = currentSpeed;
-      });
-    });
-  }
-
-  void _showErrorDialog() {
+  void _stopTracking() {
     final colorScheme = Theme.of(context).colorScheme;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: colorScheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Tracking Gagal',
-          style: TextStyle(
-            fontFamily: 'Arial',
-            color: colorScheme.onSurface,
-            fontSize: 20,
-            fontWeight: FontWeight.w400,
-          ),
-        ),
-        content: Text(
-          'Tidak dapat memulai tracking. Pastikan GPS aktif dan izin lokasi diberikan.',
-          style: TextStyle(
-            fontFamily: 'Arial',
-            color: colorScheme.onSurfaceVariant,
-            fontSize: 14,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // Close dialog
-              Navigator.of(context).pop(); // Back to previous page
-            },
-            child: Text(
-              'Tutup',
-              style: TextStyle(
-                fontFamily: 'Arial',
-                color: colorScheme.primary,
-                fontSize: 16,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  void _stopTracking() async {
-    final trip = await _trackingService.stopTracking();
-
-    if (!mounted) return;
-
-    if (trip == null) {
-      Navigator.of(context).pop();
-      return;
-    }
-
-    final colorScheme = Theme.of(context).colorScheme;
-    // Show summary dialog
+    // Show summary dialog (UI-only)
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -188,7 +40,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Jarak: ${trip.totalDistance.toStringAsFixed(2)} km',
+              'Jarak: ${_distance.toStringAsFixed(2)} km',
               style: TextStyle(
                 fontFamily: 'Arial',
                 color: colorScheme.onSurfaceVariant,
@@ -197,7 +49,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage>
             ),
             const SizedBox(height: 8),
             Text(
-              'Waktu: ${trip.formattedDuration}',
+              'Waktu: ${_formatDuration(_duration)}',
               style: TextStyle(
                 fontFamily: 'Arial',
                 color: colorScheme.onSurfaceVariant,
@@ -206,7 +58,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage>
             ),
             const SizedBox(height: 8),
             Text(
-              'Kecepatan Rata-rata: ${trip.averageSpeed.toStringAsFixed(1)} km/h',
+              'Kecepatan Rata-rata: ${_averageSpeed.toStringAsFixed(1)} km/h',
               style: TextStyle(
                 fontFamily: 'Arial',
                 color: colorScheme.onSurfaceVariant,
@@ -215,7 +67,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage>
             ),
             const SizedBox(height: 8),
             Text(
-              'Kecepatan Maksimal: ${trip.maxSpeed.toStringAsFixed(1)} km/h',
+              'Kecepatan Maksimal: ${_maxSpeed.toStringAsFixed(1)} km/h',
               style: TextStyle(
                 fontFamily: 'Arial',
                 color: colorScheme.onSurfaceVariant,
@@ -603,7 +455,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage>
             ),
           ),
         ),
-        // GPS Active Badge (top right)
+        // Tracking status badge (top right)
         Positioned(
           top: 16,
           right: 16,
@@ -621,7 +473,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage>
                 Icon(Icons.map_outlined, size: 16, color: colorScheme.primary),
                 const SizedBox(width: 8),
                 Text(
-                  'GPS Active',
+                  'Tracking Active',
                   style: TextStyle(
                     fontFamily: 'Arial',
                     color: colorScheme.primary,

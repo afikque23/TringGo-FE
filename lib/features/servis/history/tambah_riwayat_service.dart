@@ -30,7 +30,6 @@ class _TambahRiwayatServicePageState extends State<TambahRiwayatServicePage> {
   DateTime? _selectedDate;
   String? _selectedServiceType;
   File? _selectedImage;
-  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -598,8 +597,6 @@ class _TambahRiwayatServicePageState extends State<TambahRiwayatServicePage> {
       return;
     }
 
-    setState(() => _isLoading = true);
-
     try {
       // Get primary vehicle
       final primaryVehicle = await _vehicleService.getPrimaryVehicle();
@@ -687,10 +684,6 @@ class _TambahRiwayatServicePageState extends State<TambahRiwayatServicePage> {
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+    } finally {}
   }
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/model/content_model.dart';
+import '../../../core/services/content_service.dart';
 import '../../../l10n/app_localizations.dart';
 
 class SyaratKetentuanPage extends StatelessWidget {
@@ -22,33 +24,58 @@ class SyaratKetentuanPage extends StatelessWidget {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildWelcomeSection(context),
-                    const SizedBox(height: 16),
-                    _buildSection1(context),
-                    const SizedBox(height: 16),
-                    _buildSection2(context),
-                    const SizedBox(height: 16),
-                    _buildSection3(context),
-                    const SizedBox(height: 16),
-                    _buildSection4(context),
-                    const SizedBox(height: 16),
-                    _buildSection5(context),
-                    const SizedBox(height: 16),
-                    _buildSection6(context),
-                    const SizedBox(height: 16),
-                    _buildSection7(context),
-                    const SizedBox(height: 16),
-                    _buildSection8(context),
-                    const SizedBox(height: 16),
-                    _buildSection9(context),
-                    const SizedBox(height: 16),
-                    _buildContactSection(context),
-                    const SizedBox(height: 16),
-                    _buildFooter(context),
-                  ],
+                child: FutureBuilder<List<DocumentSectionModel>>(
+                  future: ContentService().getDocumentSections(
+                    'terms',
+                    mergeAll: true,
+                  ),
+                  builder: (context, snapshot) {
+                    final dynamicSections = snapshot.data ?? const [];
+                    if (dynamicSections.isNotEmpty) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ..._buildDynamicDocumentSections(
+                            context,
+                            dynamicSections,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildContactSection(context),
+                          const SizedBox(height: 16),
+                          _buildFooter(context),
+                        ],
+                      );
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildWelcomeSection(context),
+                        const SizedBox(height: 16),
+                        _buildSection1(context),
+                        const SizedBox(height: 16),
+                        _buildSection2(context),
+                        const SizedBox(height: 16),
+                        _buildSection3(context),
+                        const SizedBox(height: 16),
+                        _buildSection4(context),
+                        const SizedBox(height: 16),
+                        _buildSection5(context),
+                        const SizedBox(height: 16),
+                        _buildSection6(context),
+                        const SizedBox(height: 16),
+                        _buildSection7(context),
+                        const SizedBox(height: 16),
+                        _buildSection8(context),
+                        const SizedBox(height: 16),
+                        _buildSection9(context),
+                        const SizedBox(height: 16),
+                        _buildContactSection(context),
+                        const SizedBox(height: 16),
+                        _buildFooter(context),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -56,6 +83,48 @@ class SyaratKetentuanPage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  List<Widget> _buildDynamicDocumentSections(
+    BuildContext context,
+    List<DocumentSectionModel> sections,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+
+    return sections.map((section) {
+      final title = section.title.isNotEmpty
+          ? section.title
+          : l10n.termsAndConditions;
+
+      final children = <Widget>[];
+
+      for (final paragraph in section.paragraphs) {
+        children.add(_buildParagraph(context, paragraph));
+        children.add(const SizedBox(height: 12));
+      }
+      if (children.isNotEmpty) {
+        children.removeLast();
+      }
+
+      if (section.bullets.isNotEmpty) {
+        if (children.isNotEmpty) {
+          children.add(const SizedBox(height: 12));
+        }
+        children.add(_buildBulletList(context, section.bullets));
+      }
+
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: _buildSectionContainer(
+          context,
+          icon: Icons.description_outlined,
+          iconColor: colorScheme.primary,
+          title: title,
+          children: children,
+        ),
+      );
+    }).toList();
   }
 
   Widget _buildHeader(BuildContext context) {

@@ -131,7 +131,14 @@
   "history": "History",
   "overallStatus": "Overall Status",
   "good": "Good",
-  "vehicleCondition": "Vehicle condition 75%",
+  "vehicleCondition": "Vehicle condition {percentage}%",
+  "@vehicleCondition": {
+    "placeholders": {
+      "percentage": {
+        "type": "int"
+      }
+    }
+  },
   "urgent": "Urgent",
   "soon": "Soon",
   "aboutService": "About Service",

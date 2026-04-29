@@ -16,18 +16,6 @@ class ServiceHistoryService {
   final _authStorage = AuthStorage();
   final _apiClient = ApiClient();
 
-  /// Get headers for API requests (for multipart requests)
-  Future<Map<String, String>> _getHeaders() async {
-    final headers = Map<String, String>.from(ApiConfig.defaultHeaders);
-    final token = await _authStorage.getAccessToken();
-
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-
-    return headers;
-  }
-
   /// Send multipart request with automatic token refresh on 401
   Future<http.Response> _sendMultipartRequest(
     http.MultipartRequest request,

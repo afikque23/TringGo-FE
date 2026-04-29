@@ -41,7 +41,11 @@ class _MaintenancePageState extends State<MaintenancePage> {
 
     try {
       final vehicle = await _vehicleService.getPrimaryVehicle();
-      final schedules = await _scheduleService.getAllSchedules();
+
+      // Get schedules filtered by vehicle ID
+      final schedules = vehicle != null
+          ? await _scheduleService.getAllSchedules(vehicleId: vehicle.id)
+          : <ServiceScheduleModel>[];
 
       if (mounted) {
         setState(() {
@@ -275,28 +279,32 @@ class _MaintenancePageState extends State<MaintenancePage> {
     String statusText;
     Color statusColor;
     double progressValue;
+    int conditionPercentage;
 
     if (urgentCount > 0) {
       statusText = l10n.urgent;
       statusColor = colorScheme.error;
       progressValue = 0.3;
+      // Calculate percentage based on urgent vs total
+      conditionPercentage = totalSchedules > 0
+          ? ((goodCount / totalSchedules) * 100).round().clamp(0, 40)
+          : 40;
     } else if (soonCount > 0) {
       statusText = l10n.soon;
       statusColor = colorScheme.warning;
       progressValue = 0.6;
-    } else if (totalSchedules > 0) {
+      // Calculate percentage based on soon vs total
+      conditionPercentage = totalSchedules > 0
+          ? ((goodCount / totalSchedules) * 100).round().clamp(50, 75)
+          : 70;
+    } else {
       statusText = l10n.good;
       statusColor = colorScheme.primary;
-      progressValue = 0.85;
-    } else {
-      statusText = 'Belum ada data';
-      statusColor = colorScheme.secondary;
-      progressValue = 0.0;
+      // New vehicle with no schedules = perfect condition (100%)
+      // Vehicle with all good schedules = perfect condition (100%)
+      progressValue = totalSchedules > 0 ? 0.85 : 1.0;
+      conditionPercentage = 100;
     }
-
-    final String statusSubtext = totalSchedules > 0
-        ? 'Kondisi kendaraan ${(progressValue * 100).toInt()}%'
-        : 'Belum ada jadwal perawatan';
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -362,7 +370,7 @@ class _MaintenancePageState extends State<MaintenancePage> {
               ),
               const SizedBox(height: 8),
               Text(
-                statusSubtext,
+                l10n.vehicleCondition(conditionPercentage),
                 style: TextStyle(
                   fontFamily: 'Arial',
                   fontSize: 12,

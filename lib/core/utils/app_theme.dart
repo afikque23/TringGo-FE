@@ -10,7 +10,6 @@ class AppTheme {
   static const Color _lightSurfaceVariant = Color(
     0xFFE9E7E3,
   ); // Warm light gray
-  static const Color _lightOnBackground = Color(0xFF0A0A0A); // Hitam untuk text
   static const Color _lightOnSurface = Color(0xFF1A1A1A); // Hampir hitam
   static const Color _lightOnSurfaceVariant = Color(
     0xFF6A7282,
@@ -18,7 +17,6 @@ class AppTheme {
   static const Color _lightSecondary = Color(0xFF8B9181); // Warm gray-green
   static const Color _lightTertiary = Color(0xFF51A2FF); // Biru
   static const Color _lightError = Color(0xFFFF6467); // Merah
-  static const Color _lightWarning = Color(0xFFFDC700); // Kuning
   static const Color _lightBorder = Color(0xFF364153); // Border gelap
   static const Color _lightDivider = Color(0xFFCDCBC5); // Warm divider
   static const Color _lightCard = Color(0xFFFDFCFA); // Soft cream card
@@ -31,7 +29,6 @@ class AppTheme {
   static const Color _darkSurfaceVariant = Color(
     0xFF252525,
   ); // Hitam agak terang
-  static const Color _darkOnBackground = Color(0xFFFFFFFF); // Putih untuk text
   static const Color _darkOnSurface = Color(0xFFFFFFFF); // Putih
   static const Color _darkOnSurfaceVariant = Color(
     0xFF99A1AF,
@@ -39,7 +36,6 @@ class AppTheme {
   static const Color _darkSecondary = Color(0xFF99A1AF); // Abu medium
   static const Color _darkTertiary = Color(0xFF51A2FF); // Biru (sama)
   static const Color _darkError = Color(0xFFFF6467); // Merah (sama)
-  static const Color _darkWarning = Color(0xFFFDC700); // Kuning (sama)
   static const Color _darkBorder = Color(0xFF364153); // Border
   static const Color _darkDivider = Color(0xFF1E2939); // Divider gelap
   static const Color _darkCard = Color(0xFF1A1A1A); // Card background

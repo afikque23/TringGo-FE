@@ -98,7 +98,8 @@ class ApiClient {
     Map<String, String>? additionalHeaders,
     Object? body,
   ) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}$endpoint');
+    final uri = _resolveUri(endpoint);
+    print('🌐 [$method] $uri');
 
     final headers = {
       'Content-Type': 'application/json',
@@ -131,6 +132,20 @@ class ApiClient {
       default:
         throw UnsupportedError('Method $method not supported');
     }
+  }
+
+  Uri _resolveUri(String endpoint) {
+    final normalized = endpoint.trim();
+
+    if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+      return Uri.parse(normalized);
+    }
+
+    if (normalized.startsWith('/')) {
+      return Uri.parse('${ApiConfig.baseUrl}$normalized');
+    }
+
+    return Uri.parse('${ApiConfig.baseUrl}/$normalized');
   }
 
   /// Refresh access token using refresh token

@@ -13,8 +13,11 @@ import 'tentang/tentang.dart';
 import '../auth/login_page.dart';
 import '../../core/network/api_client.dart';
 import '../../core/services/notification_service.dart';
+import '../../core/services/tips_service.dart';
 import '../../core/services/profile_service.dart';
+import '../../core/model/tip_model.dart';
 import '../../core/model/user_profile_model.dart';
+import '../tips_perawatan/detail_tips_perawatan.dart';
 
 class ProfilPage extends StatefulWidget {
   const ProfilPage({super.key});
@@ -24,15 +27,59 @@ class ProfilPage extends StatefulWidget {
 }
 
 class _ProfilPageState extends State<ProfilPage> {
+  final _tipsService = TipsService();
+
   int _selectedTabIndex = 0;
   bool _isLoading = true;
+  bool _isTemplateLoading = true;
+  bool _isSavedLoading = false;
+
   UserProfileModel? _profile;
   String? _error;
+  String? _templateError;
+  String? _savedError;
+
+  List<TipModel> _templateTips = [];
+  List<TipModel> _savedTips = [];
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _loadTemplateTips();
+    _loadSavedTips();
+  }
+
+  Future<int?> _getCurrentUserId() async {
+    final fromProfile = _profile?.id;
+    if (fromProfile != null) return fromProfile;
+
+    try {
+      return await ApiClient().authStorage.getUserId();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _loadSavedTips() async {
+    setState(() {
+      _isSavedLoading = true;
+      _savedError = null;
+    });
+    try {
+      final tips = await _tipsService.getSavedTips();
+      if (!mounted) return;
+      setState(() {
+        _savedTips = tips;
+        _isSavedLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _savedError = 'Gagal memuat tips tersimpan';
+        _isSavedLoading = false;
+      });
+    }
   }
 
   Future<void> _loadProfile() async {
@@ -47,6 +94,11 @@ class _ProfilPageState extends State<ProfilPage> {
       if (mounted) {
         setState(() {
           _profile = profile;
+          if (_templateTips.isNotEmpty) {
+            _templateTips = _templateTips
+                .where((tip) => tip.author.id == profile.id)
+                .toList();
+          }
           _isLoading = false;
         });
       }
@@ -58,6 +110,43 @@ class _ProfilPageState extends State<ProfilPage> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _loadTemplateTips() async {
+    try {
+      setState(() {
+        _isTemplateLoading = true;
+        _templateError = null;
+      });
+
+      final currentUserId = await _getCurrentUserId();
+      final response = await _tipsService.getMyTips(
+        page: 1,
+        limit: 50,
+        userId: currentUserId,
+      );
+
+      var tips = response.data.tips;
+      if (currentUserId != null) {
+        tips = tips.where((tip) => tip.author.id == currentUserId).toList();
+      }
+
+      tips.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      if (!mounted) return;
+      setState(() {
+        _templateTips = tips;
+        _isTemplateLoading = false;
+      });
+    } catch (e) {
+      print('❌ Error loading template tips: $e');
+      if (!mounted) return;
+      setState(() {
+        _templateTips = [];
+        _templateError = 'Gagal memuat template tips';
+        _isTemplateLoading = false;
+      });
     }
   }
 
@@ -728,15 +817,23 @@ class _ProfilPageState extends State<ProfilPage> {
     final l10n = AppLocalizations.of(context)!;
 
     final totalVehicles = _profile?.stats.totalVehicles.toString() ?? '-';
+    final totalTemplates = _isTemplateLoading
+        ? '-'
+        : _templateTips.length.toString();
+    final totalLikes = _isTemplateLoading
+        ? '-'
+        : _templateTips
+              .fold<int>(0, (sum, tip) => sum + tip.stats.likesCount)
+              .toString();
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         _buildStatColumn(context, totalVehicles, l10n.statMotor),
         const SizedBox(width: 32),
-        _buildStatColumn(context, '4', 'Template'),
+        _buildStatColumn(context, totalTemplates, 'Template'),
         const SizedBox(width: 32),
-        _buildStatColumn(context, '161', 'Likes'),
+        _buildStatColumn(context, totalLikes, 'Likes'),
       ],
     );
   }
@@ -831,7 +928,12 @@ class _ProfilPageState extends State<ProfilPage> {
         children: [
           Expanded(
             child: GestureDetector(
-              onTap: () => setState(() => _selectedTabIndex = 0),
+              onTap: () {
+                setState(() => _selectedTabIndex = 0);
+                if (_templateTips.isEmpty && !_isTemplateLoading) {
+                  _loadTemplateTips();
+                }
+              },
               child: Container(
                 color: Colors.transparent,
                 child: Column(
@@ -863,7 +965,10 @@ class _ProfilPageState extends State<ProfilPage> {
           ),
           Expanded(
             child: GestureDetector(
-              onTap: () => setState(() => _selectedTabIndex = 1),
+              onTap: () {
+                setState(() => _selectedTabIndex = 1);
+                _loadSavedTips();
+              },
               child: Container(
                 color: Colors.transparent,
                 child: Column(
@@ -899,48 +1004,86 @@ class _ProfilPageState extends State<ProfilPage> {
   }
 
   Widget _buildTipsGrid(BuildContext context) {
-    final tips = [
-      {
-        'badge': 'Trending',
-        'badgeColor': const Color(0xFFFF6467),
-        'title': 'Cara Mudah Ganti Filter Udara PCX',
-        'description': 'Panduan lengkap mengganti filter udara motor matic',
-        'distance': '5000 km',
-        'rating': '4.8',
-        'likes': '42',
-        'shares': '12',
-      },
-      {
-        'badge': 'Terbukti',
-        'badgeColor': const Color(0xFF6B7C4F),
-        'title': 'Tips Hemat Bahan Bakar Motor Matic',
-        'description': 'Trik berkendara hemat BBM untuk motor matic di per',
-        'distance': '2000 km',
-        'rating': '4.5',
-        'likes': '28',
-        'shares': '8',
-      },
-      {
-        'badge': 'AI',
-        'badgeColor': const Color(0xFFC27AFF),
-        'title': 'Perawatan Ban Motor untuk Musim Hujan',
-        'description': 'Cara merawat dan mengecek kondisi ban saat musim h',
-        'distance': '3000 km',
-        'rating': '4.7',
-        'likes': '35',
-        'shares': '15',
-      },
-      {
-        'badge': 'Trending',
-        'badgeColor': const Color(0xFFFF6467),
-        'title': 'Optimasi Performa Mesin Sport 150cc',
-        'description': 'Perawatan khusus untuk motor sport harian',
-        'distance': '4000 km',
-        'rating': '4.9',
-        'likes': '56',
-        'shares': '20',
-      },
-    ];
+    if (_selectedTabIndex == 1) {
+      if (_isSavedLoading) {
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 48),
+          child: Center(child: CircularProgressIndicator()),
+        );
+      }
+      if (_savedError != null) {
+        return _buildTipsInfoBox(
+          context: context,
+          icon: Icons.error_outline,
+          message: _savedError!,
+          actionLabel: 'Muat Ulang',
+          onAction: _loadSavedTips,
+        );
+      }
+      if (_savedTips.isEmpty) {
+        return Padding(
+          padding: const EdgeInsets.only(top: 38),
+          child: _buildTipsInfoBox(
+            context: context,
+            icon: Icons.bookmark_border,
+            message:
+                'Belum ada tips yang disimpan. Simpan tips dari halaman Tips Perawatan.',
+          ),
+        );
+      }
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.15,
+        ),
+        itemCount: _savedTips.length,
+        itemBuilder: (context, index) {
+          final tip = _savedTips[index];
+          return GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => DetailTipsPerawatanPage(tipId: tip.id),
+              ),
+            ).then((_) => _loadSavedTips()),
+            child: _buildTipCard(context, tip),
+          );
+        },
+      );
+    }
+
+    if (_isTemplateLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 48),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_templateError != null) {
+      return _buildTipsInfoBox(
+        context: context,
+        icon: Icons.error_outline,
+        message: _templateError!,
+        actionLabel: 'Muat Ulang',
+        onAction: _loadTemplateTips,
+      );
+    }
+
+    if (_templateTips.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 38),
+        child: _buildTipsInfoBox(
+          context: context,
+          icon: Icons.lightbulb_outline,
+          message:
+              'Belum ada template tips. Buat tips pertama Anda dari tombol di atas.',
+        ),
+      );
+    }
 
     return GridView.builder(
       shrinkWrap: true,
@@ -949,17 +1092,73 @@ class _ProfilPageState extends State<ProfilPage> {
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 0.88,
+        childAspectRatio: 1.15,
       ),
-      itemCount: tips.length,
+      itemCount: _templateTips.length,
       itemBuilder: (context, index) {
-        return _buildTipCard(context, tips[index]);
+        return _buildTipCard(context, _templateTips[index]);
       },
     );
   }
 
-  Widget _buildTipCard(BuildContext context, Map<String, dynamic> tip) {
+  Widget _buildTipsInfoBox({
+    required BuildContext context,
+    required IconData icon,
+    required String message,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
     final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        border: Border.all(color: colorScheme.outlineVariant, width: 0.65),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: colorScheme.onSurfaceVariant, size: 24),
+          const SizedBox(height: 10),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 13,
+              fontWeight: FontWeight.w400,
+              color: colorScheme.onSurfaceVariant,
+              height: 1.4,
+            ),
+          ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 12),
+            TextButton(onPressed: onAction, child: Text(actionLabel)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTipCard(BuildContext context, TipModel tip) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final distanceKm = tip.maintenanceInterval?.distanceKm;
+    final timeMonths = tip.maintenanceInterval?.timeMonths;
+
+    final intervalText = distanceKm != null && distanceKm > 0
+        ? '$distanceKm km'
+        : timeMonths != null && timeMonths > 0
+        ? '$timeMonths bulan'
+        : '-';
+
+    final intervalIcon = distanceKm != null && distanceKm > 0
+        ? Icons.speed
+        : timeMonths != null && timeMonths > 0
+        ? Icons.schedule
+        : Icons.speed;
+
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surface,
@@ -971,47 +1170,9 @@ class _ProfilPageState extends State<ProfilPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: (tip['badgeColor'] as Color).withValues(alpha: 0.2),
-                border: Border.all(
-                  color: (tip['badgeColor'] as Color).withValues(alpha: 0.3),
-                  width: 0.65,
-                ),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    tip['badge'] == 'Trending'
-                        ? Icons.trending_up
-                        : tip['badge'] == 'AI'
-                        ? Icons.auto_awesome
-                        : Icons.verified,
-                    size: 12,
-                    color: tip['badgeColor'] as Color,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    tip['badge'] as String,
-                    style: TextStyle(
-                      fontFamily: 'Arial',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      color: tip['badgeColor'] as Color,
-                      height: 1.33,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
             // Title
             Text(
-              tip['title'] as String,
+              tip.title,
               style: TextStyle(
                 fontFamily: 'Arial',
                 fontSize: 14,
@@ -1025,7 +1186,7 @@ class _ProfilPageState extends State<ProfilPage> {
             const SizedBox(height: 4),
             // Description
             Text(
-              tip['description'] as String,
+              tip.description,
               style: TextStyle(
                 fontFamily: 'Arial',
                 fontSize: 12,
@@ -1040,10 +1201,10 @@ class _ProfilPageState extends State<ProfilPage> {
             // Distance
             Row(
               children: [
-                Icon(Icons.speed, size: 12, color: colorScheme.primary),
+                Icon(intervalIcon, size: 12, color: colorScheme.primary),
                 const SizedBox(width: 4),
                 Text(
-                  tip['distance'] as String,
+                  intervalText,
                   style: TextStyle(
                     fontFamily: 'Arial',
                     fontSize: 12,
@@ -1061,7 +1222,7 @@ class _ProfilPageState extends State<ProfilPage> {
                 Icon(Icons.star, size: 12, color: const Color(0xFFF0B100)),
                 const SizedBox(width: 4),
                 Text(
-                  tip['rating'] as String,
+                  tip.stats.rating.toStringAsFixed(1),
                   style: TextStyle(
                     fontFamily: 'Arial',
                     fontSize: 12,
@@ -1078,7 +1239,7 @@ class _ProfilPageState extends State<ProfilPage> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  tip['likes'] as String,
+                  tip.stats.likesCount.toString(),
                   style: TextStyle(
                     fontFamily: 'Arial',
                     fontSize: 12,
@@ -1095,7 +1256,7 @@ class _ProfilPageState extends State<ProfilPage> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  tip['shares'] as String,
+                  tip.stats.sharesCount.toString(),
                   style: TextStyle(
                     fontFamily: 'Arial',
                     fontSize: 12,
@@ -1117,11 +1278,13 @@ class _ProfilPageState extends State<ProfilPage> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       child: GestureDetector(
-        onTap: () {
-          Navigator.push(
+        onTap: () async {
+          await Navigator.push(
             context,
             SmoothPageRoute(page: const TambahTipsPage()),
           );
+
+          _loadTemplateTips();
         },
         child: Container(
           width: double.infinity,

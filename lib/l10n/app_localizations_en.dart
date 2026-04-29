@@ -394,7 +394,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get good => 'Good';
 
   @override
-  String get vehicleCondition => 'Vehicle condition 75%';
+  String vehicleCondition(int percentage) {
+    return 'Vehicle condition $percentage%';
+  }
 
   @override
   String get urgent => 'Urgent';

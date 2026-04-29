@@ -50,6 +50,16 @@ class ApiConfig {
   static const String profileUpdate = '/profile/update';
   static const String profileAvatar = '/profile/avatar';
 
+  // Tips Perawatan
+  static const String tips = '/tips'; // Protected endpoint
+  static const String tipsPublic = '/public/tips'; // Public endpoint
+  static const String tipById = '/tips'; // + /{id}
+  static const String tipByIdPublic = '/public/tips'; // + /{id}
+  static const String tipLike = '/tips'; // + /{id}/like
+  static const String tipBookmark = '/tips'; // + /{id}/bookmark
+  static const String tipShare = '/tips'; // + /{id}/share
+  static const String tipUseTemplate = '/tips'; // + /{id}/use-template
+
   /// Full URLs
   // Motorcycle URLs
   static String get motorcycleUrl => '$baseUrl$motorcycle';

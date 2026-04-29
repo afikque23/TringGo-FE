@@ -32,7 +32,6 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
   String _selectedServiceType = 'other'; // Initialize with default value
   File? _selectedImage;
   String? _existingImageUrl;
-  bool _isLoading = false;
 
   // Mapping tipe servis dari database ke key yang sesuai
   String _mapServiceType(String englishName) {
@@ -694,8 +693,6 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
       return;
     }
 
-    setState(() => _isLoading = true);
-
     try {
       // Parse input values
       final odometer = _odometerController.text.isEmpty
@@ -766,10 +763,6 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+    } finally {}
   }
 }

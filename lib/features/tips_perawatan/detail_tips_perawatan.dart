@@ -1,7 +1,387 @@
 import 'package:flutter/material.dart';
+import '../../core/model/tip_model.dart';
+import '../../core/services/tips_service.dart';
 
-class DetailTipsPerawatanPage extends StatelessWidget {
-  const DetailTipsPerawatanPage({super.key});
+class DetailTipsPerawatanPage extends StatefulWidget {
+  final int tipId;
+
+  const DetailTipsPerawatanPage({super.key, required this.tipId});
+
+  @override
+  State<DetailTipsPerawatanPage> createState() =>
+      _DetailTipsPerawatanPageState();
+}
+
+class _DetailTipsPerawatanPageState extends State<DetailTipsPerawatanPage> {
+  final _tipsService = TipsService();
+  TipModel? _tip;
+  bool _isLoading = true;
+  String? _error;
+  bool _isLiked = false;
+  bool _isSaved = false;
+  int _userRating = 0;
+  int _likesCount = 0;
+  int _bookmarksCount = 0;
+  double _avgRating = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTip();
+  }
+
+  Future<void> _loadTip() async {
+    try {
+      final response = await _tipsService.getTipById(widget.tipId);
+      if (!mounted) return;
+      setState(() {
+        _tip = response.data;
+        _isLiked = response.data.isLiked;
+        _isSaved = response.data.isBookmarked;
+        _likesCount =
+            response.data.isLiked && response.data.stats.likesCount == 0
+            ? 1
+            : response.data.stats.likesCount;
+        _bookmarksCount =
+            response.data.isBookmarked &&
+                response.data.stats.bookmarksCount == 0
+            ? 1
+            : response.data.stats.bookmarksCount;
+        _avgRating = response.data.stats.rating;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Gagal memuat detail tips';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _toggleLike() async {
+    final newLiked = !_isLiked;
+    setState(() {
+      _isLiked = newLiked;
+      _likesCount = (_likesCount + (newLiked ? 1 : -1)).clamp(0, 999999);
+    });
+    try {
+      final result = await _tipsService.toggleLike(widget.tipId, newLiked);
+      if (!mounted) return;
+      setState(() {
+        _isLiked = (result['is_liked'] as bool?) ?? newLiked;
+        final serverCount = (result['likes_count'] as num?)?.toInt();
+        if (serverCount != null && serverCount > 0) {
+          _likesCount = serverCount;
+        }
+        // else: keep the optimistic count; server returned 0 or null
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLiked = !newLiked;
+        _likesCount += newLiked ? -1 : 1;
+      });
+    }
+  }
+
+  Future<void> _toggleSave() async {
+    final newSaved = !_isSaved;
+    setState(() {
+      _isSaved = newSaved;
+      _bookmarksCount = (_bookmarksCount + (newSaved ? 1 : -1)).clamp(
+        0,
+        999999,
+      );
+    });
+    try {
+      final result = await _tipsService.toggleBookmark(widget.tipId, newSaved);
+      if (!mounted) return;
+      setState(() {
+        _isSaved = (result['is_bookmarked'] as bool?) ?? newSaved;
+        final serverCount = (result['bookmarks_count'] as num?)?.toInt();
+        if (serverCount != null && serverCount > 0) {
+          _bookmarksCount = serverCount;
+        }
+        // else: keep the optimistic count; server returned 0 or null
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isSaved = !newSaved;
+        _bookmarksCount += newSaved ? -1 : 1;
+      });
+    }
+  }
+
+  void _showRatingDialog() {
+    int tempRating = _userRating;
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: const Color(0xFF1A1A1A),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: const BorderSide(color: Color(0xFF1E2939), width: 0.65),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Beri Rating',
+                      style: TextStyle(
+                        fontFamily: 'Arial',
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFFFFFFFF),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Seberapa berguna tips ini?',
+                      style: TextStyle(
+                        fontFamily: 'Arial',
+                        fontSize: 14,
+                        color: Color(0xFF99A1AF),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(5, (index) {
+                        return GestureDetector(
+                          onTap: () {
+                            setDialogState(() {
+                              tempRating = index + 1;
+                            });
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            child: Icon(
+                              index < tempRating
+                                  ? Icons.star
+                                  : Icons.star_border,
+                              size: 40,
+                              color: index < tempRating
+                                  ? const Color(0xFFF0B100)
+                                  : const Color(0xFF99A1AF),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _ratingLabel(tempRating),
+                      style: const TextStyle(
+                        fontFamily: 'Arial',
+                        fontSize: 14,
+                        color: Color(0xFF6B7C4F),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0A0A0A),
+                                border: Border.all(
+                                  color: const Color(0xFF1E2939),
+                                  width: 0.65,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Text(
+                                'Batal',
+                                style: TextStyle(
+                                  fontFamily: 'Arial',
+                                  fontSize: 14,
+                                  color: Color(0xFF99A1AF),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: tempRating == 0
+                                ? null
+                                : () async {
+                                    final messenger = ScaffoldMessenger.of(
+                                      context,
+                                    );
+                                    Navigator.pop(context);
+                                    try {
+                                      final result = await _tipsService.rateTip(
+                                        widget.tipId,
+                                        tempRating,
+                                      );
+                                      if (!mounted) return;
+                                      setState(() {
+                                        _userRating =
+                                            (result['user_rating'] as num)
+                                                .toInt();
+                                        _avgRating =
+                                            (result['average_rating'] as num)
+                                                .toDouble();
+                                      });
+                                      messenger.showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Rating $_userRating bintang dikirim!',
+                                          ),
+                                          backgroundColor: const Color(
+                                            0xFF6B7C4F,
+                                          ),
+                                          behavior: SnackBarBehavior.floating,
+                                          duration: const Duration(seconds: 2),
+                                        ),
+                                      );
+                                    } catch (e) {
+                                      if (!mounted) return;
+                                      setState(() {
+                                        _userRating = tempRating;
+                                      });
+                                      messenger.showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Gagal mengirim rating, coba lagi',
+                                          ),
+                                          backgroundColor: Color(0xFFE53E3E),
+                                          behavior: SnackBarBehavior.floating,
+                                          duration: Duration(seconds: 2),
+                                        ),
+                                      );
+                                    }
+                                  },
+                            child: Container(
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: tempRating == 0
+                                    ? const Color(0xFF6B7C4F).withOpacity(0.4)
+                                    : const Color(0xFF6B7C4F),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Text(
+                                'Kirim',
+                                style: TextStyle(
+                                  fontFamily: 'Arial',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFFFFFFFF),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _ratingLabel(int rating) {
+    switch (rating) {
+      case 1:
+        return 'Kurang Bermanfaat';
+      case 2:
+        return 'Cukup Bermanfaat';
+      case 3:
+        return 'Bermanfaat';
+      case 4:
+        return 'Sangat Bermanfaat';
+      case 5:
+        return 'Luar Biasa!';
+      default:
+        return 'Pilih bintang di atas';
+    }
+  }
+
+  void _showShareSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF1A1A1A),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF99A1AF),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Text(
+                'Bagikan Tips',
+                style: TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFFFFFFFF),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...[
+                ('WhatsApp', Icons.chat_outlined, 'whatsapp'),
+                ('Instagram', Icons.camera_alt_outlined, 'instagram'),
+                ('Twitter / X', Icons.tag, 'twitter'),
+                ('Salin Tautan', Icons.link, 'copy_link'),
+              ].map((item) {
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(item.$2, color: const Color(0xFF6B7C4F)),
+                  title: Text(
+                    item.$1,
+                    style: const TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 16,
+                      color: Color(0xFFFFFFFF),
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _tipsService
+                        .shareTip(widget.tipId, item.$3)
+                        .catchError((_) => <String, dynamic>{});
+                  },
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -11,40 +391,84 @@ class DetailTipsPerawatanPage extends StatelessWidget {
         children: [
           _buildHeroSection(context),
           Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTitleSection(),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF6B7C4F)),
+                  )
+                : _error != null
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          color: Color(0xFF99A1AF),
+                          size: 48,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          _error!,
+                          style: const TextStyle(color: Color(0xFF99A1AF)),
+                        ),
+                        const SizedBox(height: 16),
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _isLoading = true;
+                              _error = null;
+                            });
+                            _loadTip();
+                          },
+                          child: const Text(
+                            'Coba Lagi',
+                            style: TextStyle(color: Color(0xFF6B7C4F)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : SingleChildScrollView(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildAuthorCard(),
-                        const SizedBox(height: 12),
-                        _buildStatsRow(),
-                        const SizedBox(height: 12),
-                        _buildActionButtons(),
-                        const SizedBox(height: 12),
-                        _buildInfoCards(),
-                        const SizedBox(height: 16),
-                        _buildToolsSection(),
-                        const SizedBox(height: 16),
-                        _buildStepsSection(),
-                        const SizedBox(height: 16),
-                        _buildImportantNote(),
-                        const SizedBox(height: 16),
-                        _buildTags(),
-                        const SizedBox(height: 24),
-                        _buildUseThisTipButton(context),
-                        const SizedBox(height: 24),
+                        _buildTitleSection(),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildAuthorCard(),
+                              const SizedBox(height: 12),
+                              _buildStatsRow(),
+                              const SizedBox(height: 12),
+                              _buildActionButtons(),
+                              const SizedBox(height: 12),
+                              _buildInfoCards(),
+                              const SizedBox(height: 16),
+                              if ((_tip!.tools ?? []).isNotEmpty)
+                                _buildToolsSection(),
+                              if ((_tip!.tools ?? []).isNotEmpty)
+                                const SizedBox(height: 16),
+                              if ((_tip!.steps ?? []).isNotEmpty)
+                                _buildStepsSection(),
+                              if ((_tip!.steps ?? []).isNotEmpty)
+                                const SizedBox(height: 16),
+                              if (_tip!.importantNotes != null &&
+                                  _tip!.importantNotes!.isNotEmpty)
+                                _buildImportantNote(),
+                              if (_tip!.importantNotes != null &&
+                                  _tip!.importantNotes!.isNotEmpty)
+                                const SizedBox(height: 16),
+                              _buildTags(),
+                              const SizedBox(height: 24),
+                              _buildUseThisTipButton(context),
+                              const SizedBox(height: 24),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
           ),
         ],
       ),
@@ -89,6 +513,7 @@ class DetailTipsPerawatanPage extends StatelessWidget {
   }
 
   Widget _buildTitleSection() {
+    final tip = _tip!;
     return Container(
       width: double.infinity,
       color: const Color(0xFF0A0A0A),
@@ -96,29 +521,9 @@ class DetailTipsPerawatanPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Tags
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _buildTag('Trending', const Color(0xFFFF8904), Icons.trending_up),
-              _buildTag(
-                'Rekomendasi AI',
-                const Color(0xFF6B7C4F),
-                Icons.psychology,
-              ),
-              _buildTag(
-                'Terbukti 96%',
-                const Color(0xFF51A2FF),
-                Icons.verified,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Title
-          const Text(
-            'Cara Efisien Ganti Oli untuk Pemakaian Harian',
-            style: TextStyle(
+          Text(
+            tip.title,
+            style: const TextStyle(
               fontFamily: 'Arial',
               fontSize: 20,
               fontWeight: FontWeight.w700,
@@ -127,10 +532,9 @@ class DetailTipsPerawatanPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          // Description
-          const Text(
-            'Metode ganti oli yang terbukti memperpanjang umur mesin hingga 30% dengan teknik yang sudah divalidasi oleh ribuan pengguna',
-            style: TextStyle(
+          Text(
+            tip.description,
+            style: const TextStyle(
               fontFamily: 'Arial',
               fontSize: 14,
               fontWeight: FontWeight.w400,
@@ -143,35 +547,15 @@ class DetailTipsPerawatanPage extends StatelessWidget {
     );
   }
 
-  Widget _buildTag(String label, Color color, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8.65, vertical: 4.5),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
-        border: Border.all(color: color.withOpacity(0.3), width: 0.65),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'Arial',
-              fontSize: 12,
-              fontWeight: FontWeight.w400,
-              height: 1.33,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildAuthorCard() {
+    final tip = _tip!;
+    final author = tip.author;
+    final vehicle = tip.vehicle;
+    final vehicleText = '${vehicle.brand} ${vehicle.model} • ${vehicle.year}';
+    final authorStats = author.stats;
+    final statsText = authorStats != null
+        ? '${authorStats.tipsCount} template • ${authorStats.followersCount} pengikut'
+        : '';
     return Container(
       padding: const EdgeInsets.fromLTRB(16.65, 16.65, 16.65, 16.65),
       decoration: BoxDecoration(
@@ -179,90 +563,75 @@ class DetailTipsPerawatanPage extends StatelessWidget {
         border: Border.all(color: const Color(0xFF1E2939), width: 0.65),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Column(
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: const Color(0x336B7C4F),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                alignment: Alignment.center,
-                child: const Text('👨‍🔧', style: TextStyle(fontSize: 24)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Text(
-                          'Budi Santoso',
-                          style: TextStyle(
-                            fontFamily: 'Arial',
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            height: 1.5,
-                            color: Color(0xFFFFFFFF),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8.65,
-                            vertical: 4.5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0x336B7C4F),
-                            border: Border.all(
-                              color: const Color(0x4D6B7C4F),
-                              width: 0.65,
-                            ),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'Top Creator',
-                            style: TextStyle(
-                              fontFamily: 'Arial',
-                              fontSize: 12,
-                              fontWeight: FontWeight.w400,
-                              height: 1.33,
-                              color: Color(0xFF6B7C4F),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Honda PCX 160 • 2023',
-                      style: TextStyle(
-                        fontFamily: 'Arial',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                        height: 1.33,
-                        color: Color(0xFF99A1AF),
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: const Color(0x336B7C4F),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: author.avatarUrl != null
+                ? Image.network(
+                    author.avatarUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Center(
+                      child: Text(
+                        author.avatarEmoji ?? '👤',
+                        style: const TextStyle(fontSize: 24),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      '23 template • 1240 total likes',
-                      style: TextStyle(
-                        fontFamily: 'Arial',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                        height: 1.33,
-                        color: Color(0xFF6A7282),
-                      ),
+                  )
+                : Center(
+                    child: Text(
+                      author.avatarEmoji ?? '👤',
+                      style: const TextStyle(fontSize: 24),
                     ),
-                  ],
+                  ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  author.name,
+                  style: const TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    height: 1.5,
+                    color: Color(0xFFFFFFFF),
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  vehicleText,
+                  style: const TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                    height: 1.33,
+                    color: Color(0xFF99A1AF),
+                  ),
+                ),
+                if (statsText.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    statsText,
+                    style: const TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      height: 1.33,
+                      color: Color(0xFF6A7282),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
@@ -276,7 +645,7 @@ class DetailTipsPerawatanPage extends StatelessWidget {
         Expanded(
           child: _buildStatCard(
             Icons.favorite,
-            '234',
+            '$_likesCount',
             'Likes',
             const Color(0xFFFB2C36),
           ),
@@ -284,18 +653,18 @@ class DetailTipsPerawatanPage extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: _buildStatCard(
-            Icons.content_copy,
-            '89',
-            'Forks',
+            Icons.bookmark,
+            '$_bookmarksCount',
+            'Disimpan',
             const Color(0xFF6B7C4F),
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
           child: _buildStatCard(
-            Icons.group,
-            '456',
-            'Digunakan',
+            Icons.visibility,
+            '${_tip!.stats.viewsCount}',
+            'Dilihat',
             const Color(0xFF2B7FFF),
           ),
         ),
@@ -303,7 +672,7 @@ class DetailTipsPerawatanPage extends StatelessWidget {
         Expanded(
           child: _buildStatCard(
             Icons.star,
-            '4.8',
+            _avgRating.toStringAsFixed(1),
             'Rating',
             const Color(0xFFF0B100),
           ),
@@ -364,11 +733,127 @@ class DetailTipsPerawatanPage extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Expanded(child: _buildActionButton(Icons.favorite_border, 'Like')),
+        Expanded(
+          child: GestureDetector(
+            onTap: _toggleLike,
+            child: Container(
+              height: 45,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                border: Border.all(color: const Color(0xFF1E2939), width: 0.65),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    _isLiked ? Icons.favorite : Icons.favorite_border,
+                    size: 20,
+                    color: _isLiked
+                        ? const Color(0xFFFB2C36)
+                        : const Color(0xFF99A1AF),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Like',
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      height: 1.43,
+                      color: _isLiked
+                          ? const Color(0xFFFB2C36)
+                          : const Color(0xFF99A1AF),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
         const SizedBox(width: 8),
-        Expanded(child: _buildActionButton(Icons.bookmark_border, 'Simpan')),
+        Expanded(
+          child: GestureDetector(
+            onTap: _toggleSave,
+            child: Container(
+              height: 45,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                border: Border.all(color: const Color(0xFF1E2939), width: 0.65),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    _isSaved ? Icons.bookmark : Icons.bookmark_border,
+                    size: 20,
+                    color: _isSaved
+                        ? const Color(0xFF6B7C4F)
+                        : const Color(0xFF99A1AF),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Simpan',
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      height: 1.43,
+                      color: _isSaved
+                          ? const Color(0xFF6B7C4F)
+                          : const Color(0xFF99A1AF),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
         const SizedBox(width: 8),
-        Expanded(child: _buildActionButton(Icons.share, 'Share')),
+        Expanded(
+          child: GestureDetector(
+            onTap: _showShareSheet,
+            child: _buildActionButton(Icons.share, 'Share'),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: GestureDetector(
+            onTap: _showRatingDialog,
+            child: Container(
+              height: 45,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                border: Border.all(color: const Color(0xFF1E2939), width: 0.65),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    _userRating > 0 ? Icons.star : Icons.star_border,
+                    size: 18,
+                    color: _userRating > 0
+                        ? const Color(0xFFF0B100)
+                        : const Color(0xFF99A1AF),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _userRating > 0 ? '$_userRating/5' : 'Rating',
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 11,
+                      color: _userRating > 0
+                          ? const Color(0xFFF0B100)
+                          : const Color(0xFF99A1AF),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -402,118 +887,98 @@ class DetailTipsPerawatanPage extends StatelessWidget {
   }
 
   Widget _buildInfoCards() {
+    final interval = _tip!.maintenanceInterval;
+    final distanceKm = interval?.distanceKm != null && interval!.distanceKm! > 0
+        ? '${interval.distanceKm}'
+        : '-';
+    final timeMonths = interval?.timeMonths != null && interval!.timeMonths! > 0
+        ? '${interval.timeMonths}'
+        : '-';
+
     return Row(
       children: [
         Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(16.65),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A),
-              border: Border.all(color: const Color(0xFF1E2939), width: 0.65),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: const [
-                    Icon(Icons.access_time, size: 16, color: Color(0xFF6B7C4F)),
-                    SizedBox(width: 8),
-                    Text(
-                      'Estimasi Waktu',
-                      style: TextStyle(
-                        fontFamily: 'Arial',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                        height: 1.33,
-                        color: Color(0xFF99A1AF),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  '20',
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                    height: 1.33,
-                    color: Color(0xFFFFFFFF),
-                  ),
-                ),
-                const Text(
-                  'menit',
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    height: 1.33,
-                    color: Color(0xFF6A7282),
-                  ),
-                ),
-              ],
-            ),
+          child: _buildIntervalCard(
+            icon: Icons.route,
+            label: 'Interval Jarak',
+            value: distanceKm,
+            unit: distanceKm != '-' ? 'km' : null,
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(16.65),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A),
-              border: Border.all(color: const Color(0xFF1E2939), width: 0.65),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: const [
-                    Icon(Icons.repeat, size: 16, color: Color(0xFF6B7C4F)),
-                    SizedBox(width: 8),
-                    Text(
-                      'Interval',
-                      style: TextStyle(
-                        fontFamily: 'Arial',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                        height: 1.33,
-                        color: Color(0xFF99A1AF),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  '2000',
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                    height: 1.33,
-                    color: Color(0xFFFFFFFF),
-                  ),
-                ),
-                const Text(
-                  'km / 60 hari',
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    height: 1.33,
-                    color: Color(0xFF6A7282),
-                  ),
-                ),
-              ],
-            ),
+          child: _buildIntervalCard(
+            icon: Icons.calendar_month,
+            label: 'Interval Bulan',
+            value: timeMonths,
+            unit: timeMonths != '-' ? 'bulan' : null,
           ),
         ),
       ],
     );
   }
 
+  Widget _buildIntervalCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    String? unit,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16.65),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        border: Border.all(color: const Color(0xFF1E2939), width: 0.65),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: const Color(0xFF6B7C4F)),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                  height: 1.33,
+                  color: Color(0xFF99A1AF),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              height: 1.33,
+              color: Color(0xFFFFFFFF),
+            ),
+          ),
+          if (unit != null)
+            Text(
+              unit,
+              style: const TextStyle(
+                fontFamily: 'Arial',
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+                height: 1.33,
+                color: Color(0xFF6A7282),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildToolsSection() {
+    final tools = _tip!.tools ?? [];
     return Container(
       padding: const EdgeInsets.all(16.65),
       decoration: BoxDecoration(
@@ -541,15 +1006,19 @@ class DetailTipsPerawatanPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          _buildToolItem(1, 'Kunci Ring 17'),
-          const SizedBox(height: 8),
-          _buildToolItem(2, 'Wadah Oli Bekas'),
-          const SizedBox(height: 8),
-          _buildToolItem(3, 'Kain Lap'),
-          const SizedBox(height: 8),
-          _buildToolItem(4, 'Oli Mesin Original (0.8L)'),
-          const SizedBox(height: 8),
-          _buildToolItem(5, 'Filter Oli (opsional)'),
+          ...tools.asMap().entries.map((entry) {
+            final i = entry.key;
+            final tool = entry.value;
+            final label = tool.isOptional
+                ? '${tool.name} (opsional)'
+                : tool.name;
+            return Column(
+              children: [
+                if (i > 0) const SizedBox(height: 8),
+                _buildToolItem(i + 1, label),
+              ],
+            );
+          }),
         ],
       ),
     );
@@ -601,6 +1070,7 @@ class DetailTipsPerawatanPage extends StatelessWidget {
   }
 
   Widget _buildStepsSection() {
+    final steps = _tip!.steps ?? [];
     return Container(
       padding: const EdgeInsets.all(16.65),
       decoration: BoxDecoration(
@@ -628,41 +1098,20 @@ class DetailTipsPerawatanPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          _buildStepCard(
-            1,
-            'Persiapan Alat dan Bahan',
-            'Siapkan semua alat yang diperlukan: kunci ring 17, wadah oli bekas, kain lap, dan oli mesin original. Pastikan motor dalam kondisi dingin.',
-          ),
-          const SizedBox(height: 12),
-          _buildStepCard(
-            2,
-            'Posisikan Motor dengan Benar',
-            'Parkirkan motor di tempat yang rata dan gunakan standar tengah. Pastikan motor dalam posisi stabil sebelum memulai.',
-          ),
-          const SizedBox(height: 12),
-          _buildStepCard(
-            3,
-            'Buka Baut Pembuangan',
-            'Lepaskan baut pembuangan oli menggunakan kunci ring 17. Letakkan wadah di bawah untuk menampung oli bekas.',
-          ),
-          const SizedBox(height: 12),
-          _buildStepCard(
-            4,
-            'Ganti Filter Oli (Opsional)',
-            'Jika sudah waktunya, ganti juga filter oli. Pastikan filter terpasang dengan benar.',
-          ),
-          const SizedBox(height: 12),
-          _buildStepCard(
-            5,
-            'Tutup Baut dan Isi Oli Baru',
-            'Pasang kembali baut pembuangan dengan torsi yang tepat. Isi oli baru melalui lubang pengisian sesuai takaran.',
-          ),
-          const SizedBox(height: 12),
-          _buildStepCard(
-            6,
-            'Cek Level Oli',
-            'Hidupkan mesin sebentar, matikan, dan cek level oli menggunakan dipstick. Tambahkan jika kurang.',
-          ),
+          ...steps.asMap().entries.map((entry) {
+            final i = entry.key;
+            final step = entry.value;
+            return Column(
+              children: [
+                if (i > 0) const SizedBox(height: 12),
+                _buildStepCard(
+                  step.stepNumber ?? i + 1,
+                  step.title,
+                  step.description,
+                ),
+              ],
+            );
+          }),
         ],
       ),
     );
@@ -733,6 +1182,7 @@ class DetailTipsPerawatanPage extends StatelessWidget {
   }
 
   Widget _buildImportantNote() {
+    final notes = _tip!.importantNotes ?? '';
     return Container(
       padding: const EdgeInsets.all(16.65),
       decoration: BoxDecoration(
@@ -748,8 +1198,8 @@ class DetailTipsPerawatanPage extends StatelessWidget {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
+              children: [
+                const Text(
                   'Catatan Penting',
                   style: TextStyle(
                     fontFamily: 'Arial',
@@ -759,10 +1209,10 @@ class DetailTipsPerawatanPage extends StatelessWidget {
                     color: Color(0xFFFFFFFF),
                   ),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Text(
-                  'Gunakan oli original untuk hasil terbaik. Ganti oli setiap 2000 km atau 2 bulan untuk penggunaan harian. Buang oli bekas di tempat yang tepat untuk menjaga lingkungan.',
-                  style: TextStyle(
+                  notes,
+                  style: const TextStyle(
                     fontFamily: 'Arial',
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
@@ -779,14 +1229,17 @@ class DetailTipsPerawatanPage extends StatelessWidget {
   }
 
   Widget _buildTags() {
+    final hashtags = _tip!.hashtags ?? [];
+    final tags = _tip!.tags.map((t) => t.name).toList();
+    final combined = [...hashtags, ...tags];
+    if (combined.isEmpty) return const SizedBox.shrink();
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: [
-        _buildHashtag('#Oli Mesin'),
-        _buildHashtag('#Perawatan Rutin'),
-        _buildHashtag('#Daily Rider'),
-      ],
+      children: combined.map((tag) {
+        final display = tag.startsWith('#') ? tag : '#$tag';
+        return _buildHashtag(display);
+      }).toList(),
     );
   }
 
@@ -814,7 +1267,7 @@ class DetailTipsPerawatanPage extends StatelessWidget {
   Widget _buildUseThisTipButton(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        // TODO: Navigate to schedule or use this tip
+        _showUseTemplateModal(context);
       },
       child: Container(
         height: 60,
@@ -839,6 +1292,553 @@ class DetailTipsPerawatanPage extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showUseTemplateModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return _buildTemplateModal(context);
+      },
+    );
+  }
+
+  Widget _buildTemplateModal(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.85,
+      decoration: const BoxDecoration(
+        color: Color(0xFF0A0A0A),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Modal Header
+          Container(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: Color(0xFF1E2939), width: 0.65),
+              ),
+            ),
+            child: Column(
+              children: [
+                // Drag indicator
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF99A1AF),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Title
+                const Text(
+                  'Buat Jadwal dari Template',
+                  style: TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFFFFFFF),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Modal Content
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Info card
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0x336B7C4F),
+                      border: Border.all(
+                        color: const Color(0x4D6B7C4F),
+                        width: 0.65,
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: const [
+                        Icon(
+                          Icons.info_outline,
+                          size: 20,
+                          color: Color(0xFF6B7C4F),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Template ini akan disesuaikan dengan motor Anda',
+                            style: TextStyle(
+                              fontFamily: 'Arial',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                              height: 1.43,
+                              color: Color(0xFFD1D5DC),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Service name
+                  _buildModalSection(
+                    title: 'Nama Perawatan',
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A1A1A),
+                        border: Border.all(
+                          color: const Color(0xFF1E2939),
+                          width: 0.65,
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        children: const [
+                          Icon(
+                            Icons.oil_barrel_outlined,
+                            size: 20,
+                            color: Color(0xFF6B7C4F),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Ganti Oli Mesin',
+                              style: TextStyle(
+                                fontFamily: 'Arial',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w400,
+                                color: Color(0xFFFFFFFF),
+                              ),
+                            ),
+                          ),
+                          Icon(Icons.edit, size: 18, color: Color(0xFF99A1AF)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Interval type selection
+                  _buildModalSection(
+                    title: 'Jenis Interval',
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildIntervalTypeCard(
+                            icon: Icons.speed,
+                            label: 'Kilometer',
+                            isSelected: true,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildIntervalTypeCard(
+                            icon: Icons.calendar_today,
+                            label: 'Waktu',
+                            isSelected: false,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Interval value
+                  _buildModalSection(
+                    title: 'Interval Perawatan',
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A1A1A),
+                        border: Border.all(
+                          color: const Color(0xFF1E2939),
+                          width: 0.65,
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        children: const [
+                          Expanded(
+                            child: Text(
+                              '2000',
+                              style: TextStyle(
+                                fontFamily: 'Arial',
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFFFFFFFF),
+                              ),
+                            ),
+                          ),
+                          Text(
+                            'km',
+                            style: TextStyle(
+                              fontFamily: 'Arial',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w400,
+                              color: Color(0xFF99A1AF),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Current mileage
+                  _buildModalSection(
+                    title: 'Kilometer Saat Ini',
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A1A1A),
+                        border: Border.all(
+                          color: const Color(0xFF1E2939),
+                          width: 0.65,
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        children: const [
+                          Icon(Icons.speed, size: 20, color: Color(0xFF6B7C4F)),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              '15,234 km',
+                              style: TextStyle(
+                                fontFamily: 'Arial',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFFD1D5DC),
+                              ),
+                            ),
+                          ),
+                          Text(
+                            'Honda PCX 160',
+                            style: TextStyle(
+                              fontFamily: 'Arial',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                              color: Color(0xFF99A1AF),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Next service prediction
+                  _buildModalSection(
+                    title: 'Perkiraan Service Berikutnya',
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A1A1A),
+                        border: Border.all(
+                          color: const Color(0xFF6B7C4F),
+                          width: 0.65,
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: const [
+                              Text(
+                                'Target Kilometer',
+                                style: TextStyle(
+                                  fontFamily: 'Arial',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w400,
+                                  color: Color(0xFF99A1AF),
+                                ),
+                              ),
+                              Text(
+                                '17,234 km',
+                                style: TextStyle(
+                                  fontFamily: 'Arial',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF6B7C4F),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          const Divider(color: Color(0xFF1E2939), height: 1),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: const [
+                              Text(
+                                'Sisa Jarak',
+                                style: TextStyle(
+                                  fontFamily: 'Arial',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w400,
+                                  color: Color(0xFF99A1AF),
+                                ),
+                              ),
+                              Text(
+                                '2,000 km',
+                                style: TextStyle(
+                                  fontFamily: 'Arial',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFFFFFFF),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Reminder toggle
+                  _buildModalSection(
+                    title: 'Pengingat',
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A1A1A),
+                        border: Border.all(
+                          color: const Color(0xFF1E2939),
+                          width: 0.65,
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.notifications_outlined,
+                            size: 20,
+                            color: Color(0xFF6B7C4F),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'Aktifkan Pengingat',
+                              style: TextStyle(
+                                fontFamily: 'Arial',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w400,
+                                color: Color(0xFFFFFFFF),
+                              ),
+                            ),
+                          ),
+                          Switch(
+                            value: true,
+                            onChanged: (value) {},
+                            activeColor: const Color(0xFF6B7C4F),
+                            activeTrackColor: const Color(
+                              0xFF6B7C4F,
+                            ).withOpacity(0.5),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Notes from template
+                  _buildModalSection(
+                    title: 'Catatan Template',
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A1A1A),
+                        border: Border.all(
+                          color: const Color(0xFF1E2939),
+                          width: 0.65,
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text(
+                            'Tips dari komunitas:',
+                            style: TextStyle(
+                              fontFamily: 'Arial',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFD1D5DC),
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            '• Gunakan oli original untuk hasil terbaik\n• Cek level oli setelah mesin dingin\n• Ganti filter oli setiap 2x ganti oli',
+                            style: TextStyle(
+                              fontFamily: 'Arial',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                              height: 1.5,
+                              color: Color(0xFF99A1AF),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Action buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: Container(
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1A1A1A),
+                              border: Border.all(
+                                color: const Color(0xFF1E2939),
+                                width: 0.65,
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            alignment: Alignment.center,
+                            child: const Text(
+                              'Batal',
+                              style: TextStyle(
+                                fontFamily: 'Arial',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF99A1AF),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: GestureDetector(
+                          onTap: () {
+                            // TODO: Save schedule with API
+                            Navigator.pop(context);
+                            _showSuccessSnackbar(context);
+                          },
+                          child: Container(
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF6B7C4F),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            alignment: Alignment.center,
+                            child: const Text(
+                              'Buat Jadwal',
+                              style: TextStyle(
+                                fontFamily: 'Arial',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFFFFFFFF),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModalSection({required String title, required Widget child}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontFamily: 'Arial',
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFFD1D5DC),
+          ),
+        ),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+
+  Widget _buildIntervalTypeCard({
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? const Color(0xFF6B7C4F).withOpacity(0.2)
+            : const Color(0xFF1A1A1A),
+        border: Border.all(
+          color: isSelected ? const Color(0xFF6B7C4F) : const Color(0xFF1E2939),
+          width: isSelected ? 1.5 : 0.65,
+        ),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            icon,
+            size: 24,
+            color: isSelected
+                ? const Color(0xFF6B7C4F)
+                : const Color(0xFF99A1AF),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: isSelected
+                  ? const Color(0xFF6B7C4F)
+                  : const Color(0xFF99A1AF),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSuccessSnackbar(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Jadwal berhasil dibuat dari template!'),
+        backgroundColor: Color(0xFF6B7C4F),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
       ),
     );
   }

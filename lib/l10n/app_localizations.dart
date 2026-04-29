@@ -857,8 +857,8 @@ abstract class AppLocalizations {
   /// No description provided for @vehicleCondition.
   ///
   /// In en, this message translates to:
-  /// **'Vehicle condition 75%'**
-  String get vehicleCondition;
+  /// **'Vehicle condition {percentage}%'**
+  String vehicleCondition(int percentage);
 
   /// No description provided for @urgent.
   ///

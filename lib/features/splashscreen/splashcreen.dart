@@ -206,7 +206,6 @@ class _SplashScreenState extends State<SplashScreen>
 
   Widget _buildTitle(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
 
     return Column(
       children: [

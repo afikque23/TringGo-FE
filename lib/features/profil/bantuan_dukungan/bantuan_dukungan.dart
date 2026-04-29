@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../core/model/content_model.dart';
+import '../../../core/services/content_service.dart';
 import 'syarat_ketentuan.dart';
 import 'kebijakan_privasi.dart';
 import 'panduan_pengguna.dart';
@@ -14,6 +16,87 @@ class BantuanDukunganPage extends StatefulWidget {
 
 class _BantuanDukunganPageState extends State<BantuanDukunganPage> {
   int _expandedFaqIndex = -1; // No FAQ is expanded by default
+  List<FaqItemModel> _dynamicFaqItems = const [];
+
+  String? _supportEmail;
+  String? _supportPhone;
+  String? _supportLiveChatSubtitle;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFaqFromApi();
+    _loadSupportFromApi();
+  }
+
+  Future<void> _loadFaqFromApi() async {
+    try {
+      final items = await ContentService().getFaqItems();
+      if (!mounted) return;
+      if (items.isEmpty) return;
+      setState(() {
+        _dynamicFaqItems = items;
+      });
+    } catch (_) {
+      // Silent fallback to localized FAQ
+    }
+  }
+
+  Future<void> _loadSupportFromApi() async {
+    try {
+      final sections = await ContentService().getDocumentSections(
+        'support',
+        mergeAll: true,
+      );
+      if (!mounted) return;
+      if (sections.isEmpty) return;
+
+      final candidates = <String>[];
+      for (final s in sections) {
+        candidates.addAll(s.paragraphs);
+        candidates.addAll(s.bullets);
+      }
+
+      String? email;
+      String? phone;
+
+      final emailRegex = RegExp(
+        r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
+      );
+      final phoneRegex = RegExp(r'(\+?\d[\d\s\-()]{7,}\d)');
+
+      for (final text in candidates) {
+        if (email == null) {
+          final match = emailRegex.firstMatch(text);
+          if (match != null) {
+            email = match.group(1);
+          }
+        }
+        if (phone == null) {
+          final match = phoneRegex.firstMatch(text);
+          if (match != null) {
+            phone = match.group(1);
+          }
+        }
+        if (email != null && phone != null) break;
+      }
+
+      final liveChatSubtitle = sections.first.paragraphs.isNotEmpty
+          ? sections.first.paragraphs.first.trim()
+          : null;
+
+      setState(() {
+        _supportEmail = email?.trim();
+        _supportPhone = phone?.trim();
+        _supportLiveChatSubtitle =
+            liveChatSubtitle != null && liveChatSubtitle.isNotEmpty
+            ? liveChatSubtitle
+            : null;
+      });
+    } catch (_) {
+      // Silent fallback to localized/static contact text
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -119,6 +202,9 @@ class _BantuanDukunganPageState extends State<BantuanDukunganPage> {
   Widget _buildContactSection() {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    final email = _supportEmail ?? 'support@mototracker.id';
+    final phone = _supportPhone ?? '+62 812-3456-7890';
+    final liveChatSubtitle = _supportLiveChatSubtitle ?? l10n.liveChatSubtitle;
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surface,
@@ -177,7 +263,7 @@ class _BantuanDukunganPageState extends State<BantuanDukunganPage> {
                 _buildContactCard(
                   icon: Icons.chat_bubble_outline,
                   title: l10n.liveChat,
-                  subtitle: l10n.liveChatSubtitle,
+                  subtitle: liveChatSubtitle,
                   actionText: l10n.startChat,
                   onTap: () {
                     // TODO: Open live chat
@@ -194,7 +280,7 @@ class _BantuanDukunganPageState extends State<BantuanDukunganPage> {
                 _buildContactCard(
                   icon: Icons.email_outlined,
                   title: l10n.emailSupport,
-                  subtitle: 'support@mototracker.id',
+                  subtitle: email,
                   actionText: l10n.sendEmail,
                   onTap: () {
                     // TODO: Open email client
@@ -282,7 +368,7 @@ class _BantuanDukunganPageState extends State<BantuanDukunganPage> {
                               ),
                               SizedBox(height: 4),
                               Text(
-                                '+62 812-3456-7890',
+                                phone,
                                 style: TextStyle(
                                   fontFamily: 'Arial',
                                   fontSize: 12,
@@ -394,29 +480,33 @@ class _BantuanDukunganPageState extends State<BantuanDukunganPage> {
   Widget _buildFaqSection() {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    final faqItems = [
-      {
-        'question': l10n.faqAddMotorcycle,
-        'answer': l10n.faqAddMotorcycleAnswer,
-      },
-      {
-        'question': l10n.faqStartTracking,
-        'answer': l10n.faqStartTrackingAnswer,
-      },
-      {
-        'question': l10n.faqNoNotifications,
-        'answer': l10n.faqNoNotificationsAnswer,
-      },
-      {
-        'question': l10n.faqSwitchMotorcycle,
-        'answer': l10n.faqSwitchMotorcycleAnswer,
-      },
-      {'question': l10n.faqDataLost, 'answer': l10n.faqDataLostAnswer},
-      {
-        'question': l10n.faqContactWorkshop,
-        'answer': l10n.faqContactWorkshopAnswer,
-      },
+    final fallbackFaqItems = <FaqItemModel>[
+      FaqItemModel(
+        question: l10n.faqAddMotorcycle,
+        answer: l10n.faqAddMotorcycleAnswer,
+      ),
+      FaqItemModel(
+        question: l10n.faqStartTracking,
+        answer: l10n.faqStartTrackingAnswer,
+      ),
+      FaqItemModel(
+        question: l10n.faqNoNotifications,
+        answer: l10n.faqNoNotificationsAnswer,
+      ),
+      FaqItemModel(
+        question: l10n.faqSwitchMotorcycle,
+        answer: l10n.faqSwitchMotorcycleAnswer,
+      ),
+      FaqItemModel(question: l10n.faqDataLost, answer: l10n.faqDataLostAnswer),
+      FaqItemModel(
+        question: l10n.faqContactWorkshop,
+        answer: l10n.faqContactWorkshopAnswer,
+      ),
     ];
+
+    final faqItems = _dynamicFaqItems.isNotEmpty
+        ? _dynamicFaqItems
+        : fallbackFaqItems;
 
     return Container(
       decoration: BoxDecoration(
@@ -470,7 +560,7 @@ class _BantuanDukunganPageState extends State<BantuanDukunganPage> {
           // FAQ Items
           ...List.generate(faqItems.length, (index) {
             final isExpanded = _expandedFaqIndex == index;
-            final hasAnswer = faqItems[index]['answer']!.isNotEmpty;
+            final hasAnswer = faqItems[index].answer.isNotEmpty;
 
             return Container(
               decoration: BoxDecoration(
@@ -500,7 +590,7 @@ class _BantuanDukunganPageState extends State<BantuanDukunganPage> {
                         children: [
                           Expanded(
                             child: Text(
-                              faqItems[index]['question']!,
+                              faqItems[index].question,
                               style: TextStyle(
                                 fontFamily: 'Arial',
                                 fontSize: 16,
@@ -526,7 +616,7 @@ class _BantuanDukunganPageState extends State<BantuanDukunganPage> {
                       if (isExpanded && hasAnswer) ...[
                         const SizedBox(height: 8),
                         Text(
-                          faqItems[index]['answer']!,
+                          faqItems[index].answer,
                           style: TextStyle(
                             fontFamily: 'Arial',
                             fontSize: 14,

@@ -93,7 +93,14 @@
   "history": "History",
   "overallStatus": "Status Keseluruhan",
   "good": "Baik",
-  "vehicleCondition": "Kondisi kendaraan 75%",
+  "vehicleCondition": "Kondisi kendaraan {percentage}%",
+  "@vehicleCondition": {
+    "placeholders": {
+      "percentage": {
+        "type": "int"
+      }
+    }
+  },
   "urgent": "Darurat",
   "soon": "Segera",
   "aboutService": "Tentang Service",

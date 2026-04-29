@@ -26,7 +26,6 @@ class _StatistikMingguanPageState extends State<StatistikMingguanPage> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       backgroundColor: colorScheme.surfaceContainerLow,

@@ -39,7 +39,6 @@ class _PreferensiAplikasiPageState extends State<PreferensiAplikasiPage> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final bool isDarkMode = _themeManager?.isDarkMode ?? true;
-    final l10n = AppLocalizations.of(context)!;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(

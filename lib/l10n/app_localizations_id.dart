@@ -395,7 +395,9 @@ class AppLocalizationsId extends AppLocalizations {
   String get good => 'Baik';
 
   @override
-  String get vehicleCondition => 'Kondisi kendaraan 75%';
+  String vehicleCondition(int percentage) {
+    return 'Kondisi kendaraan $percentage%';
+  }
 
   @override
   String get urgent => 'Darurat';

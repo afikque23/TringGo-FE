@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/model/content_model.dart';
+import '../../../core/services/content_service.dart';
 import '../../../l10n/app_localizations.dart';
 
 class PanduanPenggunaPage extends StatefulWidget {
@@ -11,9 +13,50 @@ class PanduanPenggunaPage extends StatefulWidget {
 
 class _PanduanPenggunaPageState extends State<PanduanPenggunaPage> {
   int? _expandedSectionIndex;
+  List<GuideSectionModel> _dynamicGuideSections = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGuideFromApi();
+  }
+
+  Future<void> _loadGuideFromApi() async {
+    try {
+      final sections = await ContentService().getGuideSections();
+      if (!mounted) return;
+      if (sections.isEmpty) return;
+      setState(() {
+        _dynamicGuideSections = sections;
+      });
+    } catch (_) {
+      // Silent fallback to localized guide
+    }
+  }
 
   List<Map<String, dynamic>> _getGuideData(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+
+    if (_dynamicGuideSections.isNotEmpty) {
+      return _dynamicGuideSections
+          .map(
+            (section) => {
+              'title': section.title,
+              'icon': Icons.menu_book_outlined,
+              'topicCount': section.topics.length,
+              'topics': section.topics
+                  .map(
+                    (topic) => {
+                      'title': topic.title,
+                      'description': topic.description,
+                    },
+                  )
+                  .toList(),
+            },
+          )
+          .toList();
+    }
+
     return [
       {
         'title': l10n.gettingStartedTitle,

@@ -1,9 +1,235 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/model/content_model.dart';
+import '../../../core/services/content_service.dart';
 import '../../../l10n/app_localizations.dart';
 
-class TentangPage extends StatelessWidget {
+class TentangPage extends StatefulWidget {
   const TentangPage({super.key});
+
+  @override
+  State<TentangPage> createState() => _TentangPageState();
+}
+
+class _TentangPageState extends State<TentangPage> {
+  late final Future<List<DocumentSectionModel>> _aboutFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _aboutFuture = ContentService().getDocumentSections('about');
+  }
+
+  String _normalizeText(String raw) {
+    var value = raw;
+    value = value.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n');
+    return value.trim();
+  }
+
+  bool _isLikelyVersionOrBuildLine(String text) {
+    final value = text.trim();
+    if (value.isEmpty) return false;
+    return RegExp(r'\b(version|build)\b', caseSensitive: false).hasMatch(value);
+  }
+
+  bool _isLikelyTaglineLine(String text) {
+    final value = text.trim().toLowerCase();
+    return value == 'your smart motorcycle companion';
+  }
+
+  String? _stripIrrelevantLines(String? text) {
+    if (text == null) return null;
+    final normalized = _normalizeText(text);
+    if (normalized.isEmpty) return null;
+
+    final lines = normalized
+        .split('\n')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .where((e) => !_isLikelyVersionOrBuildLine(e))
+        .where((e) => !_isLikelyTaglineLine(e))
+        .toList();
+
+    if (lines.isEmpty) return null;
+    return lines.join('\n');
+  }
+
+  String? _pickBestAboutDescription(List<DocumentSectionModel> sections) {
+    if (sections.isEmpty) return null;
+
+    final candidates = <String>[];
+    for (final section in sections) {
+      if (section.paragraphs.isEmpty) continue;
+      final joined = section.paragraphs.map(_normalizeText).join('\n\n');
+      final cleaned = _stripIrrelevantLines(joined);
+      if (cleaned != null && cleaned.isNotEmpty) {
+        candidates.add(cleaned);
+      }
+    }
+
+    if (candidates.isEmpty) return null;
+    candidates.sort((a, b) => b.length.compareTo(a.length));
+    return candidates.first;
+  }
+
+  _TitleDesc _splitTitleDesc(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return const _TitleDesc(title: '', description: '');
+
+    const separators = <String>[' - ', ' — ', ': ', ' : '];
+    for (final sep in separators) {
+      final idx = value.indexOf(sep);
+      if (idx > 0) {
+        final title = value.substring(0, idx).trim();
+        final desc = value.substring(idx + sep.length).trim();
+        return _TitleDesc(title: title, description: desc);
+      }
+    }
+
+    return _TitleDesc(title: value, description: '');
+  }
+
+  List<_TitleDesc> _pick3TitleDesc(
+    List<_TitleDesc> primary,
+    List<_TitleDesc> fallback,
+  ) {
+    final picked = <_TitleDesc>[];
+    picked.addAll(primary.where((e) => e.title.trim().isNotEmpty));
+    picked.addAll(fallback.where((e) => e.title.trim().isNotEmpty));
+    return picked.take(3).toList(growable: false);
+  }
+
+  List<String> _pick3Strings(List<String> primary, List<String> fallback) {
+    final picked = <String>[];
+    picked.addAll(primary.map((e) => e.trim()).where((e) => e.isNotEmpty));
+    picked.addAll(fallback.map((e) => e.trim()).where((e) => e.isNotEmpty));
+    return picked.take(3).toList(growable: false);
+  }
+
+  _AboutDynamicText _extractAboutDynamicText(
+    BuildContext context,
+    List<DocumentSectionModel> sections,
+  ) {
+    final fallback = _AboutDynamicText.empty();
+    if (sections.isEmpty) return fallback;
+
+    String? aboutTitle;
+    String? aboutDescription;
+
+    String? featuresTitle;
+    List<_TitleDesc> features = const [];
+
+    String? valuesTitle;
+    List<_TitleDesc> values = const [];
+
+    String? teamTitle;
+    List<_TitleDesc> teamMembers = const [];
+
+    String? socialTitle;
+    List<String> socialLinks = const [];
+
+    String? madeWithLoveSubtitle;
+    String? copyright;
+
+    // Convention (by index):
+    // 0 about, 1 features, 2 values, 3 team, 4 social, 5 made-with-love, 6 footer
+    if (sections.isNotEmpty) {
+      final s = sections[0];
+      aboutTitle = s.title.isNotEmpty ? s.title : null;
+      // About description: pick best paragraph block across sections,
+      // while stripping tagline/version/build lines.
+      aboutDescription = _pickBestAboutDescription(sections);
+    }
+
+    if (sections.length >= 2) {
+      final s = sections[1];
+      featuresTitle = s.title.isNotEmpty ? s.title : null;
+      // Features should be a list, not a long paragraph.
+      // Prefer bullets; if using paragraphs, only accept 'Title - Description' format.
+      final rawItems = <String>[...s.bullets];
+      final fromParagraphs = rawItems.isEmpty;
+      if (fromParagraphs) rawItems.addAll(s.paragraphs);
+
+      features = rawItems
+          .map(_normalizeText)
+          .map(_splitTitleDesc)
+          .where((e) => e.title.isNotEmpty)
+          .where((e) => !fromParagraphs || e.description.trim().isNotEmpty)
+          .toList();
+    }
+
+    if (sections.length >= 3) {
+      final s = sections[2];
+      valuesTitle = s.title.isNotEmpty ? s.title : null;
+      final rawItems = <String>[...s.bullets];
+      final fromParagraphs = rawItems.isEmpty;
+      if (fromParagraphs) rawItems.addAll(s.paragraphs);
+      values = rawItems
+          .map(_normalizeText)
+          .map(_splitTitleDesc)
+          .where((e) => e.title.isNotEmpty)
+          .where((e) => !fromParagraphs || e.description.trim().isNotEmpty)
+          .toList();
+    }
+
+    if (sections.length >= 4) {
+      final s = sections[3];
+      teamTitle = s.title.isNotEmpty ? s.title : null;
+      final rawItems = <String>[...s.bullets];
+      final fromParagraphs = rawItems.isEmpty;
+      if (fromParagraphs) rawItems.addAll(s.paragraphs);
+      teamMembers = rawItems
+          .map(_normalizeText)
+          .map(_splitTitleDesc)
+          .where((e) => e.title.isNotEmpty)
+          .where((e) => !fromParagraphs || e.description.trim().isNotEmpty)
+          .toList();
+    }
+
+    if (sections.length >= 5) {
+      final s = sections[4];
+      socialTitle = s.title.isNotEmpty ? s.title : null;
+      final rawItems = <String>[...s.bullets];
+      if (rawItems.isEmpty) rawItems.addAll(s.paragraphs);
+      socialLinks = rawItems
+          .map(_normalizeText)
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+
+    if (sections.length >= 6) {
+      final s = sections[5];
+      if (s.paragraphs.isNotEmpty) {
+        madeWithLoveSubtitle = _normalizeText(s.paragraphs.first);
+      } else if (s.bullets.isNotEmpty) {
+        madeWithLoveSubtitle = _normalizeText(s.bullets.first);
+      }
+    }
+
+    if (sections.length >= 7) {
+      final s = sections[6];
+      if (s.paragraphs.isNotEmpty) {
+        copyright = _normalizeText(s.paragraphs.first);
+      } else if (s.bullets.isNotEmpty) {
+        copyright = _normalizeText(s.bullets.first);
+      }
+    }
+
+    return fallback.copyWith(
+      aboutTitle: aboutTitle,
+      aboutDescription: aboutDescription,
+      featuresTitle: featuresTitle,
+      features: features,
+      valuesTitle: valuesTitle,
+      values: values,
+      teamTitle: teamTitle,
+      teamMembers: teamMembers,
+      socialTitle: socialTitle,
+      socialLinks: socialLinks,
+      madeWithLoveSubtitle: madeWithLoveSubtitle,
+      copyright: copyright,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,36 +250,48 @@ class TentangPage extends StatelessWidget {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-                child: Column(
-                  children: [
-                    // App Branding
-                    _buildBrandingCard(context),
-                    const SizedBox(height: 16),
-                    // About App Section
-                    _buildAboutAppSection(context),
-                    const SizedBox(height: 16),
-                    // Features Section
-                    _buildFeaturesSection(context),
-                    const SizedBox(height: 16),
-                    // Values Section
-                    _buildValuesSection(context),
-                    const SizedBox(height: 16),
-                    // Version Info Section
-                    _buildVersionInfoSection(context),
-                    const SizedBox(height: 16),
-                    // Team Section
-                    _buildTeamSection(context),
-                    const SizedBox(height: 16),
-                    // Social Media Section
-                    _buildSocialMediaSection(context),
-                    const SizedBox(height: 16),
-                    // Made with Love Card
-                    _buildMadeWithLoveCard(context),
-                    const SizedBox(height: 16),
-                    // Footer
-                    _buildFooter(context),
-                    const SizedBox(height: 16),
-                  ],
+                child: FutureBuilder<List<DocumentSectionModel>>(
+                  future: _aboutFuture,
+                  builder: (context, snapshot) {
+                    final sections =
+                        snapshot.data ?? const <DocumentSectionModel>[];
+                    final dynamicText = _extractAboutDynamicText(
+                      context,
+                      sections,
+                    );
+
+                    return Column(
+                      children: [
+                        // App Branding
+                        _buildBrandingCard(context),
+                        const SizedBox(height: 16),
+                        // About App Section
+                        _buildAboutAppSection(context, dynamicText),
+                        const SizedBox(height: 16),
+                        // Features Section
+                        _buildFeaturesSection(context, dynamicText),
+                        const SizedBox(height: 16),
+                        // Values Section
+                        _buildValuesSection(context, dynamicText),
+                        const SizedBox(height: 16),
+                        // Version Info Section
+                        _buildVersionInfoSection(context),
+                        const SizedBox(height: 16),
+                        // Team Section
+                        _buildTeamSection(context, dynamicText),
+                        const SizedBox(height: 16),
+                        // Social Media Section
+                        _buildSocialMediaSection(context, dynamicText),
+                        const SizedBox(height: 16),
+                        // Made with Love Card
+                        _buildMadeWithLoveCard(context, dynamicText),
+                        const SizedBox(height: 16),
+                        // Footer
+                        _buildFooter(context, dynamicText),
+                        const SizedBox(height: 16),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -174,52 +412,20 @@ class TentangPage extends StatelessWidget {
               height: 1.43,
             ),
           ),
-          const SizedBox(height: 16),
-          // Version Info
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'Version 1.0.0',
-                style: TextStyle(
-                  fontFamily: 'Arial',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: colorScheme.onSurfaceVariant.withOpacity(0.7),
-                  height: 1.43,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '•',
-                style: TextStyle(
-                  fontFamily: 'Arial',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: colorScheme.onSurfaceVariant.withOpacity(0.7),
-                  height: 1.43,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Build 2026.01.30',
-                style: TextStyle(
-                  fontFamily: 'Arial',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: colorScheme.onSurfaceVariant.withOpacity(0.7),
-                  height: 1.43,
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildAboutAppSection(BuildContext context) {
+  Widget _buildAboutAppSection(
+    BuildContext context,
+    _AboutDynamicText dynamicText,
+  ) {
     final colorScheme = Theme.of(context).colorScheme;
+    final title = dynamicText.aboutTitle ?? 'Tentang Aplikasi';
+    final description =
+        dynamicText.aboutDescription ??
+        'MotoTracker adalah aplikasi manajemen sepeda motor yang dirancang khusus untuk membantu Anda merawat, melacak, dan mengoptimalkan kinerja kendaraan. Dengan teknologi GPS dan pengingat service otomatis, kami memastikan motor Anda selalu dalam kondisi prima.';
     return Container(
       padding: const EdgeInsets.all(20.65),
       decoration: BoxDecoration(
@@ -235,7 +441,7 @@ class TentangPage extends StatelessWidget {
               Icon(Icons.info_outline, size: 20, color: colorScheme.primary),
               const SizedBox(width: 8),
               Text(
-                'Tentang Aplikasi',
+                title,
                 style: TextStyle(
                   fontFamily: 'Arial',
                   fontSize: 16,
@@ -248,7 +454,7 @@ class TentangPage extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'MotoTracker adalah aplikasi manajemen sepeda motor yang dirancang khusus untuk membantu Anda merawat, melacak, dan mengoptimalkan kinerja kendaraan. Dengan teknologi GPS dan pengingat service otomatis, kami memastikan motor Anda selalu dalam kondisi prima.',
+            description,
             style: TextStyle(
               fontFamily: 'Arial',
               fontSize: 14,
@@ -262,8 +468,28 @@ class TentangPage extends StatelessWidget {
     );
   }
 
-  Widget _buildFeaturesSection(BuildContext context) {
+  Widget _buildFeaturesSection(
+    BuildContext context,
+    _AboutDynamicText dynamicText,
+  ) {
     final colorScheme = Theme.of(context).colorScheme;
+    final sectionTitle = dynamicText.featuresTitle ?? 'Fitur Unggulan';
+    final fallbackFeatures = <_TitleDesc>[
+      const _TitleDesc(
+        title: 'GPS Tracking',
+        description: 'Lacak setiap perjalanan dengan presisi GPS',
+      ),
+      const _TitleDesc(
+        title: 'Smart Maintenance',
+        description: 'Pengingat service otomatis dan prediktif',
+      ),
+      const _TitleDesc(
+        title: 'Multi Kendaraan',
+        description: 'Kelola semua motor Anda dalam satu aplikasi',
+      ),
+    ];
+    final features = _pick3TitleDesc(dynamicText.features, fallbackFeatures);
+
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surface,
@@ -298,7 +524,7 @@ class TentangPage extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Fitur Unggulan',
+                      sectionTitle,
                       style: TextStyle(
                         fontFamily: 'Arial',
                         fontSize: 16,
@@ -321,22 +547,22 @@ class TentangPage extends StatelessWidget {
                 _buildFeatureItem(
                   context,
                   icon: Icons.route_outlined,
-                  title: 'GPS Tracking',
-                  description: 'Lacak setiap perjalanan dengan presisi GPS',
+                  title: features[0].title,
+                  description: features[0].description,
                 ),
                 const SizedBox(height: 12),
                 _buildFeatureItem(
                   context,
                   icon: Icons.build_outlined,
-                  title: 'Smart Maintenance',
-                  description: 'Pengingat service otomatis dan prediktif',
+                  title: features[1].title,
+                  description: features[1].description,
                 ),
                 const SizedBox(height: 12),
                 _buildFeatureItem(
                   context,
                   icon: Icons.motorcycle_outlined,
-                  title: 'Multi Kendaraan',
-                  description: 'Kelola semua motor Anda dalam satu aplikasi',
+                  title: features[2].title,
+                  description: features[2].description,
                 ),
               ],
             ),
@@ -398,8 +624,28 @@ class TentangPage extends StatelessWidget {
     );
   }
 
-  Widget _buildValuesSection(BuildContext context) {
+  Widget _buildValuesSection(
+    BuildContext context,
+    _AboutDynamicText dynamicText,
+  ) {
     final colorScheme = Theme.of(context).colorScheme;
+    final sectionTitle = dynamicText.valuesTitle ?? 'Nilai Kami';
+    final fallbackValues = <_TitleDesc>[
+      const _TitleDesc(
+        title: 'Pengembangan',
+        description: 'Dibangun dengan teknologi terkini',
+      ),
+      const _TitleDesc(
+        title: 'Passion',
+        description: 'Dibuat oleh dan untuk pecinta motor',
+      ),
+      const _TitleDesc(
+        title: 'Indonesia',
+        description: 'Dikembangkan untuk komunitas Indonesia',
+      ),
+    ];
+    final values = _pick3TitleDesc(dynamicText.values, fallbackValues);
+
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surface,
@@ -434,7 +680,7 @@ class TentangPage extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Nilai Kami',
+                      sectionTitle,
                       style: TextStyle(
                         fontFamily: 'Arial',
                         fontSize: 16,
@@ -457,22 +703,22 @@ class TentangPage extends StatelessWidget {
                 _buildFeatureItem(
                   context,
                   icon: Icons.code_outlined,
-                  title: 'Pengembangan',
-                  description: 'Dibangun dengan teknologi terkini',
+                  title: values[0].title,
+                  description: values[0].description,
                 ),
                 const SizedBox(height: 12),
                 _buildFeatureItem(
                   context,
                   icon: Icons.favorite_outline,
-                  title: 'Passion',
-                  description: 'Dibuat oleh dan untuk pecinta motor',
+                  title: values[1].title,
+                  description: values[1].description,
                 ),
                 const SizedBox(height: 12),
                 _buildFeatureItem(
                   context,
                   icon: Icons.language_outlined,
-                  title: 'Indonesia',
-                  description: 'Dikembangkan untuk komunitas Indonesia',
+                  title: values[2].title,
+                  description: values[2].description,
                 ),
               ],
             ),
@@ -581,8 +827,18 @@ class TentangPage extends StatelessWidget {
     );
   }
 
-  Widget _buildTeamSection(BuildContext context) {
+  Widget _buildTeamSection(
+    BuildContext context,
+    _AboutDynamicText dynamicText,
+  ) {
     final colorScheme = Theme.of(context).colorScheme;
+    final sectionTitle = dynamicText.teamTitle ?? 'Tim Kami';
+    final fallbackMembers = <_TitleDesc>[
+      const _TitleDesc(title: 'Product Designer', description: 'UI/UX Team'),
+      const _TitleDesc(title: 'Developer', description: 'Engineering Team'),
+      const _TitleDesc(title: 'Data Analyst', description: 'Analytics Team'),
+    ];
+    final members = _pick3TitleDesc(dynamicText.teamMembers, fallbackMembers);
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surface,
@@ -617,7 +873,7 @@ class TentangPage extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Tim Kami',
+                      sectionTitle,
                       style: TextStyle(
                         fontFamily: 'Arial',
                         fontSize: 16,
@@ -639,20 +895,20 @@ class TentangPage extends StatelessWidget {
               children: [
                 _buildTeamMember(
                   context,
-                  title: 'Product Designer',
-                  subtitle: 'UI/UX Team',
+                  title: members[0].title,
+                  subtitle: members[0].description,
                 ),
                 const SizedBox(height: 12),
                 _buildTeamMember(
                   context,
-                  title: 'Developer',
-                  subtitle: 'Engineering Team',
+                  title: members[1].title,
+                  subtitle: members[1].description,
                 ),
                 const SizedBox(height: 12),
                 _buildTeamMember(
                   context,
-                  title: 'Data Analyst',
-                  subtitle: 'Analytics Team',
+                  title: members[2].title,
+                  subtitle: members[2].description,
                 ),
               ],
             ),
@@ -721,9 +977,19 @@ class TentangPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSocialMediaSection(BuildContext context) {
+  Widget _buildSocialMediaSection(
+    BuildContext context,
+    _AboutDynamicText dynamicText,
+  ) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    final sectionTitle = dynamicText.socialTitle ?? l10n.followUs;
+    final fallbackLinks = <String>[
+      '@mototracker.id',
+      '@mototracker',
+      'github.com/mototracker',
+    ];
+    final links = _pick3Strings(dynamicText.socialLinks, fallbackLinks);
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surface,
@@ -758,7 +1024,7 @@ class TentangPage extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      l10n.followUs,
+                      sectionTitle,
                       style: TextStyle(
                         fontFamily: 'Arial',
                         fontSize: 16,
@@ -781,7 +1047,7 @@ class TentangPage extends StatelessWidget {
                 _buildSocialMediaItem(
                   context,
                   icon: Icons.language,
-                  text: '@mototracker.id',
+                  text: links[0],
                   onTap: () {
                     // TODO: Open Instagram
                   },
@@ -790,7 +1056,7 @@ class TentangPage extends StatelessWidget {
                 _buildSocialMediaItem(
                   context,
                   icon: Icons.alternate_email,
-                  text: '@mototracker',
+                  text: links[1],
                   onTap: () {
                     // TODO: Open Twitter
                   },
@@ -799,7 +1065,7 @@ class TentangPage extends StatelessWidget {
                 _buildSocialMediaItem(
                   context,
                   icon: Icons.code,
-                  text: 'github.com/mototracker',
+                  text: links[2],
                   onTap: () {
                     // TODO: Open GitHub
                   },
@@ -856,9 +1122,15 @@ class TentangPage extends StatelessWidget {
     );
   }
 
-  Widget _buildMadeWithLoveCard(BuildContext context) {
+  Widget _buildMadeWithLoveCard(
+    BuildContext context,
+    _AboutDynamicText dynamicText,
+  ) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    final subtitle =
+        dynamicText.madeWithLoveSubtitle ??
+        'Untuk komunitas pengendara motor Indonesia 🇮🇩';
     return Container(
       padding: const EdgeInsets.fromLTRB(20.65, 20.65, 20.65, 0.65),
       decoration: BoxDecoration(
@@ -895,7 +1167,7 @@ class TentangPage extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Untuk komunitas pengendara motor Indonesia 🇮🇩',
+            subtitle,
             style: TextStyle(
               fontFamily: 'Arial',
               fontSize: 12,
@@ -910,13 +1182,15 @@ class TentangPage extends StatelessWidget {
     );
   }
 
-  Widget _buildFooter(BuildContext context) {
+  Widget _buildFooter(BuildContext context, _AboutDynamicText dynamicText) {
     final l10n = AppLocalizations.of(context)!;
+    final copyright =
+        dynamicText.copyright ?? '© 2026 MotoTracker. All rights reserved.';
     return Column(
       children: [
-        const Text(
-          '© 2026 MotoTracker. All rights reserved.',
-          style: TextStyle(
+        Text(
+          copyright,
+          style: const TextStyle(
             fontFamily: 'Arial',
             fontSize: 12,
             fontWeight: FontWeight.w400,
@@ -986,6 +1260,88 @@ class TentangPage extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _TitleDesc {
+  final String title;
+  final String description;
+
+  const _TitleDesc({required this.title, required this.description});
+}
+
+class _AboutDynamicText {
+  final String? aboutTitle;
+  final String? aboutDescription;
+  final String? featuresTitle;
+  final List<_TitleDesc> features;
+  final String? valuesTitle;
+  final List<_TitleDesc> values;
+  final String? teamTitle;
+  final List<_TitleDesc> teamMembers;
+  final String? socialTitle;
+  final List<String> socialLinks;
+  final String? madeWithLoveSubtitle;
+  final String? copyright;
+
+  const _AboutDynamicText({
+    required this.aboutTitle,
+    required this.aboutDescription,
+    required this.featuresTitle,
+    required this.features,
+    required this.valuesTitle,
+    required this.values,
+    required this.teamTitle,
+    required this.teamMembers,
+    required this.socialTitle,
+    required this.socialLinks,
+    required this.madeWithLoveSubtitle,
+    required this.copyright,
+  });
+
+  factory _AboutDynamicText.empty() => const _AboutDynamicText(
+    aboutTitle: null,
+    aboutDescription: null,
+    featuresTitle: null,
+    features: <_TitleDesc>[],
+    valuesTitle: null,
+    values: <_TitleDesc>[],
+    teamTitle: null,
+    teamMembers: <_TitleDesc>[],
+    socialTitle: null,
+    socialLinks: <String>[],
+    madeWithLoveSubtitle: null,
+    copyright: null,
+  );
+
+  _AboutDynamicText copyWith({
+    String? aboutTitle,
+    String? aboutDescription,
+    String? featuresTitle,
+    List<_TitleDesc>? features,
+    String? valuesTitle,
+    List<_TitleDesc>? values,
+    String? teamTitle,
+    List<_TitleDesc>? teamMembers,
+    String? socialTitle,
+    List<String>? socialLinks,
+    String? madeWithLoveSubtitle,
+    String? copyright,
+  }) {
+    return _AboutDynamicText(
+      aboutTitle: aboutTitle ?? this.aboutTitle,
+      aboutDescription: aboutDescription ?? this.aboutDescription,
+      featuresTitle: featuresTitle ?? this.featuresTitle,
+      features: features ?? this.features,
+      valuesTitle: valuesTitle ?? this.valuesTitle,
+      values: values ?? this.values,
+      teamTitle: teamTitle ?? this.teamTitle,
+      teamMembers: teamMembers ?? this.teamMembers,
+      socialTitle: socialTitle ?? this.socialTitle,
+      socialLinks: socialLinks ?? this.socialLinks,
+      madeWithLoveSubtitle: madeWithLoveSubtitle ?? this.madeWithLoveSubtitle,
+      copyright: copyright ?? this.copyright,
     );
   }
 }
