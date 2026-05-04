@@ -14,7 +14,7 @@ class ApiConfig {
   // ========================================
 
   // EMULATOR (Default)
-  static const String baseUrl = 'http://192.168.1.11:8000/api/v1/motorcycle';
+  static const String baseUrl = 'http://172.16.164.1:8000/api/v1/motorcycle';
 
   // PHYSICAL DEVICE (HP Fisik) ✅ AKTIF
   // static const String baseUrl = 'http://172.20.10.2:8000/api/v1/motorcycle';
