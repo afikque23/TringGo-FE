@@ -120,8 +120,17 @@ class TripService {
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
-        final List<dynamic> data = jsonData['data'] ?? [];
-        return data.map((json) => TripModel.fromJson(json)).toList();
+        final List<dynamic> data = (jsonData['data'] is List)
+            ? (jsonData['data'] as List)
+            : const <dynamic>[];
+
+        return data
+            .whereType<Map>()
+            .map(
+              (raw) =>
+                  TripModel.fromBackendJson(Map<String, dynamic>.from(raw)),
+            )
+            .toList();
       } else {
         throw Exception(
           'Failed to load trips: ${response.statusCode} - ${response.body}',
@@ -144,7 +153,11 @@ class TripService {
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
         if (jsonData['data'] != null) {
-          return TripModel.fromJson(jsonData['data']);
+          if (jsonData['data'] is Map) {
+            return TripModel.fromBackendJson(
+              Map<String, dynamic>.from(jsonData['data'] as Map),
+            );
+          }
         }
       }
       return null;

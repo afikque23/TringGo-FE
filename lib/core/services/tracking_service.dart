@@ -339,11 +339,18 @@ class TrackingService {
   /// Get trip history dari storage
   Future<List<TripModel>> getTripHistory() async {
     try {
-      print('📖 Loading trip history...');
+      print('📡 Loading trip history from backend...');
+      final serverTrips = await _tripService.getAllTrips(limit: 50, offset: 0);
+
+      if (serverTrips.isNotEmpty) {
+        print('✅ Loaded ${serverTrips.length} trips from backend');
+        return serverTrips;
+      }
+
+      // Fallback to local storage (offline/legacy)
+      print('📦 Backend returned empty; fallback to local storage');
       final prefs = await SharedPreferences.getInstance();
       final tripsJson = prefs.getStringList('trip_history') ?? [];
-
-      print('✅ Found ${tripsJson.length} trips in storage');
 
       final trips = tripsJson
           .map((json) {
@@ -352,14 +359,14 @@ class TrackingService {
                 jsonDecode(json) as Map<String, dynamic>,
               );
             } catch (e) {
-              print('⚠️ Error parsing trip: $e');
+              print('⚠️ Error parsing local trip: $e');
               return null;
             }
           })
           .whereType<TripModel>()
           .toList();
 
-      print('✅ Successfully loaded ${trips.length} trips');
+      print('✅ Loaded ${trips.length} trips from local storage');
       return trips;
     } catch (e) {
       print('❌ Error loading trip history: $e');

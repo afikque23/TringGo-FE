@@ -103,6 +103,26 @@ class DetailTripPage extends StatelessWidget {
 
   Widget _buildMapContainer(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+
+    final rawPoints = tripData['routePoints'];
+    final routePoints = <RoutePoint>[];
+    if (rawPoints is List) {
+      for (final item in rawPoints) {
+        if (item is! Map) continue;
+        final map = Map<String, dynamic>.from(item);
+        final latRaw = map['lat'];
+        final lngRaw = map['lng'];
+        final lat = latRaw is num
+            ? latRaw.toDouble()
+            : double.tryParse('$latRaw');
+        final lng = lngRaw is num
+            ? lngRaw.toDouble()
+            : double.tryParse('$lngRaw');
+        if (lat == null || lng == null) continue;
+        routePoints.add(RoutePoint(lat, lng));
+      }
+    }
+
     return Container(
       width: double.infinity,
       height: 256,
@@ -132,14 +152,26 @@ class DetailTripPage extends StatelessWidget {
           ),
           // Grid overlay
           Positioned.fill(child: CustomPaint(painter: GridPainter())),
-          // Route line placeholder
-          Center(
-            child: Icon(
-              Icons.route,
-              size: 80,
-              color: colorScheme.primary.withValues(alpha: 0.3),
+          // Route polyline
+          if (routePoints.length >= 2)
+            Positioned.fill(
+              child: CustomPaint(
+                painter: RoutePolylinePainter(
+                  points: routePoints,
+                  color: colorScheme.primary,
+                  startColor: colorScheme.primary,
+                  endColor: colorScheme.tertiary,
+                ),
+              ),
+            )
+          else
+            Center(
+              child: Icon(
+                Icons.route,
+                size: 80,
+                color: colorScheme.primary.withValues(alpha: 0.3),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -181,7 +213,7 @@ class DetailTripPage extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              tripData['fullDate'] ?? 'Saturday, January 24, 2026',
+              tripData['fullDate'] ?? tripData['shortDate'] ?? '-',
               style: TextStyle(
                 fontFamily: 'Arial',
                 fontSize: 18,
@@ -199,6 +231,8 @@ class DetailTripPage extends StatelessWidget {
 
   Widget _buildStatsRow(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final distanceValue = (tripData['distanceValue'] ?? '0').toString();
+    final durationMinutes = (tripData['durationMinutes'] ?? '0').toString();
     return Row(
       children: [
         Expanded(
@@ -206,7 +240,7 @@ class DetailTripPage extends StatelessWidget {
             context,
             icon: Icons.map_outlined,
             label: l10n.totalDistance,
-            value: '45.2',
+            value: distanceValue,
             unit: 'kilometer',
           ),
         ),
@@ -216,7 +250,7 @@ class DetailTripPage extends StatelessWidget {
             context,
             icon: Icons.access_time,
             label: l10n.duration,
-            value: '65',
+            value: durationMinutes,
             unit: 'min',
           ),
         ),
@@ -315,9 +349,17 @@ class DetailTripPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          _buildStatRow(context, l10n.averageSpeed, '42 km/h'),
+          _buildStatRow(
+            context,
+            l10n.averageSpeed,
+            '${(tripData["averageSpeedKph"] ?? "0").toString()} km/h',
+          ),
           const SizedBox(height: 12),
-          _buildStatRow(context, l10n.maxSpeedEstimate, '63 km/h'),
+          _buildStatRow(
+            context,
+            l10n.maxSpeedEstimate,
+            '${(tripData["maxSpeedKph"] ?? "0").toString()} km/h',
+          ),
           const SizedBox(height: 20),
         ],
       ),
@@ -356,6 +398,24 @@ class DetailTripPage extends StatelessWidget {
   Widget _buildRouteInfo(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+
+    String formatLatLng(dynamic lat, dynamic lng) {
+      if (lat == null || lng == null) return l10n.locationRecorded;
+      final latNum = lat is num
+          ? lat.toDouble()
+          : double.tryParse(lat.toString());
+      final lngNum = lng is num
+          ? lng.toDouble()
+          : double.tryParse(lng.toString());
+      if (latNum == null || lngNum == null) return l10n.locationRecorded;
+      return '${latNum.toStringAsFixed(5)}, ${lngNum.toStringAsFixed(5)}';
+    }
+
+    final startText = formatLatLng(tripData['startLat'], tripData['startLng']);
+    final endText = formatLatLng(tripData['endLat'], tripData['endLng']);
+    final startTime = (tripData['startTime'] ?? '').toString();
+    final endTime = (tripData['endTime'] ?? '').toString();
+
     return Container(
       padding: const EdgeInsets.fromLTRB(20.65, 20.65, 20.65, 0.65),
       decoration: BoxDecoration(
@@ -401,7 +461,7 @@ class DetailTripPage extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                l10n.locationRecorded,
+                startTime.isNotEmpty ? '$startText • $startTime' : startText,
                 style: TextStyle(
                   fontFamily: 'Arial',
                   fontSize: 16,
@@ -425,7 +485,7 @@ class DetailTripPage extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                l10n.locationRecorded,
+                endTime.isNotEmpty ? '$endText • $endTime' : endText,
                 style: TextStyle(
                   fontFamily: 'Arial',
                   fontSize: 16,
@@ -445,10 +505,23 @@ class DetailTripPage extends StatelessWidget {
   Widget _buildSummaryCard(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+
+    final distanceValue = (tripData['distanceValue'] ?? '0').toString();
+    final durationMinutes = (tripData['durationMinutes'] ?? '0').toString();
+    final avgSpeedKph = (tripData['averageSpeedKph'] ?? '0').toString();
+
+    final hours = int.tryParse(durationMinutes) != null
+        ? (int.parse(durationMinutes) ~/ 60)
+        : 0;
+    final minutes = int.tryParse(durationMinutes) != null
+        ? (int.parse(durationMinutes) % 60)
+        : 0;
+    final durationText = hours > 0 ? '${hours}h ${minutes}m' : '${minutes}m';
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16.65, 16.65, 16.65, 0.65),
       decoration: BoxDecoration(
-        color: colorScheme.primary.withOpacity(0.1),
+        color: colorScheme.primary.withValues(alpha: 0.1),
         border: Border.all(color: colorScheme.primary, width: 0.65),
         borderRadius: BorderRadius.circular(14),
       ),
@@ -467,7 +540,7 @@ class DetailTripPage extends StatelessWidget {
               children: [
                 TextSpan(text: l10n.tripSummary),
                 TextSpan(
-                  text: '45.2 km ',
+                  text: '$distanceValue km ',
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     color: colorScheme.primary,
@@ -475,7 +548,7 @@ class DetailTripPage extends StatelessWidget {
                 ),
                 TextSpan(text: l10n.tripSummary2),
                 TextSpan(
-                  text: '1h 5m ',
+                  text: '$durationText ',
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     color: colorScheme.primary,
@@ -483,7 +556,7 @@ class DetailTripPage extends StatelessWidget {
                 ),
                 TextSpan(text: l10n.tripSummary3),
                 TextSpan(
-                  text: '42 km/h',
+                  text: '$avgSpeedKph km/h',
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     color: colorScheme.primary,
@@ -523,4 +596,118 @@ class GridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class RoutePoint {
+  final double lat;
+  final double lng;
+  const RoutePoint(this.lat, this.lng);
+}
+
+class RoutePolylinePainter extends CustomPainter {
+  final List<RoutePoint> points;
+  final Color color;
+  final Color startColor;
+  final Color endColor;
+
+  const RoutePolylinePainter({
+    required this.points,
+    required this.color,
+    required this.startColor,
+    required this.endColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.length < 2) return;
+
+    const padding = 18.0;
+    final rect = Rect.fromLTWH(
+      padding,
+      padding,
+      size.width - (padding * 2),
+      size.height - (padding * 2),
+    );
+    if (rect.width <= 0 || rect.height <= 0) return;
+
+    double minLat = points.first.lat;
+    double maxLat = points.first.lat;
+    double minLng = points.first.lng;
+    double maxLng = points.first.lng;
+
+    for (final p in points) {
+      if (p.lat < minLat) minLat = p.lat;
+      if (p.lat > maxLat) maxLat = p.lat;
+      if (p.lng < minLng) minLng = p.lng;
+      if (p.lng > maxLng) maxLng = p.lng;
+    }
+
+    final latRange = (maxLat - minLat).abs();
+    final lngRange = (maxLng - minLng).abs();
+
+    // Expand a tiny bit so start/end aren't stuck to edges
+    final safeLatRange = latRange < 1e-9 ? 1.0 : latRange;
+    final safeLngRange = lngRange < 1e-9 ? 1.0 : lngRange;
+
+    final scaleX = rect.width / safeLngRange;
+    final scaleY = rect.height / safeLatRange;
+    final scale = scaleX < scaleY ? scaleX : scaleY;
+
+    final contentW = safeLngRange * scale;
+    final contentH = safeLatRange * scale;
+
+    final dx = rect.left + (rect.width - contentW) / 2;
+    final dy = rect.top + (rect.height - contentH) / 2;
+
+    Offset project(RoutePoint p) {
+      // x: west->east increasing
+      final x = dx + ((p.lng - minLng) * scale);
+      // y: north->south; invert lat so larger lat is higher on screen
+      final y = dy + ((maxLat - p.lat) * scale);
+      return Offset(x, y);
+    }
+
+    final startOffset = project(points.first);
+    final endOffset = project(points.last);
+
+    final path = Path()..moveTo(startOffset.dx, startOffset.dy);
+    for (int i = 1; i < points.length; i++) {
+      final o = project(points[i]);
+      path.lineTo(o.dx, o.dy);
+    }
+
+    final shadowPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 6
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = color.withValues(alpha: 0.18);
+    canvas.drawPath(path, shadowPaint);
+
+    final linePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.2
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = color.withValues(alpha: 0.95);
+    canvas.drawPath(path, linePaint);
+
+    // Start/End markers
+    final markerBg = Paint()..color = color.withValues(alpha: 0.22);
+    canvas.drawCircle(startOffset, 7.0, markerBg);
+    canvas.drawCircle(endOffset, 7.0, markerBg);
+
+    final startPaint = Paint()..color = startColor.withValues(alpha: 0.95);
+    final endPaint = Paint()..color = endColor.withValues(alpha: 0.95);
+    canvas.drawCircle(startOffset, 5.0, startPaint);
+    canvas.drawCircle(endOffset, 5.0, endPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant RoutePolylinePainter oldDelegate) {
+    return oldDelegate.points.length != points.length ||
+        oldDelegate.color != color ||
+        oldDelegate.startColor != startColor ||
+        oldDelegate.endColor != endColor;
+  }
 }
