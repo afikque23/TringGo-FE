@@ -345,20 +345,38 @@ class _RiwayatTripPageState extends State<RiwayatTripPage> {
 
   Widget _buildTripItem(TripModel trip) {
     final colorScheme = Theme.of(context).colorScheme;
-    final endTime = trip.endTime ?? trip.startTime;
+    final endTime = trip.endTimeForDisplay;
+    final vehicleName = trip.motorcycleName.isNotEmpty
+        ? trip.motorcycleName
+        : 'My Motorcycle';
+
+    final startPoint = trip.points.isNotEmpty ? trip.points.first : null;
+    final endPoint = trip.points.isNotEmpty ? trip.points.last : null;
 
     return GestureDetector(
       onTap: () {
         // Convert TripModel to Map for DetailTripPage
         final tripData = {
-          'vehicle': 'My Motorcycle',
-          'date': _formatTripDate(trip.startTime),
-          'distance': '${trip.totalDistance.toStringAsFixed(2)} km',
-          'duration': trip.formattedDuration,
-          'avgSpeed': 'Avg: ${trip.averageSpeed.toStringAsFixed(1)} km/h',
-          'maxSpeed': '${trip.maxSpeed.toStringAsFixed(1)} km/h',
+          'vehicle': vehicleName,
+          'fullDate': DateFormat('EEEE, MMMM d, yyyy').format(trip.startTime),
+          'shortDate': _formatTripDate(trip.startTime),
+          'distanceValue': trip.totalDistance.toStringAsFixed(1),
+          'durationMinutes': (trip.duration / 60).round().toString(),
+          'averageSpeedKph': trip.averageSpeed.toStringAsFixed(0),
+          'maxSpeedKph': trip.maxSpeed.toStringAsFixed(0),
           'startTime': DateFormat('HH:mm').format(trip.startTime),
           'endTime': DateFormat('HH:mm').format(endTime),
+          'routePoints': trip.points
+              .map((p) => {'lat': p.latitude, 'lng': p.longitude})
+              .toList(),
+          if (startPoint != null) ...{
+            'startLat': startPoint.latitude,
+            'startLng': startPoint.longitude,
+          },
+          if (endPoint != null) ...{
+            'endLat': endPoint.latitude,
+            'endLng': endPoint.longitude,
+          },
         };
 
         Navigator.push(
@@ -384,7 +402,7 @@ class _RiwayatTripPageState extends State<RiwayatTripPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'My Motorcycle',
+                      vehicleName,
                       style: TextStyle(
                         fontFamily: 'Arial',
                         fontSize: 16,
