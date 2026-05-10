@@ -13,11 +13,13 @@ class ApiConfig {
   // PILIH SALAH SATU (uncomment yang mau dipakai):
   // ========================================
 
-  // EMULATOR (Default)
-  static const String baseUrl = 'http://172.16.164.1:8000/api/v1/motorcycle';
-
   // PHYSICAL DEVICE (HP Fisik) ✅ AKTIF
-  // static const String baseUrl = 'http://172.20.10.2:8000/api/v1/motorcycle';
+  // Pastikan HP dan laptop/PC ada di jaringan Wi-Fi yang sama.
+  // IP laptop/PC kamu saat ini (Wi-Fi): 192.168.43.70
+  static const String baseUrl = 'http://192.168.43.70:8000/api/v1/motorcycle';
+
+  // EMULATOR (Android)
+  // static const String baseUrl = 'http://10.0.2.2:8000/api/v1/motorcycle';
 
   // NGROK (Universal)
   // Works on: Emulator, Physical Device, Postman, All devices!

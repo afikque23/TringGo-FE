@@ -1,9 +1,9 @@
+import '../network/api_config.dart';
+
 class ApiConstants {
-  // TODO: Ganti dengan URL backend Laravel Anda
-  // Untuk emulator Android: http://10.0.2.2:8000
-  // Untuk device fisik: http://YOUR_IP_ADDRESS:8000
-  // Untuk production: https://your-domain.com
-  static const String baseUrl = 'http://10.0.2.2:8000/api/v1/motorcycle';
+  // Keep a single source of truth for backend URL.
+  // Configure it in ApiConfig.baseUrl.
+  static const String baseUrl = ApiConfig.baseUrl;
 
   // Endpoints
   static const String deviceTokensRegister = '/device-tokens/register';
