@@ -1,27 +1,22 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:http/http.dart' as http;
 import 'package:device_info_plus/device_info_plus.dart';
-import 'auth_storage.dart';
 import '../utils/api_constants.dart';
+import '../network/api_client.dart';
 
 class DeviceTokenService {
   /// Register FCM token ke backend
   static Future<bool> register(String fcmToken) async {
     try {
-      final headers = await _getHeaders();
       final deviceInfo = await _getDeviceInfo();
 
-      final response = await http.post(
-        Uri.parse(
-          '${ApiConstants.baseUrl}${ApiConstants.deviceTokensRegister}',
-        ),
-        headers: headers,
-        body: jsonEncode({
+      final response = await ApiClient().post(
+        '${ApiConstants.baseUrl}${ApiConstants.deviceTokensRegister}',
+        body: {
           'fcm_token': fcmToken,
           'device_type': Platform.isAndroid ? 'android' : 'ios',
           'device_name': deviceInfo,
-        }),
+        },
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -41,14 +36,9 @@ class DeviceTokenService {
   /// Unregister FCM token dari backend
   static Future<bool> unregister(String fcmToken) async {
     try {
-      final headers = await _getHeaders();
-
-      final response = await http.post(
-        Uri.parse(
-          '${ApiConstants.baseUrl}${ApiConstants.deviceTokensUnregister}',
-        ),
-        headers: headers,
-        body: jsonEncode({'fcm_token': fcmToken}),
+      final response = await ApiClient().post(
+        '${ApiConstants.baseUrl}${ApiConstants.deviceTokensUnregister}',
+        body: {'fcm_token': fcmToken},
       );
 
       if (response.statusCode == 200) {
@@ -67,11 +57,8 @@ class DeviceTokenService {
   /// Cek status device tokens
   static Future<Map<String, dynamic>?> getStatus() async {
     try {
-      final headers = await _getHeaders();
-
-      final response = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.deviceTokensStatus}'),
-        headers: headers,
+      final response = await ApiClient().get(
+        '${ApiConstants.baseUrl}${ApiConstants.deviceTokensStatus}',
       );
 
       if (response.statusCode == 200) {
@@ -82,18 +69,6 @@ class DeviceTokenService {
       print('Error getting device token status: $e');
       return null;
     }
-  }
-
-  /// Build headers dengan auth token (NO device ID for ownership)
-  static Future<Map<String, String>> _getHeaders() async {
-    final authStorage = AuthStorage();
-    final token = await authStorage.getAccessToken();
-
-    return {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
-    };
   }
 
   /// Get device name untuk identifikasi

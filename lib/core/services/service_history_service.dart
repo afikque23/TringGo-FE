@@ -28,47 +28,19 @@ class ServiceHistoryService {
       if (response.statusCode == 401) {
         print('🔄 Received 401, attempting token refresh...');
 
-        // Let ApiClient handle the refresh
-        final refreshed =
-            await _apiClient.authStorage.getRefreshToken() != null;
-
+        final refreshed = await _apiClient.refreshTokens();
         if (refreshed) {
-          // Manually call refresh endpoint
-          final refreshToken = await _authStorage.getRefreshToken();
-          if (refreshToken != null && refreshToken.isNotEmpty) {
-            final refreshResponse = await http.post(
-              Uri.parse('${ApiConfig.baseUrl}${ApiConfig.authRefreshToken}'),
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-              },
-              body: jsonEncode({'refresh_token': refreshToken}),
+          final newAccessToken = await _authStorage.getAccessToken();
+          if (newAccessToken != null && newAccessToken.isNotEmpty) {
+            print('✅ Token refreshed, retrying request...');
+
+            // Recreate the request with new token
+            final retryRequest = _cloneMultipartRequest(
+              request,
+              newAccessToken,
             );
-
-            if (refreshResponse.statusCode == 200) {
-              final data = jsonDecode(refreshResponse.body);
-              if (data['success'] == true && data['data'] != null) {
-                final newAccessToken = data['data']['access_token'];
-                final newRefreshToken = data['data']['refresh_token'];
-
-                await _authStorage.saveTokens(
-                  accessToken: newAccessToken,
-                  refreshToken: newRefreshToken,
-                );
-
-                print('✅ Token refreshed, retrying request...');
-
-                // Recreate the request with new token
-                final retryRequest = _cloneMultipartRequest(
-                  request,
-                  newAccessToken,
-                );
-                final retryStreamedResponse = await retryRequest.send();
-                response = await http.Response.fromStream(
-                  retryStreamedResponse,
-                );
-              }
-            }
+            final retryStreamedResponse = await retryRequest.send();
+            response = await http.Response.fromStream(retryStreamedResponse);
           }
         }
       }

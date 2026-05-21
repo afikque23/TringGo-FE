@@ -95,6 +95,7 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
 
   Future<void> _loadTips() async {
     final queryParams = _buildSearchParams(_searchController.text);
+    final hasUserQuery = _searchController.text.trim().isNotEmpty;
 
     setState(() {
       _isLoading = true;
@@ -111,6 +112,7 @@ class _TipsPerawatanPageState extends State<TipsPerawatanPage> {
         difficulty: _selectedDifficulty == 'Semua Tingkat'
             ? null
             : _selectedDifficulty,
+        sortBy: hasUserQuery ? 'relevance' : 'recommended',
       );
 
       if (!mounted) {

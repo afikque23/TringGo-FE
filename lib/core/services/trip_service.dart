@@ -1,8 +1,7 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import '../network/api_client.dart';
 import '../network/api_config.dart';
 import '../model/trip_model.dart';
-import 'auth_storage.dart';
 import 'service_schedule_service.dart';
 
 /// Service untuk mengelola Trip API calls
@@ -12,32 +11,13 @@ class TripService {
   factory TripService() => _instance;
   TripService._internal();
 
-  final _authStorage = AuthStorage();
-
-  /// Get headers for API requests
-  /// ALL requests now require authentication (no guest mode)
-  Future<Map<String, String>> _getHeaders() async {
-    final headers = Map<String, String>.from(ApiConfig.defaultHeaders);
-    final token = await _authStorage.getAccessToken();
-
-    if (token != null && token.isNotEmpty) {
-      // Authenticated mode
-      headers['Authorization'] = 'Bearer $token';
-    } else {
-      // No token - user must login
-      print('⚠️ No access token - user must login');
-    }
-
-    return headers;
-  }
+  final _apiClient = ApiClient();
 
   /// Create/Save new trip to backend
   /// Returns the saved trip with server-generated ID
   Future<TripModel?> createTrip(TripModel trip) async {
     try {
       print('📤 Sending trip to backend...');
-      final headers = await _getHeaders();
-
       // Prepare trip data for backend
       final tripData = {
         'vehicle_id':
@@ -63,12 +43,8 @@ class TripService {
             .toList(),
       };
 
-      final response = await http
-          .post(
-            Uri.parse(ApiConfig.tripsUrl),
-            headers: headers,
-            body: json.encode(tripData),
-          )
+      final response = await _apiClient
+          .post(ApiConfig.tripsUrl, body: tripData)
           .timeout(ApiConfig.connectTimeout);
 
       if (response.statusCode == 201 || response.statusCode == 200) {
@@ -102,8 +78,6 @@ class TripService {
     String? vehicleId,
   }) async {
     try {
-      final headers = await _getHeaders();
-
       // Build query parameters
       final queryParams = <String, String>{};
       if (limit != null) queryParams['limit'] = limit.toString();
@@ -114,8 +88,8 @@ class TripService {
         ApiConfig.tripsUrl,
       ).replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
 
-      final response = await http
-          .get(uri, headers: headers)
+      final response = await _apiClient
+          .get(uri.toString())
           .timeout(ApiConfig.connectTimeout);
 
       if (response.statusCode == 200) {
@@ -145,9 +119,8 @@ class TripService {
   /// Get trip by ID from backend
   Future<TripModel?> getTripById(String id) async {
     try {
-      final headers = await _getHeaders();
-      final response = await http
-          .get(Uri.parse(ApiConfig.tripByIdUrl(id)), headers: headers)
+      final response = await _apiClient
+          .get(ApiConfig.tripByIdUrl(id))
           .timeout(ApiConfig.connectTimeout);
 
       if (response.statusCode == 200) {
@@ -170,9 +143,8 @@ class TripService {
   /// Delete trip from backend
   Future<bool> deleteTrip(String id) async {
     try {
-      final headers = await _getHeaders();
-      final response = await http
-          .delete(Uri.parse(ApiConfig.tripByIdUrl(id)), headers: headers)
+      final response = await _apiClient
+          .delete(ApiConfig.tripByIdUrl(id))
           .timeout(ApiConfig.connectTimeout);
 
       return response.statusCode == 200 || response.statusCode == 204;
@@ -191,16 +163,11 @@ class TripService {
   }) async {
     try {
       print('📤 Updating odometer to $newOdometer km...');
-      final headers = await _getHeaders();
 
       final data = {'odometer': newOdometer, if (notes != null) 'notes': notes};
 
-      final response = await http
-          .put(
-            Uri.parse(ApiConfig.updateOdometerUrl(vehicleId)),
-            headers: headers,
-            body: json.encode(data),
-          )
+      final response = await _apiClient
+          .put(ApiConfig.updateOdometerUrl(vehicleId), body: data)
           .timeout(ApiConfig.connectTimeout);
 
       if (response.statusCode == 200) {
@@ -258,7 +225,6 @@ class TripService {
   }) async {
     try {
       print('📤 Adding manual distance: $distanceKm km to vehicle $vehicleId');
-      final headers = await _getHeaders();
 
       final data = {
         'vehicle_id': vehicleId,
@@ -267,12 +233,8 @@ class TripService {
         if (notes != null && notes.isNotEmpty) 'notes': notes,
       };
 
-      final response = await http
-          .post(
-            Uri.parse('${ApiConfig.baseUrl}/trips/manual-distance'),
-            headers: headers,
-            body: json.encode(data),
-          )
+      final response = await _apiClient
+          .post('${ApiConfig.baseUrl}/trips/manual-distance', body: data)
           .timeout(ApiConfig.connectTimeout);
 
       if (response.statusCode == 201 || response.statusCode == 200) {

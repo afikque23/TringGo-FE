@@ -10,6 +10,10 @@ import '../../core/services/vehicle_service.dart';
 import '../../core/services/service_schedule_service.dart';
 import '../../core/model/vehicle_model.dart';
 import '../../core/model/service_schedule_model.dart';
+import '../recommendation/screens/recommendation_service_screen.dart';
+import '../recommendation/state/recommendation_service_notifier.dart';
+import '../recommendation/widgets/meta_info_row.dart';
+import '../recommendation/widgets/priority_badge.dart';
 
 class MaintenancePage extends StatefulWidget {
   const MaintenancePage({super.key});
@@ -29,11 +33,28 @@ class _MaintenancePageState extends State<MaintenancePage> {
   Map<String, dynamic> _usagePattern = {};
   bool _isLoadingPattern = true;
 
+  late final RecommendationServiceNotifier _recommendationNotifier;
+
   @override
   void initState() {
     super.initState();
+    _recommendationNotifier = RecommendationServiceNotifier();
     _loadData();
     _loadUsagePattern();
+  }
+
+  @override
+  void dispose() {
+    _recommendationNotifier.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refreshAll() async {
+    await _loadData();
+    final motorId = _primaryVehicle?.id;
+    if (motorId != null) {
+      await _recommendationNotifier.refresh(motorId);
+    }
   }
 
   Future<void> _loadData() async {
@@ -53,6 +74,11 @@ class _MaintenancePageState extends State<MaintenancePage> {
           _schedules = schedules;
           _isLoading = false;
         });
+      }
+
+      final motorId = vehicle?.id;
+      if (motorId != null) {
+        _recommendationNotifier.load(motorId);
       }
     } catch (e) {
       if (mounted) {
@@ -132,7 +158,7 @@ class _MaintenancePageState extends State<MaintenancePage> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : RefreshIndicator(
-                      onRefresh: _loadData,
+                      onRefresh: _refreshAll,
                       child: SingleChildScrollView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
@@ -273,111 +299,76 @@ class _MaintenancePageState extends State<MaintenancePage> {
     final urgentCount = statuses['urgent'] ?? 0;
     final soonCount = statuses['soon'] ?? 0;
     final goodCount = statuses['good'] ?? 0;
-    final totalSchedules = _schedules.length;
 
-    // Calculate overall status
-    String statusText;
-    Color statusColor;
-    double progressValue;
-    int conditionPercentage;
+    final totalSchedules = urgentCount + soonCount + goodCount;
 
-    if (urgentCount > 0) {
-      statusText = l10n.urgent;
+    final String statusText;
+    final Color statusColor;
+    final double progressValue;
+    final int conditionPercentage;
+
+    if (totalSchedules == 0) {
+      statusText = 'Belum ada jadwal servis';
+      statusColor = colorScheme.primary;
+      progressValue = 1;
+      conditionPercentage = 100;
+    } else if (urgentCount > 0) {
+      statusText = 'Perlu servis segera';
       statusColor = colorScheme.error;
-      progressValue = 0.3;
-      // Calculate percentage based on urgent vs total
-      conditionPercentage = totalSchedules > 0
-          ? ((goodCount / totalSchedules) * 100).round().clamp(0, 40)
-          : 40;
+      progressValue = 0.25;
+      conditionPercentage = 25;
     } else if (soonCount > 0) {
-      statusText = l10n.soon;
+      statusText = 'Jadwalkan servis';
       statusColor = colorScheme.warning;
       progressValue = 0.6;
-      // Calculate percentage based on soon vs total
-      conditionPercentage = totalSchedules > 0
-          ? ((goodCount / totalSchedules) * 100).round().clamp(50, 75)
-          : 70;
+      conditionPercentage = 60;
     } else {
-      statusText = l10n.good;
+      statusText = 'Kondisi baik';
       statusColor = colorScheme.primary;
-      // New vehicle with no schedules = perfect condition (100%)
-      // Vehicle with all good schedules = perfect condition (100%)
-      progressValue = totalSchedules > 0 ? 0.85 : 1.0;
+      progressValue = 1;
       conditionPercentage = 100;
     }
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colorScheme.surface,
         border: Border.all(color: colorScheme.outlineVariant, width: 0.65),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                l10n.overallStatus,
-                style: TextStyle(
-                  fontFamily: 'Arial',
-                  fontSize: 18,
-                  fontWeight: FontWeight.w400,
-                  color: colorScheme.onSurface,
-                  height: 1.56,
-                ),
-              ),
-              Container(
-                width: 32,
-                height: 32,
-                padding: const EdgeInsets.all(4),
-                child: Icon(
-                  urgentCount > 0
-                      ? Icons.warning_amber_outlined
-                      : Icons.check_circle_outline,
-                  color: statusColor,
-                  size: 24,
-                ),
-              ),
-            ],
+          Text(
+            statusText,
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: colorScheme.onSurface,
+              height: 1.43,
+            ),
           ),
-          const SizedBox(height: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                statusText,
-                style: TextStyle(
-                  fontFamily: 'Arial',
-                  fontSize: 30,
-                  fontWeight: FontWeight.w400,
-                  color: statusColor,
-                  height: 1.2,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: LinearProgressIndicator(
-                  value: progressValue,
-                  minHeight: 12,
-                  backgroundColor: colorScheme.outlineVariant,
-                  valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                l10n.vehicleCondition(conditionPercentage),
-                style: TextStyle(
-                  fontFamily: 'Arial',
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
-                  color: colorScheme.secondary,
-                  height: 1.33,
-                ),
-              ),
-            ],
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: progressValue,
+              minHeight: 12,
+              backgroundColor: colorScheme.outlineVariant,
+              valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.vehicleCondition(conditionPercentage),
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 12,
+              fontWeight: FontWeight.w400,
+              color: colorScheme.secondary,
+              height: 1.33,
+            ),
           ),
           const SizedBox(height: 16),
           Row(
@@ -626,83 +617,212 @@ class _MaintenancePageState extends State<MaintenancePage> {
 
   Widget _buildRecommendationsCard() {
     final colorScheme = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
-    final statuses = _calculateScheduleStatuses();
-    final urgentCount = statuses['urgent'] ?? 0;
-    final soonCount = statuses['soon'] ?? 0;
+    return AnimatedBuilder(
+      animation: _recommendationNotifier,
+      builder: (context, _) {
+        final motorId = _primaryVehicle?.id;
+        final data = _recommendationNotifier.recommendation;
+        final ringkasan = data?.ringkasanKondisi;
+        final rekom = data?.rekomendasiKomponen ?? const [];
+        final hasTips = (data?.tipsMandiri ?? '').trim().isNotEmpty;
+        final error = _recommendationNotifier.errorMessage;
 
-    // Only show if there are recommendations
-    if (urgentCount == 0 && soonCount == 0) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          border: Border.all(color: colorScheme.outlineVariant, width: 0.65),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.check_circle_outline,
-              color: colorScheme.primary,
-              size: 20,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Semua komponen dalam kondisi baik',
-                style: TextStyle(
-                  fontFamily: 'Arial',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: colorScheme.onSurface,
-                  height: 1.43,
-                ),
+        return GestureDetector(
+          onTap: motorId == null
+              ? null
+              : () {
+                  Navigator.push(
+                    context,
+                    SmoothPageRoute(
+                      page: RecommendationServiceScreen(motorId: motorId),
+                    ),
+                  );
+                },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              border: Border.all(
+                color: colorScheme.outlineVariant,
+                width: 0.65,
               ),
+              borderRadius: BorderRadius.circular(14),
             ),
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        border: Border.all(color: colorScheme.outlineVariant, width: 0.65),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.recommendations,
-            style: TextStyle(
-              fontFamily: 'Arial',
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: colorScheme.onSurface,
-              height: 1.43,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Sistem Rekomendasi Servis',
+                      style: TextStyle(
+                        fontFamily: 'Arial',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                        color: colorScheme.onSurface,
+                        height: 1.43,
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: colorScheme.secondary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (motorId == null)
+                  Text(
+                    'Pilih kendaraan untuk melihat rekomendasi.',
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      height: 1.67,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  )
+                else if (_recommendationNotifier.isLoadingRecommendation &&
+                    (data == null || rekom.isEmpty))
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(8),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                else if (error != null && (data == null || rekom.isEmpty))
+                  Text(
+                    error,
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      height: 1.67,
+                      color: colorScheme.error,
+                    ),
+                  )
+                else ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: colorScheme.primary.withValues(alpha: 0.2),
+                        width: 0.65,
+                      ),
+                    ),
+                    child: Text(
+                      (ringkasan == null || ringkasan.trim().isEmpty)
+                          ? 'Ringkasan kondisi belum tersedia.'
+                          : ringkasan,
+                      style: TextStyle(
+                        fontFamily: 'Arial',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        height: 1.67,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (rekom.isEmpty)
+                    Text(
+                      'Belum ada rekomendasi servis saat ini.',
+                      style: TextStyle(
+                        fontFamily: 'Arial',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        height: 1.67,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    )
+                  else
+                    Column(
+                      children: [
+                        for (final item in rekom)
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        item.komponen,
+                                        style: TextStyle(
+                                          fontFamily: 'Arial',
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          height: 1.43,
+                                          color: colorScheme.onSurface,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    PriorityBadge(priority: item.prioritas),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  item.saran,
+                                  style: TextStyle(
+                                    fontFamily: 'Arial',
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w400,
+                                    height: 1.67,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                if (item.estimasiWaktu.trim().isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Estimasi: ${item.estimasiWaktu}',
+                                    style: TextStyle(
+                                      fontFamily: 'Arial',
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w400,
+                                      height: 1.67,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  if (hasTips) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Tips tersedia (lihat detail)',
+                      style: TextStyle(
+                        fontFamily: 'Arial',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w400,
+                        height: 1.5,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  MetaInfoRow(meta: _recommendationNotifier.effectiveMeta),
+                ],
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          if (urgentCount > 0)
-            _buildRecommendationItem(
-              icon: Icons.warning_amber_outlined,
-              color: colorScheme.error,
-              title: l10n.urgentMaintenance,
-              description: l10n.urgentMaintenanceDesc,
-            ),
-          if (urgentCount > 0 && soonCount > 0) const SizedBox(height: 8),
-          if (soonCount > 0)
-            _buildRecommendationItem(
-              icon: Icons.access_time,
-              color: colorScheme.warning,
-              title: l10n.planMaintenance,
-              description: l10n.planMaintenanceDesc,
-            ),
-        ],
-      ),
+        );
+      },
     );
   }
 

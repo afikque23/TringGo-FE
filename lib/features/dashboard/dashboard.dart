@@ -16,6 +16,11 @@ import '../../core/model/vehicle_model.dart';
 import '../../core/services/notification_api_service.dart';
 import '../../core/services/service_schedule_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import '../recommendation/screens/recommendation_home_insight_screen.dart';
+import '../recommendation/state/recommendation_home_insight_notifier.dart';
+import '../recommendation/widgets/fuzzy_scores_section.dart';
+import '../recommendation/widgets/meta_info_row.dart';
+import '../recommendation/widgets/priority_badge.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -33,13 +38,22 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _isLoadingMetrics = true;
   int _unreadNotificationCount = 0;
 
+  late final RecommendationHomeInsightNotifier _homeInsightNotifier;
+
   @override
   void initState() {
     super.initState();
+    _homeInsightNotifier = RecommendationHomeInsightNotifier();
     _loadPrimaryVehicle();
     _loadServiceMetrics();
     _loadUnreadCount();
     _setupNotificationListener();
+  }
+
+  @override
+  void dispose() {
+    _homeInsightNotifier.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUnreadCount() async {
@@ -75,6 +89,11 @@ class _DashboardPageState extends State<DashboardPage> {
           _primaryVehicle = vehicle;
           _isLoadingVehicle = false;
         });
+
+        final motorId = vehicle?.id;
+        if (motorId != null) {
+          _homeInsightNotifier.load(motorId);
+        }
 
         // Check service reminders after loading vehicle on app startup
         if (vehicle != null) {
@@ -513,7 +532,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                     Navigator.push(
                                       context,
                                       SmoothPageRoute(
-                                        page: const GpsTrackingPage(),
+                                        page: GpsTrackingPage(
+                                          vehicleId: _primaryVehicle!.id!,
+                                          vehicleName: _primaryVehicle!.title,
+                                        ),
                                       ),
                                     );
                                   },
@@ -770,108 +792,179 @@ class _DashboardPageState extends State<DashboardPage> {
                         const SizedBox(height: 16),
 
                         // Smart Insights Card
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: colorScheme.surface,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
+                        AnimatedBuilder(
+                          animation: _homeInsightNotifier,
+                          builder: (context, _) {
+                            final motorId = _primaryVehicle?.id;
+                            final items =
+                                _homeInsightNotifier
+                                    .homeInsight
+                                    ?.wawasanPintar ??
+                                const [];
+
+                            return Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: colorScheme.surface,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(
-                                    Icons.lightbulb_outline,
-                                    size: 20,
-                                    color: colorScheme.primary,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    l10n.smartInsights,
-                                    style: TextStyle(
-                                      fontFamily: 'Arial',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w400,
-                                      height: 1.5,
-                                      color: colorScheme.onSurface,
+                                  GestureDetector(
+                                    onTap: motorId == null
+                                        ? null
+                                        : () {
+                                            Navigator.push(
+                                              context,
+                                              SmoothPageRoute(
+                                                page:
+                                                    RecommendationHomeInsightScreen(
+                                                      motorId: motorId,
+                                                    ),
+                                              ),
+                                            );
+                                          },
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.lightbulb_outline,
+                                              size: 20,
+                                              color: colorScheme.primary,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              'Wawasan Pintar',
+                                              style: TextStyle(
+                                                fontFamily: 'Arial',
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w400,
+                                                height: 1.5,
+                                                color: colorScheme.onSurface,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        Icon(
+                                          Icons.arrow_forward_ios,
+                                          size: 16,
+                                          color: colorScheme.secondary,
+                                        ),
+                                      ],
                                     ),
                                   ),
+                                  const SizedBox(height: 16),
+                                  if (motorId == null)
+                                    Text(
+                                      'Pilih kendaraan untuk melihat rekomendasi.',
+                                      style: TextStyle(
+                                        fontFamily: 'Arial',
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w400,
+                                        height: 1.67,
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                    )
+                                  else if (_homeInsightNotifier
+                                          .isLoadingInsight &&
+                                      items.isEmpty)
+                                    const Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.all(8),
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    )
+                                  else if (items.isEmpty)
+                                    Text(
+                                      'Belum ada wawasan pintar saat ini.',
+                                      style: TextStyle(
+                                        fontFamily: 'Arial',
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w400,
+                                        height: 1.67,
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                    )
+                                  else
+                                    Column(
+                                      children: [
+                                        for (final item in items)
+                                          Container(
+                                            width: double.infinity,
+                                            margin: const EdgeInsets.only(
+                                              bottom: 10,
+                                            ),
+                                            padding: const EdgeInsets.all(16),
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(
+                                                context,
+                                              ).scaffoldBackgroundColor,
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              border: Border(
+                                                left: BorderSide(
+                                                  color: colorScheme.primary,
+                                                  width: 4,
+                                                ),
+                                              ),
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        item.judul,
+                                                        style: TextStyle(
+                                                          fontFamily: 'Arial',
+                                                          fontSize: 14,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          height: 1.43,
+                                                          color: colorScheme
+                                                              .onSurface,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    PriorityBadge(
+                                                      priority: item.prioritas,
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Text(
+                                                  item.isi,
+                                                  style: TextStyle(
+                                                    fontFamily: 'Arial',
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w400,
+                                                    height: 1.67,
+                                                    color: colorScheme
+                                                        .onSurfaceVariant,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        MetaInfoRow(
+                                          meta: _homeInsightNotifier
+                                              .effectiveMeta,
+                                        ),
+                                      ],
+                                    ),
                                 ],
                               ),
-                              const SizedBox(height: 16),
-                              Container(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  16,
-                                  20,
-                                  0,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(
-                                    context,
-                                  ).scaffoldBackgroundColor,
-                                  border: Border(
-                                    left: BorderSide(
-                                      color: colorScheme.primary,
-                                      width: 4,
-                                    ),
-                                  ),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Container(
-                                      width: 32,
-                                      height: 32,
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: colorScheme.surface,
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Icon(
-                                        Icons.car_repair,
-                                        size: 16,
-                                        color: colorScheme.primary,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            l10n.checkOilLevel,
-                                            style: TextStyle(
-                                              fontFamily: 'Arial',
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w400,
-                                              height: 1.43,
-                                              color: colorScheme.onSurface,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            l10n.oilCheckReminder,
-                                            style: TextStyle(
-                                              fontFamily: 'Arial',
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w400,
-                                              height: 1.67,
-                                              color: colorScheme.secondary,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 16),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
+                            );
+                          },
                         ),
                         const SizedBox(height: 16),
 
@@ -1162,34 +1255,41 @@ class _DashboardPageState extends State<DashboardPage> {
                         ),
                         const SizedBox(height: 16),
 
-                        // System Insights
-                        Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        // Insight Sistem + Skor Fuzzy (Sistem Rekomendasi)
+                        AnimatedBuilder(
+                          animation: _homeInsightNotifier,
+                          builder: (context, _) {
+                            final motorId = _primaryVehicle?.id;
+                            final insight =
+                                _homeInsightNotifier.homeInsight?.insightSistem;
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  l10n.smartInsights,
-                                  style: TextStyle(
-                                    fontFamily: 'Arial',
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w400,
-                                    height: 1.5,
-                                    color: colorScheme.onSurface,
-                                  ),
-                                ),
-                                GestureDetector(
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      SmoothPageRoute(
-                                        page: const SistemWorkPage(),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Insight Sistem',
+                                      style: TextStyle(
+                                        fontFamily: 'Arial',
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w400,
+                                        height: 1.5,
+                                        color: colorScheme.onSurface,
                                       ),
-                                    );
-                                  },
-                                  child: Row(
-                                    children: [
-                                      Text(
+                                    ),
+                                    GestureDetector(
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          SmoothPageRoute(
+                                            page: const SistemWorkPage(),
+                                          ),
+                                        );
+                                      },
+                                      child: Text(
                                         l10n.howSystemWorks,
                                         style: TextStyle(
                                           fontFamily: 'Arial',
@@ -1199,95 +1299,141 @@ class _DashboardPageState extends State<DashboardPage> {
                                           color: colorScheme.secondary,
                                         ),
                                       ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.fromLTRB(
+                                    17,
+                                    17,
+                                    17,
+                                    16,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.surface,
+                                    border: Border.all(
+                                      color: colorScheme.outlineVariant,
+                                      width: 0.65,
+                                    ),
+                                    borderRadius: BorderRadius.circular(14),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.1,
+                                        ),
+                                        blurRadius: 15,
+                                        offset: const Offset(0, 10),
+                                      ),
                                     ],
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            Container(
-                              padding: const EdgeInsets.fromLTRB(17, 17, 17, 1),
-                              decoration: BoxDecoration(
-                                color: colorScheme.surface,
-                                border: Border.all(
-                                  color: colorScheme.outlineVariant,
-                                  width: 0.65,
-                                ),
-                                borderRadius: BorderRadius.circular(14),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.1),
-                                    blurRadius: 15,
-                                    offset: const Offset(0, 10),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: colorScheme.primary.withValues(
-                                        alpha: 0.1,
-                                      ),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Icon(
-                                      Icons.analytics_outlined,
-                                      size: 20,
-                                      color: colorScheme.primary,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          l10n.usageBasedMaintenance,
-                                          style: TextStyle(
-                                            fontFamily: 'Arial',
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w400,
-                                            height: 1.43,
-                                            color: colorScheme.onSurface,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          l10n.usageBasedMaintenanceDesc,
+                                  child: motorId == null
+                                      ? Text(
+                                          'Pilih kendaraan untuk melihat insight sistem.',
                                           style: TextStyle(
                                             fontFamily: 'Arial',
                                             fontSize: 12,
                                             fontWeight: FontWeight.w400,
                                             height: 1.67,
-                                            color: colorScheme.secondary,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          l10n.generatedFromAnalysis,
-                                          style: TextStyle(
-                                            fontFamily: 'Arial',
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w400,
-                                            height: 1.5,
-                                            letterSpacing: 0.25,
                                             color: colorScheme.onSurfaceVariant,
                                           ),
+                                        )
+                                      : insight == null
+                                      ? Text(
+                                          'Insight sistem belum tersedia.',
+                                          style: TextStyle(
+                                            fontFamily: 'Arial',
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w400,
+                                            height: 1.67,
+                                            color: colorScheme.onSurfaceVariant,
+                                          ),
+                                        )
+                                      : Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              insight.label,
+                                              style: TextStyle(
+                                                fontFamily: 'Arial',
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w700,
+                                                height: 1.43,
+                                                color: colorScheme.onSurface,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              insight.isi,
+                                              style: TextStyle(
+                                                fontFamily: 'Arial',
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w400,
+                                                height: 1.67,
+                                                color: colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                        const SizedBox(height: 16),
-                                      ],
-                                    ),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Skor Fuzzy',
+                                  style: TextStyle(
+                                    fontFamily: 'Arial',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w400,
+                                    height: 1.5,
+                                    color: colorScheme.onSurface,
                                   ),
-                                ],
-                              ),
-                            ),
-                          ],
+                                ),
+                                const SizedBox(height: 12),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.surface,
+                                    border: Border.all(
+                                      color: colorScheme.outlineVariant,
+                                      width: 0.65,
+                                    ),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (motorId == null)
+                                        Text(
+                                          'Pilih kendaraan untuk melihat skor fuzzy.',
+                                          style: TextStyle(
+                                            fontFamily: 'Arial',
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w400,
+                                            height: 1.67,
+                                            color: colorScheme.onSurfaceVariant,
+                                          ),
+                                        )
+                                      else ...[
+                                        FuzzyScoresSection(
+                                          fuzzyScores:
+                                              _homeInsightNotifier.fuzzyScores,
+                                        ),
+                                        const SizedBox(height: 12),
+                                        MetaInfoRow(
+                                          meta: _homeInsightNotifier
+                                              .effectiveMeta,
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                       ],
                     ),

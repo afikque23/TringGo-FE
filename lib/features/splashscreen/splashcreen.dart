@@ -4,6 +4,7 @@ import '../onboarding/onboarding_page.dart';
 import '../dashboard/dashboard.dart';
 import '../widget/page_transition.dart';
 import '../../core/services/auth_storage.dart';
+import '../../core/network/api_client.dart';
 import 'splash_animation.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -37,17 +38,30 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
-    // Check if user is already logged in (has refresh token)
+    // Check if user has a persisted session (refresh token exists)
     final isLoggedIn = await _authStorage.isLoggedIn();
 
     print('🔐 Login status: ${isLoggedIn ? "LOGGED IN" : "NOT LOGGED IN"}');
 
     if (isLoggedIn) {
-      // User has valid refresh token, navigate to dashboard
-      print('✅ Auto-login: Navigating to Dashboard (Persistent Login)');
-      Navigator.of(
-        context,
-      ).pushReplacement(SmoothPageRoute(page: const DashboardPage()));
+      // Validate session by attempting token refresh once.
+      // This prevents the app from being stuck in repeated 401 calls when the
+      // stored refresh token is expired/revoked.
+      final refreshed = await ApiClient().refreshTokens();
+
+      if (!mounted) return;
+
+      if (refreshed) {
+        print('✅ Auto-login: Navigating to Dashboard (Session Validated)');
+        Navigator.of(
+          context,
+        ).pushReplacement(SmoothPageRoute(page: const DashboardPage()));
+      } else {
+        print('⚠️ Auto-login failed: navigating to Onboarding/Login');
+        Navigator.of(
+          context,
+        ).pushReplacement(SmoothPageRoute(page: const OnboardingPage()));
+      }
     } else {
       // User not logged in, show onboarding/login
       print('👤 No active session: Navigating to Onboarding');
