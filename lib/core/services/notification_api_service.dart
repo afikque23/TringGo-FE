@@ -1,7 +1,6 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../utils/api_constants.dart';
-import 'auth_storage.dart';
+import '../network/api_client.dart';
 
 class NotificationApiService {
   /// Ambil daftar notifikasi
@@ -11,7 +10,6 @@ class NotificationApiService {
     int page = 1,
     int perPage = 10,
   }) async {
-    final headers = await _getHeaders();
     final queryParams = {
       'category': category,
       if (unreadOnly) 'unread': 'true',
@@ -23,7 +21,7 @@ class NotificationApiService {
       '${ApiConstants.baseUrl}${ApiConstants.notifications}',
     ).replace(queryParameters: queryParams);
 
-    final response = await http.get(uri, headers: headers);
+    final response = await ApiClient().get(uri.toString());
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -33,12 +31,8 @@ class NotificationApiService {
 
   /// Ambil kategori notifikasi
   static Future<List<dynamic>> getCategories() async {
-    final headers = await _getHeaders();
-    final response = await http.get(
-      Uri.parse(
-        '${ApiConstants.baseUrl}${ApiConstants.notificationCategories}',
-      ),
-      headers: headers,
+    final response = await ApiClient().get(
+      '${ApiConstants.baseUrl}${ApiConstants.notificationCategories}',
     );
 
     if (response.statusCode == 200) {
@@ -49,24 +43,16 @@ class NotificationApiService {
 
   /// Tandai notifikasi sebagai dibaca
   static Future<bool> markAsRead(int notificationId) async {
-    final headers = await _getHeaders();
-    final response = await http.patch(
-      Uri.parse(
-        '${ApiConstants.baseUrl}${ApiConstants.notifications}/$notificationId/read',
-      ),
-      headers: headers,
+    final response = await ApiClient().patch(
+      '${ApiConstants.baseUrl}${ApiConstants.notifications}/$notificationId/read',
     );
     return response.statusCode == 200;
   }
 
   /// Tandai semua notifikasi sebagai dibaca
   static Future<int> markAllAsRead() async {
-    final headers = await _getHeaders();
-    final response = await http.patch(
-      Uri.parse(
-        '${ApiConstants.baseUrl}${ApiConstants.notifications}/read-all',
-      ),
-      headers: headers,
+    final response = await ApiClient().patch(
+      '${ApiConstants.baseUrl}${ApiConstants.notifications}/read-all',
     );
 
     if (response.statusCode == 200) {
@@ -78,12 +64,8 @@ class NotificationApiService {
 
   /// Hapus notifikasi
   static Future<bool> deleteNotification(int notificationId) async {
-    final headers = await _getHeaders();
-    final response = await http.delete(
-      Uri.parse(
-        '${ApiConstants.baseUrl}${ApiConstants.notifications}/$notificationId',
-      ),
-      headers: headers,
+    final response = await ApiClient().delete(
+      '${ApiConstants.baseUrl}${ApiConstants.notifications}/$notificationId',
     );
     return response.statusCode == 200;
   }
@@ -97,17 +79,5 @@ class NotificationApiService {
       print('Error getting unread count: $e');
       return 0;
     }
-  }
-
-  /// Build headers dengan auth token (NO device ID for ownership)
-  static Future<Map<String, String>> _getHeaders() async {
-    final authStorage = AuthStorage();
-    final token = await authStorage.getAccessToken();
-
-    return {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
-    };
   }
 }

@@ -1,11 +1,10 @@
 import 'dart:convert';
-import 'dart:io';
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../network/api_config.dart';
 import '../network/api_client.dart';
 import '../model/tip_model.dart';
 import 'auth_storage.dart';
+import 'device_service.dart';
 
 class TipsService {
   // Singleton pattern
@@ -15,7 +14,7 @@ class TipsService {
 
   final _apiClient = ApiClient();
   final _authStorage = AuthStorage();
-  String? _deviceId;
+  final _deviceService = DeviceService();
 
   static const String _bookmarkedIdsKey = 'bookmarked_tip_ids';
 
@@ -36,30 +35,22 @@ class TipsService {
     await prefs.setStringList(_bookmarkedIdsKey, ids.toList());
   }
 
-  /// Get or generate device ID for guest mode
-  // ignore: unused_element
-  Future<String> _getDeviceId() async {
-    if (_deviceId != null) return _deviceId!;
+  Future<Map<String, String>> _withIdentityHeaders(
+    Map<String, String>? headers,
+  ) async {
+    final merged = <String, String>{...?headers};
 
     try {
-      final deviceInfo = DeviceInfoPlugin();
-      if (Platform.isAndroid) {
-        final androidInfo = await deviceInfo.androidInfo;
-        _deviceId = androidInfo.id;
-      } else if (Platform.isIOS) {
-        final iosInfo = await deviceInfo.iosInfo;
-        _deviceId = iosInfo.identifierForVendor;
-      } else {
-        // Fallback for other platforms
-        _deviceId = 'web_${DateTime.now().millisecondsSinceEpoch}';
+      final deviceId = await _deviceService.getDeviceId();
+      if (deviceId.isNotEmpty) {
+        merged.putIfAbsent('X-Device-ID', () => deviceId);
       }
     } catch (e) {
-      print('❌ Error getting device ID: $e');
-      // Generate random fallback ID
-      _deviceId = 'device_${DateTime.now().millisecondsSinceEpoch}';
+      // Identity header is best-effort; API will fallback server-side.
+      print('⚠️ Failed to get device id: $e');
     }
 
-    return _deviceId!;
+    return merged;
   }
 
   /// Check if user is logged in
@@ -378,8 +369,10 @@ class TipsService {
 
       print('📍 Endpoint: $endpoint');
 
+      final headers = await _withIdentityHeaders(null);
+
       final response = await _apiClient
-          .get(endpoint)
+          .get(endpoint, headers: headers)
           .timeout(ApiConfig.connectTimeout);
 
       print('📥 Response status: ${response.statusCode}');
@@ -405,7 +398,7 @@ class TipsService {
               queryParameters: fallbackParams,
             ).toString();
             final fallbackResponse = await _apiClient
-                .get(fallbackEndpoint)
+                .get(fallbackEndpoint, headers: headers)
                 .timeout(ApiConfig.connectTimeout);
             if (fallbackResponse.statusCode == 200) {
               final fallbackParsed = _parseTipsListResponse(
@@ -470,8 +463,10 @@ class TipsService {
         queryParameters: queryParams,
       ).toString();
 
+      final headers = await _withIdentityHeaders(null);
+
       final response = await _apiClient
-          .get(endpoint)
+          .get(endpoint, headers: headers)
           .timeout(ApiConfig.connectTimeout);
 
       print('📥 Response status: ${response.statusCode}');
@@ -508,7 +503,7 @@ class TipsService {
             ).toString();
 
             final fallbackResponse = await _apiClient
-                .get(fallbackEndpoint)
+                .get(fallbackEndpoint, headers: headers)
                 .timeout(ApiConfig.connectTimeout);
 
             if (fallbackResponse.statusCode == 200) {
@@ -589,12 +584,13 @@ class TipsService {
       print('🔍 FETCHING TIP DETAIL (ID: $id)');
 
       final isLoggedIn = await _isLoggedIn();
+      final headers = await _withIdentityHeaders(null);
 
       // Try authenticated endpoint first (supports all statuses including pending_review)
       if (isLoggedIn) {
         final authEndpoint = '${ApiConfig.tips}/$id';
         final authResponse = await _apiClient
-            .get(authEndpoint)
+            .get(authEndpoint, headers: headers)
             .timeout(ApiConfig.connectTimeout);
 
         print('📥 Response status: ${authResponse.statusCode}');
@@ -615,7 +611,7 @@ class TipsService {
       // Not logged in — fallback to public endpoint
       final endpoint = '${ApiConfig.tipsPublic}/$id';
       final response = await _apiClient
-          .get(endpoint)
+          .get(endpoint, headers: headers)
           .timeout(ApiConfig.connectTimeout);
 
       print('📥 Response status (public): ${response.statusCode}');
@@ -654,7 +650,9 @@ class TipsService {
           .post(
             ApiConfig.tips,
             body: requestJson, // Pass object, not encoded string
-            headers: {'Content-Type': 'application/json'},
+            headers: await _withIdentityHeaders({
+              'Content-Type': 'application/json',
+            }),
           )
           .timeout(ApiConfig.connectTimeout);
 
@@ -728,7 +726,9 @@ class TipsService {
           .put(
             endpoint,
             body: request.toJson(),
-            headers: {'Content-Type': 'application/json'},
+            headers: await _withIdentityHeaders({
+              'Content-Type': 'application/json',
+            }),
           )
           .timeout(ApiConfig.connectTimeout);
 
@@ -763,7 +763,7 @@ class TipsService {
 
       final endpoint = '${ApiConfig.tips}/$id';
       final response = await _apiClient
-          .delete(endpoint)
+          .delete(endpoint, headers: await _withIdentityHeaders(null))
           .timeout(ApiConfig.connectTimeout);
 
       print('📥 Response status: ${response.statusCode}');
@@ -796,7 +796,9 @@ class TipsService {
           .post(
             endpoint,
             body: request.toJson(),
-            headers: {'Content-Type': 'application/json'},
+            headers: await _withIdentityHeaders({
+              'Content-Type': 'application/json',
+            }),
           )
           .timeout(ApiConfig.connectTimeout);
 
@@ -831,7 +833,9 @@ class TipsService {
           .post(
             endpoint,
             body: request.toJson(),
-            headers: {'Content-Type': 'application/json'},
+            headers: await _withIdentityHeaders({
+              'Content-Type': 'application/json',
+            }),
           )
           .timeout(ApiConfig.connectTimeout);
 
@@ -868,7 +872,9 @@ class TipsService {
           .post(
             endpoint,
             body: request.toJson(),
-            headers: {'Content-Type': 'application/json'},
+            headers: await _withIdentityHeaders({
+              'Content-Type': 'application/json',
+            }),
           )
           .timeout(ApiConfig.connectTimeout);
 
@@ -899,7 +905,9 @@ class TipsService {
           .post(
             endpoint,
             body: {'rating': rating},
-            headers: {'Content-Type': 'application/json'},
+            headers: await _withIdentityHeaders({
+              'Content-Type': 'application/json',
+            }),
           )
           .timeout(ApiConfig.connectTimeout);
 
@@ -938,7 +946,9 @@ class TipsService {
           .post(
             endpoint,
             body: request.toJson(),
-            headers: {'Content-Type': 'application/json'},
+            headers: await _withIdentityHeaders({
+              'Content-Type': 'application/json',
+            }),
           )
           .timeout(ApiConfig.connectTimeout);
 

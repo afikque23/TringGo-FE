@@ -13,6 +13,8 @@ class ApiClient {
   final _authStorage = AuthStorage();
   static const int _maxRetries = 1;
 
+  Future<bool>? _refreshInFlight;
+
   /// Expose auth storage for debugging/testing
   AuthStorage get authStorage => _authStorage;
 
@@ -40,6 +42,15 @@ class ApiClient {
     Object? body,
   }) async {
     return _makeRequest('PUT', endpoint, headers: headers, body: body);
+  }
+
+  /// Make authenticated PATCH request
+  Future<http.Response> patch(
+    String endpoint, {
+    Map<String, String>? headers,
+    Object? body,
+  }) async {
+    return _makeRequest('PATCH', endpoint, headers: headers, body: body);
   }
 
   /// Make authenticated DELETE request
@@ -73,7 +84,7 @@ class ApiClient {
     // If 401 Unauthorized and we haven't retried yet, try to refresh token
     if (response.statusCode == 401 && retryCount < _maxRetries) {
       print('🔄 Access token expired, attempting refresh...');
-      final refreshed = await _refreshAccessToken();
+      final refreshed = await _refreshAccessTokenSingleFlight();
 
       if (refreshed) {
         // Retry the original request with new token
@@ -88,6 +99,12 @@ class ApiClient {
     }
 
     return response;
+  }
+
+  /// Public: attempt to refresh tokens using the stored refresh token.
+  /// Returns true if new tokens were saved.
+  Future<bool> refreshTokens() async {
+    return _refreshAccessTokenSingleFlight();
   }
 
   /// Send HTTP request
@@ -127,6 +144,12 @@ class ApiClient {
           headers: headers,
           body: body != null ? jsonEncode(body) : null,
         );
+      case 'PATCH':
+        return await http.patch(
+          uri,
+          headers: headers,
+          body: body != null ? jsonEncode(body) : null,
+        );
       case 'DELETE':
         return await http.delete(uri, headers: headers);
       default:
@@ -149,6 +172,17 @@ class ApiClient {
   }
 
   /// Refresh access token using refresh token
+  Future<bool> _refreshAccessTokenSingleFlight() {
+    final existing = _refreshInFlight;
+    if (existing != null) return existing;
+
+    final future = _refreshAccessToken().whenComplete(() {
+      _refreshInFlight = null;
+    });
+    _refreshInFlight = future;
+    return future;
+  }
+
   Future<bool> _refreshAccessToken() async {
     try {
       final refreshToken = await _authStorage.getRefreshToken();
@@ -213,6 +247,13 @@ class ApiClient {
           print('❌ Invalid response structure');
           print('Response data: $data');
         }
+      }
+
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        // Refresh token is invalid/expired/revoked. Clear local session so the
+        // app won't keep treating the user as logged in.
+        await _authStorage.clearAll();
+        print('🧹 Cleared local tokens due to invalid refresh token');
       }
 
       print('❌ Token refresh failed: ${response.statusCode}');

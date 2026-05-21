@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "motorcycle_management" "\0"
+            VALUE "FileDescription", "TringGo" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "motorcycle_management" "\0"
+            VALUE "InternalName", "TringGo" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
             VALUE "OriginalFilename", "motorcycle_management.exe" "\0"
-            VALUE "ProductName", "motorcycle_management" "\0"
+            VALUE "ProductName", "TringGo" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

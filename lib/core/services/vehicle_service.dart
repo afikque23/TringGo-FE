@@ -15,6 +15,25 @@ class VehicleService {
   final _authStorage = AuthStorage();
   final _localStorage = LocalVehicleStorage();
 
+  Future<List<VehicleModel>> _getLocalVehiclesForCurrentUser() async {
+    final currentUserId = await _authStorage.getUserId();
+    final localVehicles = await _localStorage.getAllVehicles();
+    if (currentUserId == null) return localVehicles;
+
+    // Prevent cross-user cache issues: keep only vehicles owned by the
+    // currently logged-in user.
+    return localVehicles.where((v) => v.userId == currentUserId).toList();
+  }
+
+  VehicleModel? _pickPrimaryFrom(List<VehicleModel> vehicles) {
+    if (vehicles.isEmpty) return null;
+    try {
+      return vehicles.firstWhere((v) => v.isPrimary);
+    } catch (_) {
+      return vehicles.first;
+    }
+  }
+
   /// Check if user is logged in
   Future<bool> _isLoggedIn() async {
     return await _authStorage.isLoggedIn();
@@ -91,7 +110,7 @@ class VehicleService {
           print('⚠️ Server returned EMPTY array!');
 
           // Get local vehicles to check if we have data locally
-          final localVehicles = await _localStorage.getAllVehicles();
+          final localVehicles = await _getLocalVehiclesForCurrentUser();
           print('📦 Local storage has ${localVehicles.length} vehicles');
 
           if (localVehicles.isNotEmpty) {
@@ -139,7 +158,7 @@ class VehicleService {
       }
     } catch (e) {
       print('❌ Failed to fetch from server: $e');
-      final localVehicles = await _localStorage.getAllVehicles();
+      final localVehicles = await _getLocalVehiclesForCurrentUser();
       print(
         '📦 Fallback: Using ${localVehicles.length} vehicles from local storage',
       );
@@ -183,7 +202,8 @@ class VehicleService {
     }
 
     // Fallback to local storage
-    final localPrimary = await _localStorage.getPrimaryVehicle();
+    final localVehicles = await _getLocalVehiclesForCurrentUser();
+    final localPrimary = _pickPrimaryFrom(localVehicles);
     if (localPrimary != null) {
       print('📦 Fallback: Using primary vehicle from local:');
       print('   • Name: ${localPrimary.title}');

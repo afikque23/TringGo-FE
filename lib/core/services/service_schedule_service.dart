@@ -1,8 +1,7 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../network/api_config.dart';
+import '../network/api_client.dart';
 import '../model/service_schedule_model.dart';
-import 'auth_storage.dart';
 
 class ServiceScheduleService {
   // Singleton pattern
@@ -11,38 +10,21 @@ class ServiceScheduleService {
   factory ServiceScheduleService() => _instance;
   ServiceScheduleService._internal();
 
-  final _authStorage = AuthStorage();
-
-  /// Get headers for API requests
-  /// ALL requests now require authentication (no guest mode)
-  Future<Map<String, String>> _getHeaders() async {
-    final headers = Map<String, String>.from(ApiConfig.defaultHeaders);
-    final token = await _authStorage.getAccessToken();
-
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-
-    return headers;
-  }
+  final _apiClient = ApiClient();
 
   /// Get all service schedules
   /// Optional: Pass vehicleId to filter schedules for a specific vehicle
   Future<List<ServiceScheduleModel>> getAllSchedules({int? vehicleId}) async {
     try {
-      final headers = await _getHeaders();
-
-      var url = '${ApiConfig.baseUrl}/service-schedules';
-      if (vehicleId != null) {
-        url += '?vehicle_id=$vehicleId';
-      }
+      var endpoint = '/service-schedules';
+      if (vehicleId != null) endpoint += '?vehicle_id=$vehicleId';
 
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       print('🔍 FETCHING SERVICE SCHEDULES');
-      print('URL: $url');
+      print('URL: ${ApiConfig.baseUrl}$endpoint');
 
-      final response = await http
-          .get(Uri.parse(url), headers: headers)
+      final response = await _apiClient
+          .get(endpoint)
           .timeout(ApiConfig.connectTimeout);
 
       print('📥 Server response: ${response.statusCode}');
@@ -107,12 +89,8 @@ class ServiceScheduleService {
   /// Get schedule by ID
   Future<ServiceScheduleModel> getScheduleById(int id) async {
     try {
-      final headers = await _getHeaders();
-      final response = await http
-          .get(
-            Uri.parse('${ApiConfig.baseUrl}/service-schedules/$id'),
-            headers: headers,
-          )
+      final response = await _apiClient
+          .get('/service-schedules/$id')
           .timeout(ApiConfig.connectTimeout);
 
       if (response.statusCode == 200) {
@@ -157,14 +135,8 @@ class ServiceScheduleService {
   /// Get schedule status by vehicle ID
   Future<Map<String, dynamic>> getScheduleStatus(int vehicleId) async {
     try {
-      final headers = await _getHeaders();
-      final response = await http
-          .get(
-            Uri.parse(
-              '${ApiConfig.baseUrl}/service-schedules/status/$vehicleId',
-            ),
-            headers: headers,
-          )
+      final response = await _apiClient
+          .get('/service-schedules/status/$vehicleId')
           .timeout(ApiConfig.connectTimeout);
 
       if (response.statusCode == 200) {
@@ -186,12 +158,8 @@ class ServiceScheduleService {
   /// Returns schedules sorted by priority (critical > warning > normal)
   Future<Map<String, dynamic>> getPrimaryVehicleSchedules() async {
     try {
-      final headers = await _getHeaders();
-      final response = await http
-          .get(
-            Uri.parse('${ApiConfig.baseUrl}/service-schedules/primary'),
-            headers: headers,
-          )
+      final response = await _apiClient
+          .get('/service-schedules/primary')
           .timeout(ApiConfig.connectTimeout);
 
       if (response.statusCode == 200) {
@@ -213,8 +181,6 @@ class ServiceScheduleService {
     ServiceScheduleModel schedule,
   ) async {
     try {
-      final headers = await _getHeaders();
-
       // Build payload matching backend requirements
       // Backend expects schedule_type to be 'km' or 'time' (not 'mileage')
       final scheduleType = schedule.intervalType == 'mileage'
@@ -283,15 +249,10 @@ class ServiceScheduleService {
       print('Vehicle ID: ${schedule.vehicleId}');
       print('Schedule Type: $scheduleType');
       print('Payload: ${json.encode(body)}');
-      print('Headers: ${headers.keys.toList()}');
       print('============================');
 
-      final response = await http
-          .post(
-            Uri.parse('${ApiConfig.baseUrl}/service-schedules'),
-            headers: headers,
-            body: json.encode(body),
-          )
+      final response = await _apiClient
+          .post('/service-schedules', body: body)
           .timeout(ApiConfig.connectTimeout);
 
       print('Response Status: ${response.statusCode}');
@@ -345,8 +306,6 @@ class ServiceScheduleService {
     ServiceScheduleModel schedule,
   ) async {
     try {
-      final headers = await _getHeaders();
-
       // Build payload matching backend requirements for update
       final scheduleType = schedule.intervalType == 'mileage'
           ? 'km'
@@ -383,12 +342,8 @@ class ServiceScheduleService {
         body['reminder_option_id'] = null;
       }
 
-      final response = await http
-          .put(
-            Uri.parse('${ApiConfig.baseUrl}/service-schedules/$id'),
-            headers: headers,
-            body: json.encode(body),
-          )
+      final response = await _apiClient
+          .put('/service-schedules/$id', body: body)
           .timeout(ApiConfig.connectTimeout);
 
       if (response.statusCode == 200) {
@@ -432,12 +387,8 @@ class ServiceScheduleService {
   /// Delete service schedule
   Future<void> deleteSchedule(int id) async {
     try {
-      final headers = await _getHeaders();
-      final response = await http
-          .delete(
-            Uri.parse('${ApiConfig.baseUrl}/service-schedules/$id'),
-            headers: headers,
-          )
+      final response = await _apiClient
+          .delete('/service-schedules/$id')
           .timeout(ApiConfig.connectTimeout);
 
       if (response.statusCode != 200 && response.statusCode != 204) {
@@ -456,7 +407,6 @@ class ServiceScheduleService {
     int currentOdometer,
   ) async {
     try {
-      final headers = await _getHeaders();
       final body = {'current_odometer': currentOdometer};
 
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -464,14 +414,8 @@ class ServiceScheduleService {
       print('Vehicle ID: $vehicleId');
       print('Current Odometer: $currentOdometer km');
 
-      final response = await http
-          .post(
-            Uri.parse(
-              '${ApiConfig.baseUrl}/service-schedules/check-reminders/$vehicleId',
-            ),
-            headers: headers,
-            body: json.encode(body),
-          )
+      final response = await _apiClient
+          .post('/service-schedules/check-reminders/$vehicleId', body: body)
           .timeout(ApiConfig.connectTimeout);
 
       print('📥 Response: ${response.statusCode}');
@@ -511,19 +455,12 @@ class ServiceScheduleService {
   /// Call this after updating a schedule with new target to re-enable reminders
   Future<void> resetReminder(int scheduleId) async {
     try {
-      final headers = await _getHeaders();
-
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       print('🔄 RESETTING REMINDER FLAG');
       print('Schedule ID: $scheduleId');
 
-      final response = await http
-          .post(
-            Uri.parse(
-              '${ApiConfig.baseUrl}/service-schedules/$scheduleId/reset-reminder',
-            ),
-            headers: headers,
-          )
+      final response = await _apiClient
+          .post('/service-schedules/$scheduleId/reset-reminder')
           .timeout(ApiConfig.connectTimeout);
 
       print('📥 Response: ${response.statusCode}');

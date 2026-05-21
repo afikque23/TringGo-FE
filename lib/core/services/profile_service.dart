@@ -57,8 +57,8 @@ class ProfileService {
       print('🔄 Updating profile...');
 
       // Get access token
-      final accessToken = await _authStorage.getAccessToken();
-      if (accessToken == null) {
+      var accessToken = await _authStorage.getAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
         throw Exception('No access token available');
       }
 
@@ -101,8 +101,28 @@ class ProfileService {
       }
 
       // Send request
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 401) {
+        final refreshed = await _apiClient.refreshTokens();
+        if (refreshed) {
+          accessToken = await _authStorage.getAccessToken() ?? accessToken;
+          final retryRequest = await _buildProfileUpdateRequest(
+            accessToken: accessToken,
+            name: name,
+            email: email,
+            phone: phone,
+            location: location,
+            avatarFile: avatarFile,
+            currentPassword: currentPassword,
+            newPassword: newPassword,
+            newPasswordConfirmation: newPasswordConfirmation,
+          );
+          final retryStreamedResponse = await retryRequest.send();
+          response = await http.Response.fromStream(retryStreamedResponse);
+        }
+      }
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
@@ -136,6 +156,51 @@ class ProfileService {
       print('❌ Failed to update profile: $e');
       rethrow;
     }
+  }
+
+  Future<http.MultipartRequest> _buildProfileUpdateRequest({
+    required String accessToken,
+    String? name,
+    String? email,
+    String? phone,
+    String? location,
+    File? avatarFile,
+    String? currentPassword,
+    String? newPassword,
+    String? newPasswordConfirmation,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.profileUpdate}'),
+    );
+
+    request.headers['Authorization'] = 'Bearer $accessToken';
+    request.headers['Accept'] = 'application/json';
+
+    if (name != null) request.fields['name'] = name;
+    if (email != null) request.fields['email'] = email;
+    if (phone != null && phone.isNotEmpty) request.fields['phone'] = phone;
+    if (location != null && location.isNotEmpty) {
+      request.fields['location'] = location;
+    }
+
+    if (currentPassword != null && currentPassword.isNotEmpty) {
+      request.fields['current_password'] = currentPassword;
+    }
+    if (newPassword != null && newPassword.isNotEmpty) {
+      request.fields['new_password'] = newPassword;
+    }
+    if (newPasswordConfirmation != null && newPasswordConfirmation.isNotEmpty) {
+      request.fields['new_password_confirmation'] = newPasswordConfirmation;
+    }
+
+    if (avatarFile != null) {
+      request.files.add(
+        await http.MultipartFile.fromPath('avatar', avatarFile.path),
+      );
+    }
+
+    return request;
   }
 
   /// Delete avatar
