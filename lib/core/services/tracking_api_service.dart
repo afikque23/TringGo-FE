@@ -90,4 +90,22 @@ class TrackingApiService {
       throw Exception('Gagal menghentikan tracking');
     }
   }
+
+  /// 4. Ambil Lokasi Terakhir (IoT)
+  static Future<Map<String, dynamic>?> getLatestLocation(int motorId) async {
+    final headers = await _getHeaders();
+    final response = await http.get(
+      Uri.parse('$baseUrl/motors/$motorId/tracking/last-location'),
+      headers: headers,
+    );
+
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      // Jika belum ada data koordinat
+      if (json['latitude'] == null) return null;
+      return json;
+    } else {
+      throw Exception('Gagal mengambil lokasi terakhir');
+    }
+  }
 }
