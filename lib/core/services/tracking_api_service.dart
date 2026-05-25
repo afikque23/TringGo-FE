@@ -22,8 +22,7 @@ class TrackingStatus {
 
 class TrackingApiService {
   // Gunakan IP yang sesuai dengan backend
-  static String get baseUrl =>
-      ApiConfig.baseUrl.replaceAll('/v1/motorcycle', '');
+  static String get baseUrl => ApiConfig.baseUrl;
 
   static Future<Map<String, String>> _getHeaders() async {
     final authStorage = AuthStorage();
@@ -38,26 +37,32 @@ class TrackingApiService {
   /// 1. Cek Status Tracking
   static Future<TrackingStatus> checkStatus(int motorId) async {
     final headers = await _getHeaders();
-    final response = await http.get(
-      Uri.parse('$baseUrl/motors/$motorId/tracking/status'),
-      headers: headers,
-    );
+    final url = '$baseUrl/motors/$motorId/tracking/status';
+    print('🌐 [GET] $url');
+    final response = await http.get(Uri.parse(url), headers: headers);
+
+    print('📥 Response status: ${response.statusCode}');
+    print('📥 Response body: ${response.body}');
 
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body);
       return TrackingStatus.fromJson(json);
     } else {
-      throw Exception('Gagal memuat status tracking');
+      throw Exception(
+        'Gagal memuat status tracking. Status: ${response.statusCode}',
+      );
     }
   }
 
   /// 2. Mulai Tracking (Start)
   static Future<bool> startTracking(int motorId) async {
     final headers = await _getHeaders();
-    final response = await http.post(
-      Uri.parse('$baseUrl/motors/$motorId/tracking/start'),
-      headers: headers,
-    );
+    final url = '$baseUrl/motors/$motorId/tracking/start';
+    print('🌐 [POST] $url');
+    final response = await http.post(Uri.parse(url), headers: headers);
+
+    print('📥 Response status: ${response.statusCode}');
+    print('📥 Response body: ${response.body}');
 
     if (response.statusCode == 200) {
       return true;

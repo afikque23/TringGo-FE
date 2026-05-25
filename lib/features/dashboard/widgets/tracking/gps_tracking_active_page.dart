@@ -97,14 +97,14 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
   void _startPolling() {
     _startTime ??= DateTime.now();
     _timer?.cancel();
-    
+
     // Polling setiap 5 detik sesuai pengiriman MQTT backend
     _timer = Timer.periodic(const Duration(seconds: 5), (_) async {
       if (!mounted) return;
 
       // TODO: Fetch dari endpoint backend IoT
       // final latestData = await TrackingApiService.getLatestLocation(widget.vehicleId);
-      
+
       // -- SIMULASI PERGERAKAN BERDASARKAN DATA BACKEND (MOCK) --
       final nextSpeed = _nextSpeed(_speedKph);
       final latDelta = (_random.nextDouble() - 0.5) * 0.0008;
@@ -121,9 +121,9 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         _currentLocation = LatLng(newLat, newLng);
 
         // Simulasi perhitungan jarak (v = s/t => s = v * t)
-        final distanceDelta = (nextSpeed / 3600.0) * 5; 
+        final distanceDelta = (nextSpeed / 3600.0) * 5;
         _distanceKm += distanceDelta;
-        
+
         if (_durationSec > 0) {
           _avgSpeedKph = (_distanceKm / _durationSec) * 3600.0;
         }
@@ -168,18 +168,25 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         });
 
         _startPolling();
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Tracking dimulai')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Tracking dimulai')));
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Tracking gagal dimulai, mungkin trip masih aktif.')),
+            const SnackBar(
+              content: Text(
+                'Tracking gagal dimulai, mungkin trip masih aktif.',
+              ),
+            ),
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -189,13 +196,13 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
 
     try {
       await TrackingApiService.stopTracking(widget.vehicleId);
-      
+
       if (mounted) {
         setState(() {
           _isTracking = false;
           _speedKph = 0;
         });
-        
+
         // Kembalikan TripData ke halaman sebelumnya (Sesuai instruksi)
         _returnTripData();
       }
@@ -205,9 +212,10 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
           _isTracking = false;
           _speedKph = 0;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error hentikan tracking: $e')));
-        
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error hentikan tracking: $e')));
+
         // Tetap kembali meskipun error (agar user tidak terjebak)
         _returnTripData();
       }
@@ -217,7 +225,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
   void _returnTripData() {
     final endTime = DateTime.now();
     final stTime = _startTime ?? endTime;
-    
+
     // Siapkan data payload
     final tripData = {
       'vehicle': widget.vehicleName,
@@ -225,15 +233,19 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
       'durationMinutes': (_durationSec ~/ 60).toString(),
       'averageSpeedKph': _avgSpeedKph.toStringAsFixed(1),
       'maxSpeedKph': _maxSpeedKph.toString(),
-      'startTime': '${stTime.hour.toString().padLeft(2, '0')}:${stTime.minute.toString().padLeft(2, '0')}',
-      'endTime': '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}',
-      'routePoints': _routePoints.map((p) => {'lat': p.lat, 'lng': p.lng}).toList(),
+      'startTime':
+          '${stTime.hour.toString().padLeft(2, '0')}:${stTime.minute.toString().padLeft(2, '0')}',
+      'endTime':
+          '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}',
+      'routePoints': _routePoints
+          .map((p) => {'lat': p.lat, 'lng': p.lng})
+          .toList(),
       if (_routePoints.isNotEmpty) ...{
         'startLat': _routePoints.first.lat,
         'startLng': _routePoints.first.lng,
         'endLat': _routePoints.last.lat,
         'endLng': _routePoints.last.lng,
-      }
+      },
     };
 
     Navigator.of(context).pop(tripData);
@@ -276,19 +288,21 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
               children: [
                 TileLayer(
                   // CartoDB Voyager Style
-                  urlTemplate: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                  urlTemplate:
+                      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
                   subdomains: const ['a', 'b', 'c', 'd'],
                   userAgentPackageName: 'com.example.motorcycle_management',
                 ),
                 PolylineLayer(
                   polylines: [
-                    Polyline(
-                      points: points,
-                      strokeWidth: 5.0,
-                      color: Colors.blueAccent,
-                      strokeCap: StrokeCap.round,
-                      strokeJoin: StrokeJoin.round,
-                    ),
+                    if (points.length > 1)
+                      Polyline(
+                        points: points,
+                        strokeWidth: 5.0,
+                        color: Colors.blueAccent,
+                        strokeCap: StrokeCap.round,
+                        strokeJoin: StrokeJoin.round,
+                      ),
                   ],
                 ),
                 MarkerLayer(
@@ -344,7 +358,10 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF1A2A1A).withOpacity(0.9),
                         borderRadius: BorderRadius.circular(10),
@@ -378,7 +395,9 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: _card,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(32),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.2),
@@ -463,11 +482,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                               ),
                             ],
                           ),
-                          Container(
-                            width: 1,
-                            height: 40,
-                            color: _border,
-                          ),
+                          Container(width: 1, height: 40, color: _border),
                           Column(
                             children: [
                               const Text(
@@ -499,9 +514,13 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton(
-                          onPressed: _isTracking ? _stopTracking : _startTracking,
+                          onPressed: _isTracking
+                              ? _stopTracking
+                              : _startTracking,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _isTracking ? Colors.redAccent : _green,
+                            backgroundColor: _isTracking
+                                ? Colors.redAccent
+                                : _green,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
