@@ -41,8 +41,7 @@ dependencies:
   open_file: ^3.3.2
   file_picker: ^10.3.3
   intl: ^0.20.2
-  geolocator: ^13.0.2
-  flutter_foreground_task: ^8.13.0
+
 
 dev_dependencies:
   flutter_test:

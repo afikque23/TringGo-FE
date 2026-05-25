@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../l10n/app_localizations.dart';
-import '../../../../core/services/tracking_service.dart';
+import '../../../../core/services/trip_service.dart';
 import '../../../../core/model/trip_model.dart';
 import 'detail_trip.dart';
 import '../../../widget/page_transition.dart';
@@ -14,7 +14,7 @@ class RiwayatTripPage extends StatefulWidget {
 }
 
 class _RiwayatTripPageState extends State<RiwayatTripPage> {
-  final TrackingService _trackingService = TrackingService();
+  final TripService _tripService = TripService();
   int _selectedFilterIndex = 0;
   List<TripModel> _trips = [];
   bool _isLoading = true;
@@ -31,7 +31,7 @@ class _RiwayatTripPageState extends State<RiwayatTripPage> {
     });
 
     try {
-      final trips = await _trackingService.getTripHistory();
+      final trips = await _tripService.getAllTrips(limit: 50);
       setState(() {
         _trips = trips;
         _isLoading = false;
