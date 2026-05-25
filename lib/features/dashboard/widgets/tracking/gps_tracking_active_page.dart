@@ -87,13 +87,8 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
     super.dispose();
   }
 
-  int _nextSpeed(int prev) {
-    final change = (_random.nextDouble() - 0.5) * 12;
-    final next = (prev == 0 ? 35 : prev) + change;
-    return next.round().clamp(0, 80);
-  }
 
-  // Fungsi polling 5 detik. Di masa depan, panggil API backend (IoT) di sini.
+  // Fungsi polling 5 detik. Memanggil API backend (IoT)
   void _startPolling() {
     _startTime ??= DateTime.now();
     _timer?.cancel();
@@ -102,44 +97,46 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
     _timer = Timer.periodic(const Duration(seconds: 5), (_) async {
       if (!mounted) return;
 
-      // TODO: Fetch dari endpoint backend IoT
-      // final latestData = await TrackingApiService.getLatestLocation(widget.vehicleId);
-      
-      // -- SIMULASI PERGERAKAN BERDASARKAN DATA BACKEND (MOCK) --
-      final nextSpeed = _nextSpeed(_speedKph);
-      final latDelta = (_random.nextDouble() - 0.5) * 0.0008;
-      final lngDelta = (_random.nextDouble() - 0.5) * 0.0008;
-      final newLat = _currentLocation.latitude + latDelta;
-      final newLng = _currentLocation.longitude + lngDelta;
-      // ---------------------------------------------------------
-
-      setState(() {
-        // Durasi bertambah 5 detik
-        _durationSec += 5;
-        _speedKph = nextSpeed;
-        _maxSpeedKph = max(_maxSpeedKph, nextSpeed);
-        _currentLocation = LatLng(newLat, newLng);
-
-        // Simulasi perhitungan jarak (v = s/t => s = v * t)
-        final distanceDelta = (nextSpeed / 3600.0) * 5; 
-        _distanceKm += distanceDelta;
+      try {
+        final latestData = await TrackingApiService.getLatestLocation(widget.vehicleId);
         
-        if (_durationSec > 0) {
-          _avgSpeedKph = (_distanceKm / _durationSec) * 3600.0;
+        if (latestData != null && mounted) {
+          final newLat = (latestData['latitude'] as num).toDouble();
+          final newLng = (latestData['longitude'] as num).toDouble();
+          final currentSpeed = (latestData['speed_kph'] as num?)?.toInt() ?? 0;
+
+          setState(() {
+            // Durasi bertambah 5 detik
+            _durationSec += 5;
+            _speedKph = currentSpeed;
+            _maxSpeedKph = max(_maxSpeedKph, currentSpeed);
+            _currentLocation = LatLng(newLat, newLng);
+
+            // Simulasi perhitungan jarak sementara untuk tampilan UI live yang responsif
+            // Data sebenarnya akan ditimpa dengan hasil akurat dari Backend saat Stop.
+            final distanceDelta = (currentSpeed / 3600.0) * 5; 
+            _distanceKm += distanceDelta;
+            
+            if (_durationSec > 0) {
+              _avgSpeedKph = (_distanceKm / _durationSec) * 3600.0;
+            }
+
+            _routePoints.add(
+              RoutePoint(
+                lat: newLat,
+                lng: newLng,
+                speedKph: currentSpeed,
+                timestampMs: DateTime.now().millisecondsSinceEpoch,
+              ),
+            );
+          });
+
+          // Pindahkan kamera map mengikuti marker
+          _mapController.move(_currentLocation, _mapController.camera.zoom);
         }
-
-        _routePoints.add(
-          RoutePoint(
-            lat: newLat,
-            lng: newLng,
-            speedKph: nextSpeed,
-            timestampMs: DateTime.now().millisecondsSinceEpoch,
-          ),
-        );
-      });
-
-      // Pindahkan kamera map mengikuti marker
-      _mapController.move(_currentLocation, _mapController.camera.zoom);
+      } catch (e) {
+        debugPrint('Error get latest location: $e');
+      }
     });
   }
 
@@ -188,7 +185,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
     _timer?.cancel();
 
     try {
-      await TrackingApiService.stopTracking(widget.vehicleId);
+      final tripSummary = await TrackingApiService.stopTracking(widget.vehicleId);
       
       if (mounted) {
         setState(() {
@@ -196,8 +193,8 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
           _speedKph = 0;
         });
         
-        // Kembalikan TripData ke halaman sebelumnya (Sesuai instruksi)
-        _returnTripData();
+        // Kembalikan TripData ke halaman sebelumnya menggunakan summary backend
+        _returnTripData(tripSummary: tripSummary);
       }
     } catch (e) {
       if (mounted) {
@@ -208,23 +205,40 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error hentikan tracking: $e')));
         
-        // Tetap kembali meskipun error (agar user tidak terjebak)
+        // Tetap kembali menggunakan data lokal jika API error
         _returnTripData();
       }
     }
   }
 
-  void _returnTripData() {
+  void _returnTripData({Map<String, dynamic>? tripSummary}) {
     final endTime = DateTime.now();
     final stTime = _startTime ?? endTime;
     
+    // Jika backend mengembalikan summary, gunakan nilainya, jika tidak fallback ke perhitungan lokal
+    final distKm = tripSummary != null && tripSummary['distance_meters'] != null
+        ? ((tripSummary['distance_meters'] as num) / 1000).toStringAsFixed(2)
+        : _distanceKm.toStringAsFixed(2);
+        
+    final durMin = tripSummary != null && tripSummary['duration_minutes'] != null
+        ? tripSummary['duration_minutes'].toString()
+        : (_durationSec ~/ 60).toString();
+        
+    final avgKph = tripSummary != null && tripSummary['avg_speed_kph'] != null
+        ? (tripSummary['avg_speed_kph'] as num).toStringAsFixed(1)
+        : _avgSpeedKph.toStringAsFixed(1);
+        
+    final maxKph = tripSummary != null && tripSummary['max_speed_kph'] != null
+        ? tripSummary['max_speed_kph'].toString()
+        : _maxSpeedKph.toString();
+
     // Siapkan data payload
     final tripData = {
       'vehicle': widget.vehicleName,
-      'distanceValue': _distanceKm.toStringAsFixed(2),
-      'durationMinutes': (_durationSec ~/ 60).toString(),
-      'averageSpeedKph': _avgSpeedKph.toStringAsFixed(1),
-      'maxSpeedKph': _maxSpeedKph.toString(),
+      'distanceValue': distKm,
+      'durationMinutes': durMin,
+      'averageSpeedKph': avgKph,
+      'maxSpeedKph': maxKph,
       'startTime': '${stTime.hour.toString().padLeft(2, '0')}:${stTime.minute.toString().padLeft(2, '0')}',
       'endTime': '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}',
       'routePoints': _routePoints.map((p) => {'lat': p.lat, 'lng': p.lng}).toList(),
