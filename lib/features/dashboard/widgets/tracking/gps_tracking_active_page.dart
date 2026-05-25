@@ -72,6 +72,10 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         setState(() {
           _isTracking = status.isTracking;
         });
+
+        // Fetch lokasi terakhir dari IoT segera setelah halaman dibuka (walau belum tracking/Start)
+        await _fetchLatestLocationData();
+
         if (_isTracking) {
           _startPolling();
         }
@@ -81,40 +85,24 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
     }
   }
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
+  Future<void> _fetchLatestLocationData() async {
+    try {
+      final latestData = await TrackingApiService.getLatestLocation(
+        widget.vehicleId,
+      );
 
-  // Fungsi polling 5 detik. Memanggil API backend (IoT)
-  void _startPolling() {
-    _startTime ??= DateTime.now();
-    _timer?.cancel();
+      if (latestData != null && mounted) {
+        final newLat = (latestData['latitude'] as num).toDouble();
+        final newLng = (latestData['longitude'] as num).toDouble();
+        final currentSpeed = (latestData['speed_kph'] as num?)?.toInt() ?? 0;
 
-    // Polling setiap 5 detik sesuai pengiriman MQTT backend
-    _timer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      if (!mounted) return;
+        setState(() {
+          _speedKph = currentSpeed;
+          _maxSpeedKph = max(_maxSpeedKph, currentSpeed);
+          _currentLocation = LatLng(newLat, newLng);
 
-      try {
-        final latestData = await TrackingApiService.getLatestLocation(
-          widget.vehicleId,
-        );
-
-        if (latestData != null && mounted) {
-          final newLat = (latestData['latitude'] as num).toDouble();
-          final newLng = (latestData['longitude'] as num).toDouble();
-          final currentSpeed = (latestData['speed_kph'] as num?)?.toInt() ?? 0;
-
-          setState(() {
-            // Durasi bertambah 5 detik
-            _durationSec += 5;
-            _speedKph = currentSpeed;
-            _maxSpeedKph = max(_maxSpeedKph, currentSpeed);
-            _currentLocation = LatLng(newLat, newLng);
-
-            // Simulasi perhitungan jarak sementara untuk tampilan UI live yang responsif
-            // Data sebenarnya akan ditimpa dengan hasil akurat dari Backend saat Stop.
+          if (_isTracking) {
+            // Simulasi hitung jarak live UI jika sedang jalan
             final distanceDelta = (currentSpeed / 3600.0) * 5;
             _distanceKm += distanceDelta;
 
@@ -130,13 +118,43 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                 timestampMs: DateTime.now().millisecondsSinceEpoch,
               ),
             );
-          });
+          }
+        });
 
-          // Pindahkan kamera map mengikuti marker
-          _mapController.move(_currentLocation, _mapController.camera.zoom);
-        }
-      } catch (e) {
-        debugPrint('Error get latest location: $e');
+        // Pindahkan kamera map mengikuti marker terkini
+        _mapController.move(_currentLocation, _mapController.camera.zoom);
+      }
+    } catch (e) {
+      debugPrint('Error get latest location: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  // Fungsi timer 1 detik untuk UI dan polling 5 detik ke backend
+  void _startPolling() {
+    _startTime ??= DateTime.now();
+    _timer?.cancel();
+
+    // Lakukan fetch sekali langsung agar tidak perlu menunggu 5 detik pertama
+    _fetchLatestLocationData();
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (!mounted) return;
+
+      if (_isTracking && _startTime != null) {
+        setState(() {
+          _durationSec = DateTime.now().difference(_startTime!).inSeconds;
+        });
+      }
+
+      // Polling setiap 5 detik sesuai pengiriman MQTT backend
+      if (timer.tick % 5 == 0) {
+        await _fetchLatestLocationData();
       }
     });
   }
@@ -149,9 +167,9 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
           _isTracking = true;
           _distanceKm = 0;
           _durationSec = 0;
-          _speedKph = 35;
+          _speedKph = 0;
           _avgSpeedKph = 0;
-          _maxSpeedKph = 35;
+          _maxSpeedKph = 0;
           _startTime = DateTime.now();
           _routePoints
             ..clear()
@@ -159,7 +177,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
               RoutePoint(
                 lat: _currentLocation.latitude,
                 lng: _currentLocation.longitude,
-                speedKph: 35,
+                speedKph: 0,
                 timestampMs: DateTime.now().millisecondsSinceEpoch,
               ),
             );
@@ -186,6 +204,54 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
           context,
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
+    }
+  }
+
+  Future<void> _confirmStopTracking() async {
+    final shouldStop = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: _card,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            'Hentikan Tracking?',
+            style: TextStyle(color: Colors.white, fontFamily: 'Arial'),
+          ),
+          content: const Text(
+            'Apakah Anda yakin ingin menghentikan tracking? Riwayat perjalanan saat ini akan otomatis disimpan.',
+            style: TextStyle(color: Colors.white70, fontFamily: 'Arial'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'Batal',
+                style: TextStyle(color: Colors.grey, fontFamily: 'Arial'),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                'Hentikan & Simpan',
+                style: TextStyle(color: Colors.white, fontFamily: 'Arial'),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldStop == true) {
+      await _stopTracking();
     }
   }
 
@@ -533,7 +599,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                         height: 56,
                         child: ElevatedButton(
                           onPressed: _isTracking
-                              ? _stopTracking
+                              ? _confirmStopTracking
                               : _startTracking,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _isTracking
