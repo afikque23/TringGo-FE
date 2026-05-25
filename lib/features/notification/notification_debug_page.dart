@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/services/device_token_service.dart';
 import '../../core/services/notification_api_service.dart';
@@ -211,7 +211,7 @@ class _NotificationDebugPageState extends State<NotificationDebugPage> {
     try {
       print('📱 Opening app notification settings...');
       // Open app settings where user can check notification settings
-      final opened = await Geolocator.openAppSettings();
+      final opened = await openAppSettings();
 
       setState(() {
         _isLoading = false;

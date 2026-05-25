@@ -47,16 +47,10 @@
 	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>location</string>
 		<string>fetch</string>
 		<string>processing</string>
 	</array>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Aplikasi membutuhkan akses lokasi untuk tracking perjalanan motor Anda.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Aplikasi membutuhkan akses lokasi untuk tracking perjalanan motor Anda bahkan saat aplikasi tidak aktif.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Aplikasi membutuhkan akses lokasi untuk tracking perjalanan motor Anda.</string>
+
 	<key>NSCameraUsageDescription</key>
 	<string>Aplikasi membutuhkan akses kamera untuk mengambil foto profil Anda.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'features/splashscreen/splashcreen.dart';
@@ -102,7 +101,7 @@ class _MainAppState extends State<MainApp> {
             Locale('id'), // Indonesia
             Locale('en'), // English
           ],
-          home: WithForegroundTask(child: const SplashScreen()),
+          home: const SplashScreen(),
         ),
       ),
     );
