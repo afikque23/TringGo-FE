@@ -13,10 +13,13 @@ class ApiConfig {
   // PILIH SALAH SATU (uncomment yang mau dipakai):
   // ========================================
 
-  // EMULATOR (Default)
-  static const String baseUrl = 'http://10.0.2.2:8000/api/v1/motorcycle';
+  // PRODUCTION (VPS Rumahweb) ✅ AKTIF
+  static const String baseUrl = 'http://tringgo.site/api/v1/motorcycle';
 
-  // PHYSICAL DEVICE (HP Fisik) ✅ AKTIF
+  // EMULATOR (Default)
+  // static const String baseUrl = 'http://10.0.2.2:8000/api/v1/motorcycle';
+
+  // PHYSICAL DEVICE (HP Fisik)
   // static const String baseUrl = 'http://172.20.10.2:8000/api/v1/motorcycle';
 
   // NGROK (Universal)
