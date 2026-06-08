@@ -72,6 +72,10 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         setState(() {
           _isTracking = status.isTracking;
         });
+
+        // Fetch lokasi terakhir dari IoT segera setelah halaman dibuka (walau belum tracking/Start)
+        await _fetchLatestLocationData();
+
         if (_isTracking) {
           _startPolling();
         }
@@ -81,42 +85,27 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
     }
   }
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
+  Future<void> _fetchLatestLocationData() async {
+    try {
+      final latestData = await TrackingApiService.getLatestLocation(
+        widget.vehicleId,
+      );
 
+      if (latestData != null && mounted) {
+        final newLat = (latestData['latitude'] as num).toDouble();
+        final newLng = (latestData['longitude'] as num).toDouble();
+        final currentSpeed = (latestData['speed_kph'] as num?)?.toInt() ?? 0;
 
-  // Fungsi polling 5 detik. Memanggil API backend (IoT)
-  void _startPolling() {
-    _startTime ??= DateTime.now();
-    _timer?.cancel();
-    
-    // Polling setiap 5 detik sesuai pengiriman MQTT backend
-    _timer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      if (!mounted) return;
+        setState(() {
+          _speedKph = currentSpeed;
+          _maxSpeedKph = max(_maxSpeedKph, currentSpeed);
+          _currentLocation = LatLng(newLat, newLng);
 
-      try {
-        final latestData = await TrackingApiService.getLatestLocation(widget.vehicleId);
-        
-        if (latestData != null && mounted) {
-          final newLat = (latestData['latitude'] as num).toDouble();
-          final newLng = (latestData['longitude'] as num).toDouble();
-          final currentSpeed = (latestData['speed_kph'] as num?)?.toInt() ?? 0;
-
-          setState(() {
-            // Durasi bertambah 5 detik
-            _durationSec += 5;
-            _speedKph = currentSpeed;
-            _maxSpeedKph = max(_maxSpeedKph, currentSpeed);
-            _currentLocation = LatLng(newLat, newLng);
-
-            // Simulasi perhitungan jarak sementara untuk tampilan UI live yang responsif
-            // Data sebenarnya akan ditimpa dengan hasil akurat dari Backend saat Stop.
-            final distanceDelta = (currentSpeed / 3600.0) * 5; 
+          if (_isTracking) {
+            // Simulasi hitung jarak live UI jika sedang jalan
+            final distanceDelta = (currentSpeed / 3600.0) * 5;
             _distanceKm += distanceDelta;
-            
+
             if (_durationSec > 0) {
               _avgSpeedKph = (_distanceKm / _durationSec) * 3600.0;
             }
@@ -129,13 +118,43 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                 timestampMs: DateTime.now().millisecondsSinceEpoch,
               ),
             );
-          });
+          }
+        });
 
-          // Pindahkan kamera map mengikuti marker
-          _mapController.move(_currentLocation, _mapController.camera.zoom);
-        }
-      } catch (e) {
-        debugPrint('Error get latest location: $e');
+        // Pindahkan kamera map mengikuti marker terkini
+        _mapController.move(_currentLocation, _mapController.camera.zoom);
+      }
+    } catch (e) {
+      debugPrint('Error get latest location: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  // Fungsi timer 1 detik untuk UI dan polling 5 detik ke backend
+  void _startPolling() {
+    _startTime ??= DateTime.now();
+    _timer?.cancel();
+
+    // Lakukan fetch sekali langsung agar tidak perlu menunggu 5 detik pertama
+    _fetchLatestLocationData();
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (!mounted) return;
+
+      if (_isTracking && _startTime != null) {
+        setState(() {
+          _durationSec = DateTime.now().difference(_startTime!).inSeconds;
+        });
+      }
+
+      // Polling setiap 5 detik sesuai pengiriman MQTT backend
+      if (timer.tick % 5 == 0) {
+        await _fetchLatestLocationData();
       }
     });
   }
@@ -148,9 +167,9 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
           _isTracking = true;
           _distanceKm = 0;
           _durationSec = 0;
-          _speedKph = 35;
+          _speedKph = 0;
           _avgSpeedKph = 0;
-          _maxSpeedKph = 35;
+          _maxSpeedKph = 0;
           _startTime = DateTime.now();
           _routePoints
             ..clear()
@@ -158,26 +177,81 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
               RoutePoint(
                 lat: _currentLocation.latitude,
                 lng: _currentLocation.longitude,
-                speedKph: 35,
+                speedKph: 0,
                 timestampMs: DateTime.now().millisecondsSinceEpoch,
               ),
             );
         });
 
         _startPolling();
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Tracking dimulai')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Tracking dimulai')));
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Tracking gagal dimulai, mungkin trip masih aktif.')),
+            const SnackBar(
+              content: Text(
+                'Tracking gagal dimulai, mungkin trip masih aktif.',
+              ),
+            ),
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
+    }
+  }
+
+  Future<void> _confirmStopTracking() async {
+    final shouldStop = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: _card,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            'Hentikan Tracking?',
+            style: TextStyle(color: Colors.white, fontFamily: 'Arial'),
+          ),
+          content: const Text(
+            'Apakah Anda yakin ingin menghentikan tracking? Riwayat perjalanan saat ini akan otomatis disimpan.',
+            style: TextStyle(color: Colors.white70, fontFamily: 'Arial'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'Batal',
+                style: TextStyle(color: Colors.grey, fontFamily: 'Arial'),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                'Hentikan & Simpan',
+                style: TextStyle(color: Colors.white, fontFamily: 'Arial'),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldStop == true) {
+      await _stopTracking();
     }
   }
 
@@ -185,14 +259,16 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
     _timer?.cancel();
 
     try {
-      final tripSummary = await TrackingApiService.stopTracking(widget.vehicleId);
-      
+      final tripSummary = await TrackingApiService.stopTracking(
+        widget.vehicleId,
+      );
+
       if (mounted) {
         setState(() {
           _isTracking = false;
           _speedKph = 0;
         });
-        
+
         // Kembalikan TripData ke halaman sebelumnya menggunakan summary backend
         _returnTripData(tripSummary: tripSummary);
       }
@@ -202,9 +278,10 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
           _isTracking = false;
           _speedKph = 0;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error hentikan tracking: $e')));
-        
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error hentikan tracking: $e')));
+
         // Tetap kembali menggunakan data lokal jika API error
         _returnTripData();
       }
@@ -214,20 +291,21 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
   void _returnTripData({Map<String, dynamic>? tripSummary}) {
     final endTime = DateTime.now();
     final stTime = _startTime ?? endTime;
-    
+
     // Jika backend mengembalikan summary, gunakan nilainya, jika tidak fallback ke perhitungan lokal
     final distKm = tripSummary != null && tripSummary['distance_meters'] != null
         ? ((tripSummary['distance_meters'] as num) / 1000).toStringAsFixed(2)
         : _distanceKm.toStringAsFixed(2);
-        
-    final durMin = tripSummary != null && tripSummary['duration_minutes'] != null
+
+    final durMin =
+        tripSummary != null && tripSummary['duration_minutes'] != null
         ? tripSummary['duration_minutes'].toString()
         : (_durationSec ~/ 60).toString();
-        
+
     final avgKph = tripSummary != null && tripSummary['avg_speed_kph'] != null
         ? (tripSummary['avg_speed_kph'] as num).toStringAsFixed(1)
         : _avgSpeedKph.toStringAsFixed(1);
-        
+
     final maxKph = tripSummary != null && tripSummary['max_speed_kph'] != null
         ? tripSummary['max_speed_kph'].toString()
         : _maxSpeedKph.toString();
@@ -239,15 +317,19 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
       'durationMinutes': durMin,
       'averageSpeedKph': avgKph,
       'maxSpeedKph': maxKph,
-      'startTime': '${stTime.hour.toString().padLeft(2, '0')}:${stTime.minute.toString().padLeft(2, '0')}',
-      'endTime': '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}',
-      'routePoints': _routePoints.map((p) => {'lat': p.lat, 'lng': p.lng}).toList(),
+      'startTime':
+          '${stTime.hour.toString().padLeft(2, '0')}:${stTime.minute.toString().padLeft(2, '0')}',
+      'endTime':
+          '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}',
+      'routePoints': _routePoints
+          .map((p) => {'lat': p.lat, 'lng': p.lng})
+          .toList(),
       if (_routePoints.isNotEmpty) ...{
         'startLat': _routePoints.first.lat,
         'startLng': _routePoints.first.lng,
         'endLat': _routePoints.last.lat,
         'endLng': _routePoints.last.lng,
-      }
+      },
     };
 
     Navigator.of(context).pop(tripData);
@@ -290,19 +372,21 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
               children: [
                 TileLayer(
                   // CartoDB Voyager Style
-                  urlTemplate: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                  urlTemplate:
+                      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
                   subdomains: const ['a', 'b', 'c', 'd'],
                   userAgentPackageName: 'com.example.motorcycle_management',
                 ),
                 PolylineLayer(
                   polylines: [
-                    Polyline(
-                      points: points,
-                      strokeWidth: 5.0,
-                      color: Colors.blueAccent,
-                      strokeCap: StrokeCap.round,
-                      strokeJoin: StrokeJoin.round,
-                    ),
+                    if (points.length > 1)
+                      Polyline(
+                        points: points,
+                        strokeWidth: 5.0,
+                        color: Colors.blueAccent,
+                        strokeCap: StrokeCap.round,
+                        strokeJoin: StrokeJoin.round,
+                      ),
                   ],
                 ),
                 MarkerLayer(
@@ -358,7 +442,10 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF1A2A1A).withOpacity(0.9),
                         borderRadius: BorderRadius.circular(10),
@@ -392,7 +479,9 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: _card,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(32),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.2),
@@ -477,11 +566,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                               ),
                             ],
                           ),
-                          Container(
-                            width: 1,
-                            height: 40,
-                            color: _border,
-                          ),
+                          Container(width: 1, height: 40, color: _border),
                           Column(
                             children: [
                               const Text(
@@ -513,9 +598,13 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton(
-                          onPressed: _isTracking ? _stopTracking : _startTracking,
+                          onPressed: _isTracking
+                              ? _confirmStopTracking
+                              : _startTracking,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _isTracking ? Colors.redAccent : _green,
+                            backgroundColor: _isTracking
+                                ? Colors.redAccent
+                                : _green,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),

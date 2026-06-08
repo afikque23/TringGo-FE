@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:motorcycle_management/core/utils/app_theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../core/services/vehicle_service.dart';
 import '../../../../core/model/vehicle_model.dart';
@@ -26,8 +27,64 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
   final _warnaController = TextEditingController();
 
   String? _selectedMotorcycleType;
+  String? _selectedKapasitasCc;
+  String? _selectedTransmisi;
   bool _isMainVehicle = false;
   bool _isLoading = false;
+
+  // Parameter default penggunaan (untuk kalkulasi jadwal service)
+  String _defaultBeban = 'ringan';
+  bool _defaultPenumpang = false;
+  String _defaultGayaBerkendara = 'normal';
+  String _defaultKondisiJalan = 'sedang';
+  String _defaultMedan = 'datar';
+
+  // State untuk preset kondisi jalan (disimpan lokal)
+  // Format tiap item: { 'name': 'Kampus', 'value': 'macet' }
+  List<Map<String, String>> _kondisiPresets = [];
+  String? _selectedPresetName; // null = buat baru
+  final _namaKondisiController = TextEditingController();
+
+  static const _presetsKey = 'kondisi_jalan_presets';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadKondisiPresets();
+  }
+
+  Future<void> _loadKondisiPresets() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getStringList(_presetsKey) ?? [];
+      if (mounted) {
+        setState(() {
+          _kondisiPresets = raw.map((e) {
+            final parts = e.split('|');
+            return {
+              'name': parts[0],
+              'value': parts.length > 1 ? parts[1] : 'sedang',
+            };
+          }).toList();
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveKondisiPreset(String name, String value) async {
+    if (name.trim().isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getStringList(_presetsKey) ?? [];
+      final key = '${name.trim()}|$value';
+      if (!raw.any(
+        (e) => e.split('|')[0].toLowerCase() == name.trim().toLowerCase(),
+      )) {
+        raw.add(key);
+        await prefs.setStringList(_presetsKey, raw);
+      }
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -38,6 +95,7 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
     _odometerController.dispose();
     _platNomorController.dispose();
     _warnaController.dispose();
+    _namaKondisiController.dispose();
     super.dispose();
   }
 
@@ -119,6 +177,23 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
                     const SizedBox(height: 20),
                     _buildMotorcycleTypeDropdown(),
                     const SizedBox(height: 20),
+                    _buildChipSelector(
+                      label: 'Kapasitas Mesin',
+                      options: const ['<125cc', '125-250cc', '>250cc'],
+                      values: const ['<125', '125-250', '>250'],
+                      selected: _selectedKapasitasCc,
+                      onSelected: (v) =>
+                          setState(() => _selectedKapasitasCc = v),
+                    ),
+                    const SizedBox(height: 20),
+                    _buildChipSelector(
+                      label: 'Transmisi',
+                      options: const ['Manual', 'Otomatis (CVT)'],
+                      values: const ['manual', 'cvt'],
+                      selected: _selectedTransmisi,
+                      onSelected: (v) => setState(() => _selectedTransmisi = v),
+                    ),
+                    const SizedBox(height: 20),
                     _buildInputField(
                       label: l10n.currentOdometerKm,
                       controller: _odometerController,
@@ -140,6 +215,51 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
 
                     // Checkbox Card
                     _buildMainVehicleCheckbox(),
+
+                    const SizedBox(height: 28),
+
+                    // Section: Parameter Default Penggunaan
+                    _buildSectionHeader(
+                      'Parameter Default Penggunaan',
+                      'Digunakan sebagai baseline kalkulasi jadwal service. Bisa diubah kapanpun.',
+                    ),
+                    const SizedBox(height: 16),
+                    _buildKondisiJalanSelector(),
+                    const SizedBox(height: 16),
+                    _buildChipSelector(
+                      label: 'Medan Jalan Dominan',
+                      options: const [
+                        '🏙️ Datar',
+                        '🌄 Campuran',
+                        '🏔️ Berbukit',
+                      ],
+                      values: const ['datar', 'campuran', 'berbukit'],
+                      selected: _defaultMedan,
+                      onSelected: (v) => setState(() => _defaultMedan = v!),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildChipSelector(
+                      label: 'Gaya Berkendara',
+                      options: const ['🐢 Pelan', '🚗 Normal', '🏎️ Agresif'],
+                      values: const ['pelan', 'normal', 'agresif'],
+                      selected: _defaultGayaBerkendara,
+                      onSelected: (v) =>
+                          setState(() => _defaultGayaBerkendara = v!),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildChipSelector(
+                      label: 'Beban Bawaan Biasa',
+                      options: const ['🎒 Ringan', '🛍️ Sedang', '📦 Berat'],
+                      values: const ['ringan', 'sedang', 'berat'],
+                      selected: _defaultBeban,
+                      onSelected: (v) => setState(() => _defaultBeban = v!),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildToggleField(
+                      label: 'Sering Bawa Penumpang?',
+                      value: _defaultPenumpang,
+                      onChanged: (v) => setState(() => _defaultPenumpang = v),
+                    ),
 
                     const SizedBox(height: 32),
 
@@ -216,6 +336,366 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
     );
   }
 
+  Widget _buildSectionHeader(String title, String subtitle) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colorScheme.primaryContainer.withAlpha(80),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: colorScheme.primary.withAlpha(60),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.tune_rounded,
+                    size: 16,
+                    color: colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onSurface.withAlpha(140),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChipSelector({
+    required String label,
+    required List<String> options,
+    required List<String> values,
+    required String? selected,
+    required void Function(String?) onSelected,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 10),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: colorScheme.onSurface,
+            ),
+          ),
+        ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: List.generate(options.length, (i) {
+            final isSelected = selected == values[i];
+            return GestureDetector(
+              onTap: () => onSelected(values[i]),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected ? colorScheme.primary : colorScheme.surface,
+                  border: Border.all(
+                    color: isSelected
+                        ? colorScheme.primary
+                        : colorScheme.outlineVariant,
+                    width: isSelected ? 1.5 : 1,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  options[i],
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    color: isSelected
+                        ? colorScheme.onPrimary
+                        : colorScheme.onSurface,
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  // ---- Helper: label kondisi jalan ----
+  String _kondisiJalanLabel(String? value) {
+    switch (value) {
+      case 'macet':
+        return '🔴 Macet';
+      case 'lancar':
+        return '🟢 Lancar';
+      default:
+        return '🟡 Sedang';
+    }
+  }
+
+  // ---- Widget: Kondisi Jalan Selector (preset + form baru) ----
+  Widget _buildKondisiJalanSelector() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final bool isBuatBaru = _selectedPresetName == null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            'Kondisi Jalan Sehari-hari',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: colorScheme.onSurface,
+            ),
+          ),
+        ),
+
+        // Dropdown preset jika sudah ada yang tersimpan
+        if (_kondisiPresets.isNotEmpty) ...[
+          DropdownButtonFormField<String>(
+            initialValue: _selectedPresetName ?? '__new__',
+            dropdownColor: colorScheme.surfaceContainerHighest,
+            isExpanded: true,
+            icon: Icon(
+              Icons.keyboard_arrow_down,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            style: TextStyle(color: colorScheme.onSurface, fontSize: 14),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: colorScheme.surface,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: colorScheme.outlineVariant,
+                  width: 1,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            items: [
+              ..._kondisiPresets.map(
+                (p) => DropdownMenuItem(
+                  value: p['name'],
+                  child: Text(
+                    '${p['name']}  •  ${_kondisiJalanLabel(p['value'])}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              const DropdownMenuItem(
+                value: '__new__',
+                child: Text('✏️ Buat Pengaturan Baru'),
+              ),
+            ],
+            onChanged: (val) {
+              setState(() {
+                if (val == '__new__' || val == null) {
+                  _selectedPresetName = null;
+                  _namaKondisiController.clear();
+                  _defaultKondisiJalan = 'sedang';
+                } else {
+                  _selectedPresetName = val;
+                  final preset = _kondisiPresets.firstWhere(
+                    (p) => p['name'] == val,
+                    orElse: () => {'name': val, 'value': 'sedang'},
+                  );
+                  _defaultKondisiJalan = preset['value'] ?? 'sedang';
+                }
+              });
+            },
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // Form buat baru
+        if (isBuatBaru) ...[
+          // Field nama kondisi
+          TextFormField(
+            controller: _namaKondisiController,
+            style: TextStyle(color: colorScheme.onSurface, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'Nama kondisi, mis: Kampus, Touring, Kantor…',
+              hintStyle: TextStyle(
+                color: colorScheme.onSurface.withAlpha(100),
+                fontSize: 13,
+              ),
+              filled: true,
+              fillColor: colorScheme.surface,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 13,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: colorScheme.outlineVariant,
+                  width: 1,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Chip kondisi jalan
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final entry in [
+                ('🔴 Macet', 'macet'),
+                ('🟡 Sedang', 'sedang'),
+                ('🟢 Lancar', 'lancar'),
+              ])
+                GestureDetector(
+                  onTap: () => setState(() => _defaultKondisiJalan = entry.$2),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _defaultKondisiJalan == entry.$2
+                          ? colorScheme.primary
+                          : colorScheme.surface,
+                      border: Border.all(
+                        color: _defaultKondisiJalan == entry.$2
+                            ? colorScheme.primary
+                            : colorScheme.outlineVariant,
+                        width: _defaultKondisiJalan == entry.$2 ? 1.5 : 1,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      entry.$1,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: _defaultKondisiJalan == entry.$2
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        color: _defaultKondisiJalan == entry.$2
+                            ? colorScheme.onPrimary
+                            : colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ] else
+          // Badge saat preset dipilih
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer.withAlpha(80),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: colorScheme.primary.withAlpha(60),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.check_circle_outline,
+                  size: 16,
+                  color: colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _kondisiJalanLabel(_defaultKondisiJalan),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildToggleField({
+    required String label,
+    required bool value,
+    required void Function(bool) onChanged,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        border: Border.all(color: colorScheme.outlineVariant, width: 1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(fontSize: 14, color: colorScheme.onSurface),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: colorScheme.primary,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMotorcycleTypeDropdown() {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
@@ -236,7 +716,7 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
         ),
         // PERBAIKAN: Hapus Container pembungkus, gunakan decoration di dalam field
         DropdownButtonFormField<String>(
-          value: _selectedMotorcycleType,
+          initialValue: _selectedMotorcycleType,
           dropdownColor: colorScheme.surfaceContainerHighest,
           isExpanded: true, // Membuat menu pilihan lebarnya sama dengan box
           style: TextStyle(color: colorScheme.onSurface, fontSize: 16),
@@ -424,16 +904,33 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
         model: _modelController.text,
         year: year,
         tipeMotor: _selectedMotorcycleType,
+        kapasitasCc: _selectedKapasitasCc,
+        transmisi: _selectedTransmisi,
         odometer: odometer,
         licensePlate: _platNomorController.text.isEmpty
             ? null
             : _platNomorController.text,
         color: _warnaController.text.isEmpty ? null : _warnaController.text,
         isPrimary: _isMainVehicle,
+        // Parameter default kalkulasi service
+        defaultBeban: _defaultBeban,
+        defaultPenumpang: _defaultPenumpang,
+        defaultGayaBerkendara: _defaultGayaBerkendara,
+        defaultKondisiJalan: _defaultKondisiJalan,
+        defaultMedan: _defaultMedan,
       );
 
       // Call API
       await _vehicleService.createVehicle(vehicle);
+
+      // Simpan preset kondisi jalan baru jika user isi nama
+      if (_selectedPresetName == null &&
+          _namaKondisiController.text.trim().isNotEmpty) {
+        await _saveKondisiPreset(
+          _namaKondisiController.text.trim(),
+          _defaultKondisiJalan,
+        );
+      }
 
       if (!mounted) return;
 

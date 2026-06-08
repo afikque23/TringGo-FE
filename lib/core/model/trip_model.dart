@@ -14,7 +14,42 @@ class TripModel {
   final double averageSpeed; // in km/h
   final double maxSpeed; // in km/h
   final List<LocationPoint> points;
-  final String status; // 'active', 'completed'
+  final String status; // 'active', 'completed', 'paused'
+
+  // Sumber data
+  final String source; // 'gps' atau 'manual'
+
+  // Parameter konteks (auto-detect GPS / kalibrasi manual)
+  @JsonKey(name: 'kondisi_lalu_lintas')
+  final String? kondisiLaluLintas; // 'macet', 'sedang', 'lancar'
+  final String? medan; // 'datar', 'berbukit', 'campuran'
+  @JsonKey(name: 'gaya_berkendara')
+  final String? gayaBerkendara; // 'pelan', 'normal', 'agresif'
+
+  // Parameter manual
+  final String? beban; // 'ringan', 'sedang', 'berat'
+  @JsonKey(name: 'ada_penumpang')
+  final bool? adaPenumpang;
+
+  // Data sensor GPS tambahan
+  @JsonKey(name: 'elevation_gain')
+  final int? elevationGain; // meters
+  @JsonKey(name: 'idle_time_minutes')
+  final int? idleTimeMinutes;
+  @JsonKey(name: 'rough_road_count')
+  final int roughRoadCount;
+  @JsonKey(name: 'hard_acceleration_count')
+  final int hardAccelerationCount;
+  @JsonKey(name: 'hard_braking_count')
+  final int hardBrakingCount;
+
+  // Kalibrasi & scoring
+  @JsonKey(name: 'is_calibrated')
+  final bool isCalibrated;
+  @JsonKey(name: 'service_score_factor')
+  final double serviceScoreFactor;
+
+  final String? notes;
 
   TripModel({
     required this.id,
@@ -27,6 +62,20 @@ class TripModel {
     required this.maxSpeed,
     required this.points,
     required this.status,
+    this.source = 'gps',
+    this.kondisiLaluLintas,
+    this.medan,
+    this.gayaBerkendara,
+    this.beban,
+    this.adaPenumpang,
+    this.elevationGain,
+    this.idleTimeMinutes,
+    this.roughRoadCount = 0,
+    this.hardAccelerationCount = 0,
+    this.hardBrakingCount = 0,
+    this.isCalibrated = false,
+    this.serviceScoreFactor = 1.0,
+    this.notes,
   });
 
   factory TripModel.fromJson(Map<String, dynamic> json) =>
@@ -170,6 +219,8 @@ class TripModel {
   factory TripModel.createNew({
     required String motorcycleName,
     required LocationPoint startPoint,
+    String? beban,
+    bool? adaPenumpang,
   }) {
     return TripModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -182,10 +233,52 @@ class TripModel {
       maxSpeed: 0.0,
       points: [startPoint],
       status: 'active',
+      source: 'gps',
+      beban: beban,
+      adaPenumpang: adaPenumpang,
     );
   }
 
-  // Copy with method for updates
+  // Create a manual trip entry
+  factory TripModel.createManual({
+    required String motorcycleName,
+    required DateTime startTime,
+    required DateTime endTime,
+    required double totalDistance,
+    String? kondisiLaluLintas,
+    String? medan,
+    String? gayaBerkendara,
+    String? beban,
+    bool? adaPenumpang,
+    String? notes,
+  }) {
+    final durationSec = endTime.difference(startTime).inSeconds;
+    final avgSpeed = durationSec > 0
+        ? (totalDistance / (durationSec / 3600))
+        : 0.0;
+
+    return TripModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      motorcycleName: motorcycleName,
+      startTime: startTime,
+      endTime: endTime,
+      totalDistance: totalDistance,
+      duration: durationSec,
+      averageSpeed: avgSpeed,
+      maxSpeed: 0.0,
+      points: [],
+      status: 'completed',
+      source: 'manual',
+      kondisiLaluLintas: kondisiLaluLintas,
+      medan: medan,
+      gayaBerkendara: gayaBerkendara,
+      beban: beban,
+      adaPenumpang: adaPenumpang,
+      notes: notes,
+    );
+  }
+
+  // Copy with method for updates & kalibrasi
   TripModel copyWith({
     String? id,
     String? motorcycleName,
@@ -197,6 +290,20 @@ class TripModel {
     double? maxSpeed,
     List<LocationPoint>? points,
     String? status,
+    String? source,
+    String? kondisiLaluLintas,
+    String? medan,
+    String? gayaBerkendara,
+    String? beban,
+    bool? adaPenumpang,
+    int? elevationGain,
+    int? idleTimeMinutes,
+    int? roughRoadCount,
+    int? hardAccelerationCount,
+    int? hardBrakingCount,
+    bool? isCalibrated,
+    double? serviceScoreFactor,
+    String? notes,
   }) {
     return TripModel(
       id: id ?? this.id,
@@ -209,6 +316,21 @@ class TripModel {
       maxSpeed: maxSpeed ?? this.maxSpeed,
       points: points ?? this.points,
       status: status ?? this.status,
+      source: source ?? this.source,
+      kondisiLaluLintas: kondisiLaluLintas ?? this.kondisiLaluLintas,
+      medan: medan ?? this.medan,
+      gayaBerkendara: gayaBerkendara ?? this.gayaBerkendara,
+      beban: beban ?? this.beban,
+      adaPenumpang: adaPenumpang ?? this.adaPenumpang,
+      elevationGain: elevationGain ?? this.elevationGain,
+      idleTimeMinutes: idleTimeMinutes ?? this.idleTimeMinutes,
+      roughRoadCount: roughRoadCount ?? this.roughRoadCount,
+      hardAccelerationCount:
+          hardAccelerationCount ?? this.hardAccelerationCount,
+      hardBrakingCount: hardBrakingCount ?? this.hardBrakingCount,
+      isCalibrated: isCalibrated ?? this.isCalibrated,
+      serviceScoreFactor: serviceScoreFactor ?? this.serviceScoreFactor,
+      notes: notes ?? this.notes,
     );
   }
 
@@ -233,6 +355,7 @@ class TripModel {
 
   @override
   String toString() {
-    return 'TripModel(id: $id, distance: ${totalDistance.toStringAsFixed(2)} km, duration: $formattedDuration, status: $status)';
+    return 'TripModel(id: $id, distance: ${totalDistance.toStringAsFixed(2)} km, '
+        'duration: $formattedDuration, status: $status, source: $source)';
   }
 }

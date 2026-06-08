@@ -14,8 +14,16 @@ class EditMotorPage extends StatefulWidget {
   final String odometer;
   final bool isMainVehicle;
   final String? tipeMotor;
+  final String? kapasitasCc;
+  final String? transmisi;
   final String? licensePlate;
   final String? color;
+  // Parameter default
+  final String? defaultBeban;
+  final bool? defaultPenumpang;
+  final String? defaultGayaBerkendara;
+  final String? defaultKondisiJalan;
+  final String? defaultMedan;
 
   const EditMotorPage({
     super.key,
@@ -27,8 +35,15 @@ class EditMotorPage extends StatefulWidget {
     required this.odometer,
     required this.isMainVehicle,
     this.tipeMotor,
+    this.kapasitasCc,
+    this.transmisi,
     this.licensePlate,
     this.color,
+    this.defaultBeban,
+    this.defaultPenumpang,
+    this.defaultGayaBerkendara,
+    this.defaultKondisiJalan,
+    this.defaultMedan,
   });
 
   @override
@@ -47,7 +62,16 @@ class _EditMotorPageState extends State<EditMotorPage> {
   late final TextEditingController _warnaController;
   late bool _isMainVehicle;
   String? _selectedMotorcycleType;
+  String? _selectedKapasitasCc;
+  String? _selectedTransmisi;
   bool _isLoading = false;
+
+  // Parameter default penggunaan
+  String _defaultBeban = 'ringan';
+  bool _defaultPenumpang = false;
+  String _defaultGayaBerkendara = 'normal';
+  String _defaultKondisiJalan = 'sedang';
+  String _defaultMedan = 'datar';
 
   @override
   void initState() {
@@ -63,6 +87,14 @@ class _EditMotorPageState extends State<EditMotorPage> {
     _warnaController = TextEditingController(text: widget.color ?? '');
     _isMainVehicle = widget.isMainVehicle;
     _selectedMotorcycleType = widget.tipeMotor;
+    _selectedKapasitasCc = widget.kapasitasCc;
+    _selectedTransmisi = widget.transmisi;
+    // Inisialisasi parameter default dengan nilai dari widget atau fallback
+    _defaultBeban = widget.defaultBeban ?? 'ringan';
+    _defaultPenumpang = widget.defaultPenumpang ?? false;
+    _defaultGayaBerkendara = widget.defaultGayaBerkendara ?? 'normal';
+    _defaultKondisiJalan = widget.defaultKondisiJalan ?? 'sedang';
+    _defaultMedan = widget.defaultMedan ?? 'datar';
   }
 
   @override
@@ -155,6 +187,23 @@ class _EditMotorPageState extends State<EditMotorPage> {
                     const SizedBox(height: 20),
                     _buildMotorcycleTypeDropdown(),
                     const SizedBox(height: 20),
+                    _buildChipSelector(
+                      label: 'Kapasitas Mesin',
+                      options: const ['<125cc', '125-250cc', '>250cc'],
+                      values: const ['<125', '125-250', '>250'],
+                      selected: _selectedKapasitasCc,
+                      onSelected: (v) =>
+                          setState(() => _selectedKapasitasCc = v),
+                    ),
+                    const SizedBox(height: 20),
+                    _buildChipSelector(
+                      label: 'Transmisi',
+                      options: const ['Manual', 'Otomatis (CVT)'],
+                      values: const ['manual', 'cvt'],
+                      selected: _selectedTransmisi,
+                      onSelected: (v) => setState(() => _selectedTransmisi = v),
+                    ),
+                    const SizedBox(height: 20),
                     _buildInputField(
                       label: l10n.currentOdometerKm,
                       controller: _odometerController,
@@ -177,6 +226,58 @@ class _EditMotorPageState extends State<EditMotorPage> {
                     // Checkbox Card
                     _buildMainVehicleCheckbox(),
 
+                    const SizedBox(height: 28),
+
+                    // Section: Parameter Default
+                    _buildSectionHeader(
+                      'Parameter Default Penggunaan',
+                      'Digunakan sebagai baseline kalkulasi jadwal service.',
+                    ),
+                    const SizedBox(height: 16),
+                    _buildChipSelector(
+                      label: 'Kondisi Jalan Sehari-hari',
+                      options: const ['🔴 Macet', '🟡 Sedang', '🟢 Lancar'],
+                      values: const ['macet', 'sedang', 'lancar'],
+                      selected: _defaultKondisiJalan,
+                      onSelected: (v) =>
+                          setState(() => _defaultKondisiJalan = v!),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildChipSelector(
+                      label: 'Medan Jalan Dominan',
+                      options: const [
+                        '🏙️ Datar',
+                        '🌄 Campuran',
+                        '🏔️ Berbukit',
+                      ],
+                      values: const ['datar', 'campuran', 'berbukit'],
+                      selected: _defaultMedan,
+                      onSelected: (v) => setState(() => _defaultMedan = v!),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildChipSelector(
+                      label: 'Gaya Berkendara',
+                      options: const ['🐢 Pelan', '🚗 Normal', '🏎️ Agresif'],
+                      values: const ['pelan', 'normal', 'agresif'],
+                      selected: _defaultGayaBerkendara,
+                      onSelected: (v) =>
+                          setState(() => _defaultGayaBerkendara = v!),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildChipSelector(
+                      label: 'Beban Bawaan Biasa',
+                      options: const ['🎒 Ringan', '🛍️ Sedang', '📦 Berat'],
+                      values: const ['ringan', 'sedang', 'berat'],
+                      selected: _defaultBeban,
+                      onSelected: (v) => setState(() => _defaultBeban = v!),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildToggleField(
+                      label: 'Sering Bawa Penumpang?',
+                      value: _defaultPenumpang,
+                      onChanged: (v) => setState(() => _defaultPenumpang = v),
+                    ),
+
                     const SizedBox(height: 32),
 
                     // Action Buttons
@@ -185,6 +286,138 @@ class _EditMotorPageState extends State<EditMotorPage> {
                 ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, String subtitle) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer.withAlpha(80),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colorScheme.primary.withAlpha(60), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.tune_rounded, size: 16, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurface.withAlpha(140),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChipSelector({
+    required String label,
+    required List<String> options,
+    required List<String> values,
+    required String? selected,
+    required void Function(String?) onSelected,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 10),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: colorScheme.onSurface,
+            ),
+          ),
+        ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: List.generate(options.length, (i) {
+            final isSelected = selected == values[i];
+            return GestureDetector(
+              onTap: () => onSelected(values[i]),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected ? colorScheme.primary : colorScheme.surface,
+                  border: Border.all(
+                    color: isSelected
+                        ? colorScheme.primary
+                        : colorScheme.outlineVariant,
+                    width: isSelected ? 1.5 : 1,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  options[i],
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    color: isSelected
+                        ? colorScheme.onPrimary
+                        : colorScheme.onSurface,
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildToggleField({
+    required String label,
+    required bool value,
+    required void Function(bool) onChanged,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        border: Border.all(color: colorScheme.outlineVariant, width: 1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(fontSize: 14, color: colorScheme.onSurface),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: colorScheme.primary,
           ),
         ],
       ),
@@ -274,7 +507,7 @@ class _EditMotorPageState extends State<EditMotorPage> {
         SizedBox(
           width: double.infinity, // Atau atur angka spesifik misal: 300
           child: DropdownButtonFormField<String>(
-            value: _selectedMotorcycleType,
+            initialValue: _selectedMotorcycleType,
             dropdownColor: colorScheme.surfaceContainerHighest,
             // PERBAIKAN: Matikan isExpanded agar menu tidak memaksa melebar penuh layar
             isExpanded: false,
@@ -467,12 +700,20 @@ class _EditMotorPageState extends State<EditMotorPage> {
         model: _modelController.text,
         year: year,
         tipeMotor: _selectedMotorcycleType,
+        kapasitasCc: _selectedKapasitasCc,
+        transmisi: _selectedTransmisi,
         odometer: odometer,
         licensePlate: _platNomorController.text.isEmpty
             ? null
             : _platNomorController.text,
         color: _warnaController.text.isEmpty ? null : _warnaController.text,
         isPrimary: _isMainVehicle,
+        // Parameter default
+        defaultBeban: _defaultBeban,
+        defaultPenumpang: _defaultPenumpang,
+        defaultGayaBerkendara: _defaultGayaBerkendara,
+        defaultKondisiJalan: _defaultKondisiJalan,
+        defaultMedan: _defaultMedan,
       );
 
       // Call API

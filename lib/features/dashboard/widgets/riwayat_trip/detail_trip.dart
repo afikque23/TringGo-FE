@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../../l10n/app_localizations.dart';
 
 class DetailTripPage extends StatelessWidget {
@@ -150,28 +152,107 @@ class DetailTripPage extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
             ),
           ),
-          // Grid overlay
-          Positioned.fill(child: CustomPaint(painter: GridPainter())),
-          // Route polyline
-          if (routePoints.length >= 2)
-            Positioned.fill(
-              child: CustomPaint(
-                painter: RoutePolylinePainter(
-                  points: routePoints,
-                  color: colorScheme.primary,
-                  startColor: colorScheme.primary,
-                  endColor: colorScheme.tertiary,
+
+          if (routePoints.isNotEmpty) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: FlutterMap(
+                options: MapOptions(
+                  initialCenter: LatLng(
+                    routePoints.first.lat,
+                    routePoints.first.lng,
+                  ),
+                  initialZoom: 15.0,
+                  interactionOptions: const InteractionOptions(
+                    flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                  ),
                 ),
-              ),
-            )
-          else
-            Center(
-              child: Icon(
-                Icons.route,
-                size: 80,
-                color: colorScheme.primary.withValues(alpha: 0.3),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                    subdomains: const ['a', 'b', 'c', 'd'],
+                  ),
+                  PolylineLayer(
+                    polylines: [
+                      Polyline(
+                        points: routePoints
+                            .map((p) => LatLng(p.lat, p.lng))
+                            .toList(),
+                        strokeWidth: 4.0,
+                        color: Colors.blueAccent,
+                      ),
+                    ],
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: LatLng(
+                          routePoints.first.lat,
+                          routePoints.first.lng,
+                        ),
+                        width: 30,
+                        height: 30,
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            color: Colors.green,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.play_arrow,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                      if (routePoints.length > 1)
+                        Marker(
+                          point: LatLng(
+                            routePoints.last.lat,
+                            routePoints.last.lng,
+                          ),
+                          width: 30,
+                          height: 30,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.stop,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
               ),
             ),
+          ] else ...[
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.map_outlined,
+                    size: 48,
+                    color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Peta Tidak Tersedia',
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      color: colorScheme.onSurfaceVariant,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -573,141 +654,8 @@ class DetailTripPage extends StatelessWidget {
   }
 }
 
-// Custom painter for grid overlay on map
-class GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.1)
-      ..strokeWidth = 1;
-
-    // Draw horizontal lines
-    for (int i = 0; i <= 8; i++) {
-      double y = (size.height / 8) * i;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-
-    // Draw vertical lines
-    for (int i = 0; i <= 8; i++) {
-      double x = (size.width / 8) * i;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
 class RoutePoint {
   final double lat;
   final double lng;
   const RoutePoint(this.lat, this.lng);
-}
-
-class RoutePolylinePainter extends CustomPainter {
-  final List<RoutePoint> points;
-  final Color color;
-  final Color startColor;
-  final Color endColor;
-
-  const RoutePolylinePainter({
-    required this.points,
-    required this.color,
-    required this.startColor,
-    required this.endColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (points.length < 2) return;
-
-    const padding = 18.0;
-    final rect = Rect.fromLTWH(
-      padding,
-      padding,
-      size.width - (padding * 2),
-      size.height - (padding * 2),
-    );
-    if (rect.width <= 0 || rect.height <= 0) return;
-
-    double minLat = points.first.lat;
-    double maxLat = points.first.lat;
-    double minLng = points.first.lng;
-    double maxLng = points.first.lng;
-
-    for (final p in points) {
-      if (p.lat < minLat) minLat = p.lat;
-      if (p.lat > maxLat) maxLat = p.lat;
-      if (p.lng < minLng) minLng = p.lng;
-      if (p.lng > maxLng) maxLng = p.lng;
-    }
-
-    final latRange = (maxLat - minLat).abs();
-    final lngRange = (maxLng - minLng).abs();
-
-    // Expand a tiny bit so start/end aren't stuck to edges
-    final safeLatRange = latRange < 1e-9 ? 1.0 : latRange;
-    final safeLngRange = lngRange < 1e-9 ? 1.0 : lngRange;
-
-    final scaleX = rect.width / safeLngRange;
-    final scaleY = rect.height / safeLatRange;
-    final scale = scaleX < scaleY ? scaleX : scaleY;
-
-    final contentW = safeLngRange * scale;
-    final contentH = safeLatRange * scale;
-
-    final dx = rect.left + (rect.width - contentW) / 2;
-    final dy = rect.top + (rect.height - contentH) / 2;
-
-    Offset project(RoutePoint p) {
-      // x: west->east increasing
-      final x = dx + ((p.lng - minLng) * scale);
-      // y: north->south; invert lat so larger lat is higher on screen
-      final y = dy + ((maxLat - p.lat) * scale);
-      return Offset(x, y);
-    }
-
-    final startOffset = project(points.first);
-    final endOffset = project(points.last);
-
-    final path = Path()..moveTo(startOffset.dx, startOffset.dy);
-    for (int i = 1; i < points.length; i++) {
-      final o = project(points[i]);
-      path.lineTo(o.dx, o.dy);
-    }
-
-    final shadowPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..color = color.withValues(alpha: 0.18);
-    canvas.drawPath(path, shadowPaint);
-
-    final linePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.2
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..color = color.withValues(alpha: 0.95);
-    canvas.drawPath(path, linePaint);
-
-    // Start/End markers
-    final markerBg = Paint()..color = color.withValues(alpha: 0.22);
-    canvas.drawCircle(startOffset, 7.0, markerBg);
-    canvas.drawCircle(endOffset, 7.0, markerBg);
-
-    final startPaint = Paint()..color = startColor.withValues(alpha: 0.95);
-    final endPaint = Paint()..color = endColor.withValues(alpha: 0.95);
-    canvas.drawCircle(startOffset, 5.0, startPaint);
-    canvas.drawCircle(endOffset, 5.0, endPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant RoutePolylinePainter oldDelegate) {
-    return oldDelegate.points.length != points.length ||
-        oldDelegate.color != color ||
-        oldDelegate.startColor != startColor ||
-        oldDelegate.endColor != endColor;
-  }
 }

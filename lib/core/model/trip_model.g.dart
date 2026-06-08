@@ -21,6 +21,21 @@ TripModel _$TripModelFromJson(Map<String, dynamic> json) => TripModel(
       .map((e) => LocationPoint.fromJson(e as Map<String, dynamic>))
       .toList(),
   status: json['status'] as String,
+  source: json['source'] as String? ?? 'gps',
+  kondisiLaluLintas: json['kondisi_lalu_lintas'] as String?,
+  medan: json['medan'] as String?,
+  gayaBerkendara: json['gaya_berkendara'] as String?,
+  beban: json['beban'] as String?,
+  adaPenumpang: json['ada_penumpang'] as bool?,
+  elevationGain: (json['elevation_gain'] as num?)?.toInt(),
+  idleTimeMinutes: (json['idle_time_minutes'] as num?)?.toInt(),
+  roughRoadCount: (json['rough_road_count'] as num?)?.toInt() ?? 0,
+  hardAccelerationCount:
+      (json['hard_acceleration_count'] as num?)?.toInt() ?? 0,
+  hardBrakingCount: (json['hard_braking_count'] as num?)?.toInt() ?? 0,
+  isCalibrated: json['is_calibrated'] as bool? ?? false,
+  serviceScoreFactor: (json['service_score_factor'] as num?)?.toDouble() ?? 1.0,
+  notes: json['notes'] as String?,
 );
 
 Map<String, dynamic> _$TripModelToJson(TripModel instance) => <String, dynamic>{
@@ -34,4 +49,18 @@ Map<String, dynamic> _$TripModelToJson(TripModel instance) => <String, dynamic>{
   'maxSpeed': instance.maxSpeed,
   'points': instance.points.map((e) => e.toJson()).toList(),
   'status': instance.status,
+  'source': instance.source,
+  'kondisi_lalu_lintas': instance.kondisiLaluLintas,
+  'medan': instance.medan,
+  'gaya_berkendara': instance.gayaBerkendara,
+  'beban': instance.beban,
+  'ada_penumpang': instance.adaPenumpang,
+  'elevation_gain': instance.elevationGain,
+  'idle_time_minutes': instance.idleTimeMinutes,
+  'rough_road_count': instance.roughRoadCount,
+  'hard_acceleration_count': instance.hardAccelerationCount,
+  'hard_braking_count': instance.hardBrakingCount,
+  'is_calibrated': instance.isCalibrated,
+  'service_score_factor': instance.serviceScoreFactor,
+  'notes': instance.notes,
 };

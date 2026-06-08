@@ -15,71 +15,77 @@ class Onboarding1 extends StatelessWidget {
     return Scaffold(
       backgroundColor: colorScheme.surface,
       body: SafeArea(
-        child: Stack(
-          children: [
-            // Main Content
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 25.0),
-              child: Column(
-                children: [
-                  const SizedBox(height: 10),
-                  // Skip Button
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: TextButton(
-                      onPressed: onSkip,
-                      child: Text(
-                        l10n.skip,
-                        style: TextStyle(
-                          fontFamily: 'Arial',
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                          height: 1.43,
-                          color: colorScheme.onSurfaceVariant,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 25.0),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 10),
+                        // Skip Button
+                        Align(
+                          alignment: Alignment.topRight,
+                          child: TextButton(
+                            onPressed: onSkip,
+                            child: Text(
+                              l10n.skip,
+                              style: TextStyle(
+                                fontFamily: 'Arial',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w400,
+                                height: 1.43,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 80),
+                        // Icon Container
+                        _buildIconContainer(),
+                        const SizedBox(height: 40),
+                        // Heading
+                        Text(
+                          l10n.onboarding1Title,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Arial',
+                            fontSize: 30,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Description
+                        Text(
+                          l10n.onboarding1Desc,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Arial',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w400,
+                            height: 1.625,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const Spacer(),
+                        // Progress Indicators
+                        _buildProgressIndicators(context),
+                        const SizedBox(height: 24),
+                        // Next Button
+                        _buildNextButton(context),
+                        const SizedBox(height: 24),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 130),
-                  // Icon Container
-                  _buildIconContainer(),
-                  const SizedBox(height: 48),
-                  // Heading
-                  Text(
-                    l10n.onboarding1Title,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Arial',
-                      fontSize: 30,
-                      fontWeight: FontWeight.w700,
-                      height: 1.2,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Description
-                  Text(
-                    l10n.onboarding1Desc,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Arial',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w400,
-                      height: 1.625,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const Spacer(),
-                  // Progress Indicators
-                  _buildProgressIndicators(context),
-                  const SizedBox(height: 24),
-                  // Next Button
-                  _buildNextButton(context),
-                  const SizedBox(height: 32),
-                ],
+                ),
               ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
