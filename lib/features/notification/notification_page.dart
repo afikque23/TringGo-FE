@@ -3,8 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/services/notification_api_service.dart';
-import '../../core/services/notification_service.dart';
-import 'notification_debug_page.dart';
 
 class NotificationPage extends StatefulWidget {
   const NotificationPage({super.key});
@@ -39,7 +37,6 @@ class _NotificationPageState extends State<NotificationPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
       _setupFCMListener();
-      _printDebugInfo();
     });
   }
 
@@ -112,26 +109,6 @@ class _NotificationPageState extends State<NotificationPage> {
       print('⚠️ Error setting up FCM listener: $e');
       // Firebase belum initialized atau ada error lain
       // App tetap bisa digunakan tanpa push notification listener
-    }
-  }
-
-  /// Print debug info ke console
-  Future<void> _printDebugInfo() async {
-    try {
-      final token = await NotificationService.instance.getToken();
-      print('\n═══════════════════════════════════════');
-      print('🔥 FIREBASE NOTIFICATION DEBUG INFO');
-      print('═══════════════════════════════════════');
-      if (token != null && token.length > 40) {
-        print('📱 FCM Token: ${token.substring(0, 40)}...');
-      } else {
-        print('📱 FCM Token: $token');
-      }
-      print('📍 Page: Notification Page');
-      print('═══════════════════════════════════════\n');
-    } catch (e) {
-      print('⚠️ Error getting debug info: $e');
-      // Error mendapatkan FCM token, bisa diabaikan
     }
   }
 
@@ -211,24 +188,9 @@ class _NotificationPageState extends State<NotificationPage> {
                               ),
                             ],
                           ),
-                          // Debug & Refresh buttons
+                          // Refresh button
                           Row(
                             children: [
-                              IconButton(
-                                icon: Icon(
-                                  Icons.bug_report,
-                                  color: colorScheme.secondary,
-                                ),
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const NotificationDebugPage(),
-                                    ),
-                                  );
-                                },
-                              ),
                               IconButton(
                                 icon: Icon(
                                   Icons.refresh,

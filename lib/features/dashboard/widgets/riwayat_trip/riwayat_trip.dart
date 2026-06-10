@@ -44,6 +44,60 @@ class _RiwayatTripPageState extends State<RiwayatTripPage> {
     }
   }
 
+  Future<void> _confirmDeleteTrip(TripModel trip) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus Riwayat', style: TextStyle(fontFamily: 'Arial')),
+        content: const Text('Apakah Anda yakin ingin menghapus perjalanan ini?', style: TextStyle(fontFamily: 'Arial')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // Show loading
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final success = await _tripService.deleteTrip(trip.id);
+    
+    // Hide loading
+    if (mounted) Navigator.pop(context);
+
+    if (success) {
+      setState(() {
+        _trips.removeWhere((t) => t.id == trip.id);
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Perjalanan berhasil dihapus')),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal menghapus perjalanan')),
+        );
+      }
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -451,10 +505,23 @@ class _RiwayatTripPageState extends State<RiwayatTripPage> {
                     ),
                   ],
                 ),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: colorScheme.onSurfaceVariant,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      color: Colors.red,
+                      onPressed: () => _confirmDeleteTrip(trip),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ],
                 ),
               ],
             ),

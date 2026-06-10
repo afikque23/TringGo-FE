@@ -16,7 +16,6 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
@@ -34,7 +33,6 @@ class _RegisterPageState extends State<RegisterPage> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
-    _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -85,7 +83,6 @@ class _RegisterPageState extends State<RegisterPage> {
   Future<void> _handleRegister() async {
     if (_nameController.text.isEmpty ||
         _emailController.text.isEmpty ||
-        _phoneController.text.isEmpty ||
         _passwordController.text.isEmpty) {
       _showErrorDialog('Semua field harus diisi');
       return;
@@ -107,7 +104,6 @@ class _RegisterPageState extends State<RegisterPage> {
       final requestBody = {
         'name': _nameController.text,
         'email': _emailController.text,
-        'phone': _phoneController.text,
         'password': _passwordController.text,
         'password_confirmation': _confirmPasswordController.text,
       };
@@ -259,14 +255,6 @@ class _RegisterPageState extends State<RegisterPage> {
                             label: l10n.email,
                             hint: 'email.anda@contoh.com',
                             icon: Icons.email_outlined,
-                          ),
-                          const SizedBox(height: 16),
-                          // Phone Field
-                          _buildTextField(
-                            controller: _phoneController,
-                            label: 'Nomor Telepon',
-                            hint: '+62 812 3456 7890',
-                            icon: Icons.phone_outlined,
                           ),
                           const SizedBox(height: 16),
                           // Password Field
