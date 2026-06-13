@@ -328,7 +328,6 @@ class _ListMotorPageState extends State<ListMotorPage> {
                               isMainVehicle: vehicle.isPrimary,
                               tipeMotor: vehicle.tipeMotor,
                               kapasitasCc: vehicle.kapasitasCc,
-                              transmisi: vehicle.transmisi,
                               licensePlate: vehicle.licensePlate,
                               color: vehicle.color,
                               defaultBeban: vehicle.defaultBeban,

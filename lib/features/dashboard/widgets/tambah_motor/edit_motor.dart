@@ -15,7 +15,6 @@ class EditMotorPage extends StatefulWidget {
   final bool isMainVehicle;
   final String? tipeMotor;
   final String? kapasitasCc;
-  final String? transmisi;
   final String? licensePlate;
   final String? color;
   // Parameter default
@@ -36,7 +35,6 @@ class EditMotorPage extends StatefulWidget {
     required this.isMainVehicle,
     this.tipeMotor,
     this.kapasitasCc,
-    this.transmisi,
     this.licensePlate,
     this.color,
     this.defaultBeban,
@@ -63,7 +61,6 @@ class _EditMotorPageState extends State<EditMotorPage> {
   late bool _isMainVehicle;
   String? _selectedMotorcycleType;
   String? _selectedKapasitasCc;
-  String? _selectedTransmisi;
   bool _isLoading = false;
 
   // Parameter default penggunaan
@@ -88,7 +85,6 @@ class _EditMotorPageState extends State<EditMotorPage> {
     _isMainVehicle = widget.isMainVehicle;
     _selectedMotorcycleType = widget.tipeMotor;
     _selectedKapasitasCc = widget.kapasitasCc;
-    _selectedTransmisi = widget.transmisi;
     // Inisialisasi parameter default dengan nilai dari widget atau fallback
     _defaultBeban = widget.defaultBeban ?? 'ringan';
     _defaultPenumpang = widget.defaultPenumpang ?? false;
@@ -194,14 +190,6 @@ class _EditMotorPageState extends State<EditMotorPage> {
                       selected: _selectedKapasitasCc,
                       onSelected: (v) =>
                           setState(() => _selectedKapasitasCc = v),
-                    ),
-                    const SizedBox(height: 20),
-                    _buildChipSelector(
-                      label: 'Transmisi',
-                      options: const ['Manual', 'Otomatis (CVT)'],
-                      values: const ['manual', 'cvt'],
-                      selected: _selectedTransmisi,
-                      onSelected: (v) => setState(() => _selectedTransmisi = v),
                     ),
                     const SizedBox(height: 20),
                     _buildInputField(
@@ -701,7 +689,6 @@ class _EditMotorPageState extends State<EditMotorPage> {
         year: year,
         tipeMotor: _selectedMotorcycleType,
         kapasitasCc: _selectedKapasitasCc,
-        transmisi: _selectedTransmisi,
         odometer: odometer,
         licensePlate: _platNomorController.text.isEmpty
             ? null

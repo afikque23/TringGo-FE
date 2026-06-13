@@ -28,7 +28,6 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
 
   String? _selectedMotorcycleType;
   String? _selectedKapasitasCc;
-  String? _selectedTransmisi;
   bool _isMainVehicle = false;
   bool _isLoading = false;
 
@@ -184,14 +183,6 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
                       selected: _selectedKapasitasCc,
                       onSelected: (v) =>
                           setState(() => _selectedKapasitasCc = v),
-                    ),
-                    const SizedBox(height: 20),
-                    _buildChipSelector(
-                      label: 'Transmisi',
-                      options: const ['Manual', 'Otomatis (CVT)'],
-                      values: const ['manual', 'cvt'],
-                      selected: _selectedTransmisi,
-                      onSelected: (v) => setState(() => _selectedTransmisi = v),
                     ),
                     const SizedBox(height: 20),
                     _buildInputField(
@@ -905,7 +896,6 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
         year: year,
         tipeMotor: _selectedMotorcycleType,
         kapasitasCc: _selectedKapasitasCc,
-        transmisi: _selectedTransmisi,
         odometer: odometer,
         licensePlate: _platNomorController.text.isEmpty
             ? null
