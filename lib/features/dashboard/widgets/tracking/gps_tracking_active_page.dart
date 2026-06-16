@@ -55,8 +55,16 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
   int _maxSpeedKph = 0;
   DateTime? _startTime;
 
-  // Koordinat awal (misal: Jakarta)
-  LatLng _currentLocation = const LatLng(-6.2088, 106.8456);
+  // IoT Status
+  String _iotStatus = 'unknown'; // 'online' | 'unstable' | 'offline' | 'unknown'
+  int? _iotSecondsAgo;
+
+  // Data BMP280
+  double? _baroRelAltM;
+  double? _temperatureC;
+
+  // Koordinat awal (misal: Semarang)
+  LatLng _currentLocation = const LatLng(-6.9535, 110.4388);
   final List<RoutePoint> _routePoints = <RoutePoint>[];
 
   @override
@@ -96,13 +104,24 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         final newLng = (latestData['longitude'] as num).toDouble();
         final currentSpeed = (latestData['speed_kph'] as num?)?.toInt() ?? 0;
 
+        // Baca IoT status dari response backend
+        final iotStatus = latestData['iot_status'] as String? ?? 'unknown';
+        final secondsAgo = (latestData['seconds_ago'] as num?)?.toInt();
+
+        // Baca data BMP280
+        final baroAlt = (latestData['baro_rel_alt_m'] as num?)?.toDouble();
+        final tempC = (latestData['temperature_c'] as num?)?.toDouble();
+
         setState(() {
           _speedKph = currentSpeed;
           _maxSpeedKph = max(_maxSpeedKph, currentSpeed);
           _currentLocation = LatLng(newLat, newLng);
+          _iotStatus = iotStatus;
+          _iotSecondsAgo = secondsAgo;
+          _baroRelAltM = baroAlt;
+          _temperatureC = tempC;
 
           if (_isTracking) {
-            // Simulasi hitung jarak live UI jika sedang jalan
             final distanceDelta = (currentSpeed / 3600.0) * 5;
             _distanceKm += distanceDelta;
 
@@ -121,7 +140,6 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
           }
         });
 
-        // Pindahkan kamera map mengikuti marker terkini
         _mapController.move(_currentLocation, _mapController.camera.zoom);
       }
     } catch (e) {
@@ -292,31 +310,42 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
     final endTime = DateTime.now();
     final stTime = _startTime ?? endTime;
 
-    // Jika backend mengembalikan summary, gunakan nilainya, jika tidak fallback ke perhitungan lokal
-    final distKm = tripSummary != null && tripSummary['distance_meters'] != null
-        ? ((tripSummary['distance_meters'] as num) / 1000).toStringAsFixed(2)
-        : _distanceKm.toStringAsFixed(2);
+    // Gunakan summary dari backend jika tersedia, fallback ke kalkulasi lokal
+    final summary = tripSummary?['summary'] as Map<String, dynamic>?;
 
-    final durMin =
-        tripSummary != null && tripSummary['duration_minutes'] != null
-        ? tripSummary['duration_minutes'].toString()
-        : (_durationSec ~/ 60).toString();
+    final distKm = summary?['distance_km'] != null
+        ? (summary!['distance_km'] as num).toStringAsFixed(2)
+        : tripSummary != null && tripSummary['distance_meters'] != null
+            ? ((tripSummary['distance_meters'] as num) / 1000).toStringAsFixed(2)
+            : _distanceKm.toStringAsFixed(2);
 
-    final avgKph = tripSummary != null && tripSummary['avg_speed_kph'] != null
-        ? (tripSummary['avg_speed_kph'] as num).toStringAsFixed(1)
+    final durMin = summary?['duration_minutes'] != null
+        ? summary!['duration_minutes'].toString()
+        : tripSummary != null && tripSummary['duration_minutes'] != null
+            ? tripSummary['duration_minutes'].toString()
+            : (_durationSec ~/ 60).toString();
+
+    final avgKph = summary?['avg_speed_kph'] != null
+        ? (summary!['avg_speed_kph'] as num).toStringAsFixed(1)
         : _avgSpeedKph.toStringAsFixed(1);
 
-    final maxKph = tripSummary != null && tripSummary['max_speed_kph'] != null
-        ? tripSummary['max_speed_kph'].toString()
+    final maxKph = summary?['max_speed_kph'] != null
+        ? summary!['max_speed_kph'].toString()
         : _maxSpeedKph.toString();
 
-    // Siapkan data payload
+    final elevationGainM = summary?['elevation_gain_m'] as int?;
+    final ambientTempAvg = summary?['ambient_temp_avg'];
+    final newOdometer = summary?['new_odometer'];
+
     final tripData = {
       'vehicle': widget.vehicleName,
       'distanceValue': distKm,
       'durationMinutes': durMin,
       'averageSpeedKph': avgKph,
       'maxSpeedKph': maxKph,
+      'elevationGainM': elevationGainM,
+      'ambientTempAvg': ambientTempAvg,
+      'newOdometer': newOdometer,
       'startTime':
           '${stTime.hour.toString().padLeft(2, '0')}:${stTime.minute.toString().padLeft(2, '0')}',
       'endTime':
@@ -434,45 +463,95 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
               ),
             ),
 
-            // 3. Overlay Indikator AKTIF di kanan atas
-            if (_isTracking)
-              SafeArea(
-                child: Align(
-                  alignment: Alignment.topRight,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A2A1A).withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: _green.withOpacity(0.4)),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _PulseDot(),
-                          SizedBox(width: 8),
-                          Text(
-                            'AKTIF',
-                            style: TextStyle(
-                              fontFamily: 'Arial',
-                              color: Color(0xFF8FA06A),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
+            // 3. IoT Status Indicator — kanan atas (selalu tampil)
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // Indikator tracking AKTIF
+                      if (_isTracking)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A2A1A).withOpacity(0.9),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: _green.withOpacity(0.4)),
                           ),
-                        ],
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _PulseDot(),
+                              SizedBox(width: 8),
+                              Text('AKTIF', style: TextStyle(fontFamily: 'Arial', color: Color(0xFF8FA06A), fontSize: 12, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                      if (_isTracking) const SizedBox(height: 8),
+                      // Indikator IoT Online/Offline
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: _card.withOpacity(0.85),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _iotStatus == 'online'
+                                ? _green
+                                : _iotStatus == 'unstable'
+                                    ? Colors.orange
+                                    : Colors.redAccent,
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                color: _iotStatus == 'online'
+                                    ? _green
+                                    : _iotStatus == 'unstable'
+                                        ? Colors.orange
+                                        : Colors.redAccent,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _iotStatus == 'online'
+                                  ? 'IoT Online'
+                                  : _iotStatus == 'unstable'
+                                      ? 'Tidak Stabil'
+                                      : _iotStatus == 'offline'
+                                          ? 'IoT Offline'
+                                          : 'Mendeteksi...',
+                              style: TextStyle(
+                                fontFamily: 'Arial',
+                                color: _iotStatus == 'online'
+                                    ? const Color(0xFF8FA06A)
+                                    : _iotStatus == 'unstable'
+                                        ? Colors.orange
+                                        : Colors.redAccent,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ),
+            ),
 
-            // 4. Overlay Data & Tombol Bawah (Mirip Strava)
+            // 4. Overlay Data & Tombol Bawah
             Align(
               alignment: Alignment.bottomCenter,
               child: Container(
@@ -593,18 +672,23 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                         ],
                       ),
                       const SizedBox(height: 32),
-                      // Tombol Aksi
+                       // Tombol START/STOP
                       SizedBox(
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton(
+                          // Disable START jika IoT offline atau unknown
                           onPressed: _isTracking
                               ? _confirmStopTracking
-                              : _startTracking,
+                              : (_iotStatus == 'offline' || _iotStatus == 'unknown')
+                                  ? null
+                                  : _startTracking,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _isTracking
                                 ? Colors.redAccent
-                                : _green,
+                                : (_iotStatus == 'offline' || _iotStatus == 'unknown')
+                                    ? const Color(0xFF3A3A3A)
+                                    : _green,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
@@ -612,7 +696,11 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                             elevation: 0,
                           ),
                           child: Text(
-                            _isTracking ? 'STOP' : 'START',
+                            _isTracking
+                                ? 'STOP'
+                                : (_iotStatus == 'offline' || _iotStatus == 'unknown')
+                                    ? 'IoT Offline'
+                                    : 'START',
                             style: const TextStyle(
                               fontFamily: 'Arial',
                               fontSize: 18,
