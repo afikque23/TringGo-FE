@@ -553,43 +553,47 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.notifications_outlined,
-                                        size: 20,
-                                        color: colorScheme.primary,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            l10n.reminder,
-                                            style: TextStyle(
-                                              fontFamily: 'Arial',
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w400,
-                                              color: colorScheme.onSurface,
-                                              height: 1.43,
-                                            ),
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.notifications_outlined,
+                                          size: 20,
+                                          color: colorScheme.primary,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                l10n.reminder,
+                                                style: TextStyle(
+                                                  fontFamily: 'Arial',
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w400,
+                                                  color: colorScheme.onSurface,
+                                                  height: 1.43,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 0),
+                                              Text(
+                                                l10n.remindMeBeforeDue,
+                                                style: TextStyle(
+                                                  fontFamily: 'Arial',
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w400,
+                                                  color:
+                                                      colorScheme.onSurfaceVariant,
+                                                  height: 1.33,
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                          const SizedBox(height: 0),
-                                          Text(
-                                            l10n.remindMeBeforeDue,
-                                            style: TextStyle(
-                                              fontFamily: 'Arial',
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w400,
-                                              color:
-                                                  colorScheme.onSurfaceVariant,
-                                              height: 1.33,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                   Switch(
                                     value: _reminderEnabled,

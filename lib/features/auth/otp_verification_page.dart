@@ -359,14 +359,15 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(6, (index) {
-                          return Padding(
-                            padding: EdgeInsets.only(left: index > 0 ? 4 : 0),
-                            child: SizedBox(
-                              width: 48,
-                              height: 56,
-                              child: TextField(
-                                controller: _otpControllers[index],
-                                focusNode: _focusNodes[index],
+                          return Flexible(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 2),
+                              child: SizedBox(
+                                width: 48,
+                                height: 56,
+                                child: TextField(
+                                  controller: _otpControllers[index],
+                                  focusNode: _focusNodes[index],
                                 textAlign: TextAlign.center,
                                 keyboardType: TextInputType.number,
                                 maxLength: 1,
@@ -418,9 +419,10 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                                 },
                               ),
                             ),
-                          );
-                        }),
-                      ),
+                          ),
+                        );
+                      }),
+                    ),
                       const SizedBox(height: 16),
                       // Countdown Timer
                       Container(

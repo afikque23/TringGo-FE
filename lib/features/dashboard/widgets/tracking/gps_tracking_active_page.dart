@@ -59,11 +59,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
   String _iotStatus = 'unknown'; // 'online' | 'unstable' | 'offline' | 'unknown'
   int? _iotSecondsAgo;
 
-  // Data BMP280
-  double? _baroRelAltM;
-  double? _temperatureC;
-
-  // Koordinat awal (misal: Semarang)
+  // Koordinat awal (Semarang)
   LatLng _currentLocation = const LatLng(-6.9535, 110.4388);
   final List<RoutePoint> _routePoints = <RoutePoint>[];
 
@@ -108,9 +104,8 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         final iotStatus = latestData['iot_status'] as String? ?? 'unknown';
         final secondsAgo = (latestData['seconds_ago'] as num?)?.toInt();
 
-        // Baca data BMP280
+        // Baca data BMP280 (elevasi relatif)
         final baroAlt = (latestData['baro_rel_alt_m'] as num?)?.toDouble();
-        final tempC = (latestData['temperature_c'] as num?)?.toDouble();
 
         setState(() {
           _speedKph = currentSpeed;
@@ -119,7 +114,6 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
           _iotStatus = iotStatus;
           _iotSecondsAgo = secondsAgo;
           _baroRelAltM = baroAlt;
-          _temperatureC = tempC;
 
           if (_isTracking) {
             final distanceDelta = (currentSpeed / 3600.0) * 5;
@@ -334,7 +328,6 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         : _maxSpeedKph.toString();
 
     final elevationGainM = summary?['elevation_gain_m'] as int?;
-    final ambientTempAvg = summary?['ambient_temp_avg'];
     final newOdometer = summary?['new_odometer'];
 
     final tripData = {
@@ -344,7 +337,6 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
       'averageSpeedKph': avgKph,
       'maxSpeedKph': maxKph,
       'elevationGainM': elevationGainM,
-      'ambientTempAvg': ambientTempAvg,
       'newOdometer': newOdometer,
       'startTime':
           '${stTime.hour.toString().padLeft(2, '0')}:${stTime.minute.toString().padLeft(2, '0')}',
