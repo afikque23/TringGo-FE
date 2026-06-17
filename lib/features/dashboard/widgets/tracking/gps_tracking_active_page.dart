@@ -113,7 +113,6 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
           _currentLocation = LatLng(newLat, newLng);
           _iotStatus = iotStatus;
           _iotSecondsAgo = secondsAgo;
-          _baroRelAltM = baroAlt;
 
           if (_isTracking) {
             final distanceDelta = (currentSpeed / 3600.0) * 5;
