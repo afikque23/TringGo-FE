@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../../core/services/geocoding_service.dart';
 
 class DetailTripPage extends StatelessWidget {
   final Map<String, dynamic> tripData;
@@ -480,22 +481,67 @@ class DetailTripPage extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
 
-    String formatLatLng(dynamic lat, dynamic lng) {
-      if (lat == null || lng == null) return l10n.locationRecorded;
-      final latNum = lat is num
-          ? lat.toDouble()
-          : double.tryParse(lat.toString());
-      final lngNum = lng is num
-          ? lng.toDouble()
-          : double.tryParse(lng.toString());
-      if (latNum == null || lngNum == null) return l10n.locationRecorded;
-      return '${latNum.toStringAsFixed(5)}, ${lngNum.toStringAsFixed(5)}';
-    }
+    final startLatRaw = tripData['startLat'];
+    final startLngRaw = tripData['startLng'];
+    final endLatRaw = tripData['endLat'];
+    final endLngRaw = tripData['endLng'];
 
-    final startText = formatLatLng(tripData['startLat'], tripData['startLng']);
-    final endText = formatLatLng(tripData['endLat'], tripData['endLng']);
+    final startLat = startLatRaw is num ? startLatRaw.toDouble() : double.tryParse(startLatRaw?.toString() ?? '');
+    final startLng = startLngRaw is num ? startLngRaw.toDouble() : double.tryParse(startLngRaw?.toString() ?? '');
+    final endLat = endLatRaw is num ? endLatRaw.toDouble() : double.tryParse(endLatRaw?.toString() ?? '');
+    final endLng = endLngRaw is num ? endLngRaw.toDouble() : double.tryParse(endLngRaw?.toString() ?? '');
+
     final startTime = (tripData['startTime'] ?? '').toString();
     final endTime = (tripData['endTime'] ?? '').toString();
+
+    Widget buildAddressRow(String label, double? lat, double? lng, String time) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 12,
+              fontWeight: FontWeight.w400,
+              height: 1.33,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 4),
+          if (lat != null && lng != null)
+            FutureBuilder<String>(
+              future: GeocodingService.getAddressFromLatLng(lat, lng),
+              builder: (context, snapshot) {
+                final address = snapshot.data ?? '${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
+                final text = time.isNotEmpty ? '$address • $time' : address;
+                
+                return Text(
+                  text,
+                  style: TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    height: 1.5,
+                    color: colorScheme.onSurface,
+                  ),
+                );
+              },
+            )
+          else
+            Text(
+              time.isNotEmpty ? '${l10n.locationRecorded} • $time' : l10n.locationRecorded,
+              style: TextStyle(
+                fontFamily: 'Arial',
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                height: 1.5,
+                color: colorScheme.onSurface,
+              ),
+            ),
+        ],
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20.65, 20.65, 20.65, 0.65),
@@ -527,56 +573,11 @@ class DetailTripPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n.start,
-                style: TextStyle(
-                  fontFamily: 'Arial',
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
-                  height: 1.33,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                startTime.isNotEmpty ? '$startText • $startTime' : startText,
-                style: TextStyle(
-                  fontFamily: 'Arial',
-                  fontSize: 16,
-                  fontWeight: FontWeight.w400,
-                  height: 1.5,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(height: 1, color: colorScheme.outlineVariant),
-              const SizedBox(height: 12),
-              Text(
-                l10n.finish,
-                style: TextStyle(
-                  fontFamily: 'Arial',
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
-                  height: 1.33,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                endTime.isNotEmpty ? '$endText • $endTime' : endText,
-                style: TextStyle(
-                  fontFamily: 'Arial',
-                  fontSize: 16,
-                  fontWeight: FontWeight.w400,
-                  height: 1.5,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-            ],
-          ),
+          buildAddressRow(l10n.start, startLat, startLng, startTime),
+          const SizedBox(height: 12),
+          Container(height: 1, color: colorScheme.outlineVariant),
+          const SizedBox(height: 12),
+          buildAddressRow(l10n.finish, endLat, endLng, endTime),
           const SizedBox(height: 20),
         ],
       ),
