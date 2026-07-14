@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:motorcycle_management/core/utils/app_theme.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../core/services/vehicle_service.dart';
@@ -15,14 +14,7 @@ class EditMotorPage extends StatefulWidget {
   final bool isMainVehicle;
   final String? tipeMotor;
   final String? kapasitasCc;
-  final String? licensePlate;
-  final String? color;
-  // Parameter default
-  final String? defaultBeban;
-  final bool? defaultPenumpang;
-  final String? defaultGayaBerkendara;
-  final String? defaultKondisiJalan;
-  final String? defaultMedan;
+  final String? deviceId;
 
   const EditMotorPage({
     super.key,
@@ -35,13 +27,7 @@ class EditMotorPage extends StatefulWidget {
     required this.isMainVehicle,
     this.tipeMotor,
     this.kapasitasCc,
-    this.licensePlate,
-    this.color,
-    this.defaultBeban,
-    this.defaultPenumpang,
-    this.defaultGayaBerkendara,
-    this.defaultKondisiJalan,
-    this.defaultMedan,
+    this.deviceId,
   });
 
   @override
@@ -56,19 +42,15 @@ class _EditMotorPageState extends State<EditMotorPage> {
   late final TextEditingController _modelController;
   late final TextEditingController _tahunController;
   late final TextEditingController _odometerController;
-  late final TextEditingController _platNomorController;
-  late final TextEditingController _warnaController;
+  late final TextEditingController _deviceIdController;
   late bool _isMainVehicle;
   String? _selectedMotorcycleType;
   String? _selectedKapasitasCc;
   bool _isLoading = false;
+  bool _isLinkingDevice = false;
 
-  // Parameter default penggunaan
-  String _defaultBeban = 'ringan';
-  bool _defaultPenumpang = false;
-  String _defaultGayaBerkendara = 'normal';
-  String _defaultKondisiJalan = 'sedang';
-  String _defaultMedan = 'datar';
+  // State perangkat IoT — dikelola terpisah dari form utama
+  String? _linkedDeviceId;
 
   @override
   void initState() {
@@ -78,19 +60,11 @@ class _EditMotorPageState extends State<EditMotorPage> {
     _modelController = TextEditingController(text: widget.model);
     _tahunController = TextEditingController(text: widget.year);
     _odometerController = TextEditingController(text: widget.odometer);
-    _platNomorController = TextEditingController(
-      text: widget.licensePlate ?? '',
-    );
-    _warnaController = TextEditingController(text: widget.color ?? '');
+    _deviceIdController = TextEditingController();
     _isMainVehicle = widget.isMainVehicle;
     _selectedMotorcycleType = widget.tipeMotor;
     _selectedKapasitasCc = widget.kapasitasCc;
-    // Inisialisasi parameter default dengan nilai dari widget atau fallback
-    _defaultBeban = widget.defaultBeban ?? 'ringan';
-    _defaultPenumpang = widget.defaultPenumpang ?? false;
-    _defaultGayaBerkendara = widget.defaultGayaBerkendara ?? 'normal';
-    _defaultKondisiJalan = widget.defaultKondisiJalan ?? 'sedang';
-    _defaultMedan = widget.defaultMedan ?? 'datar';
+    _linkedDeviceId = widget.deviceId;
   }
 
   @override
@@ -100,9 +74,153 @@ class _EditMotorPageState extends State<EditMotorPage> {
     _modelController.dispose();
     _tahunController.dispose();
     _odometerController.dispose();
-    _platNomorController.dispose();
-    _warnaController.dispose();
+    _deviceIdController.dispose();
     super.dispose();
+  }
+
+  // ─── Validasi format MAC Address ───────────────────────────────────────────
+  bool _isValidMac(String mac) {
+    final regex = RegExp(
+      r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$',
+    );
+    return regex.hasMatch(mac.trim());
+  }
+
+  // ─── Hubungkan perangkat (set device_id) ────────────────────────────────────
+  Future<void> _handleLinkDevice() async {
+    final mac = _deviceIdController.text.trim().toUpperCase();
+
+    if (mac.isEmpty) {
+      _showSnack('Masukkan Device ID terlebih dahulu', isError: true);
+      return;
+    }
+
+    if (!_isValidMac(mac)) {
+      _showSnack(
+        'Format tidak valid. Gunakan format: XX:XX:XX:XX:XX:XX',
+        isError: true,
+      );
+      return;
+    }
+
+    setState(() => _isLinkingDevice = true);
+
+    try {
+      final year = int.tryParse(_tahunController.text) ?? 2026;
+      final odometer = int.tryParse(_odometerController.text) ?? 0;
+
+      final vehicle = VehicleModel(
+        id: widget.vehicleId,
+        title: _namaKendaraanController.text,
+        make: _merekController.text,
+        model: _modelController.text,
+        year: year,
+        tipeMotor: _selectedMotorcycleType,
+        kapasitasCc: _selectedKapasitasCc,
+        odometer: odometer,
+        isPrimary: _isMainVehicle,
+        deviceId: mac,
+      );
+
+      await _vehicleService.updateVehicle(widget.vehicleId, vehicle);
+
+      if (!mounted) return;
+      setState(() {
+        _linkedDeviceId = mac;
+        _deviceIdController.clear();
+      });
+      _showSnack('Perangkat berhasil dihubungkan! 🔌');
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack('Gagal menghubungkan: ${e.toString()}', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLinkingDevice = false);
+    }
+  }
+
+  // ─── Putuskan perangkat (set device_id = null) ─────────────────────────────
+  Future<void> _handleUnlinkDevice() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          backgroundColor: cs.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            'Putuskan Perangkat?',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
+          ),
+          content: Text(
+            'Motor ini tidak akan lagi menerima data dari perangkat IoT. '
+            'Kamu bisa menghubungkan kembali kapanpun.',
+            style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Batal',
+                  style: TextStyle(color: cs.onSurfaceVariant)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text('Putuskan',
+                  style: TextStyle(color: cs.error)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLinkingDevice = true);
+
+    try {
+      final year = int.tryParse(_tahunController.text) ?? 2026;
+      final odometer = int.tryParse(_odometerController.text) ?? 0;
+
+      final vehicle = VehicleModel(
+        id: widget.vehicleId,
+        title: _namaKendaraanController.text,
+        make: _merekController.text,
+        model: _modelController.text,
+        year: year,
+        tipeMotor: _selectedMotorcycleType,
+        kapasitasCc: _selectedKapasitasCc,
+        odometer: odometer,
+        isPrimary: _isMainVehicle,
+        deviceId: null,
+      );
+
+      await _vehicleService.updateVehicle(widget.vehicleId, vehicle);
+
+      if (!mounted) return;
+      setState(() => _linkedDeviceId = null);
+      _showSnack('Perangkat berhasil diputus');
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack('Gagal memutus perangkat: ${e.toString()}', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLinkingDevice = false);
+    }
+  }
+
+  void _showSnack(String msg, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError
+            ? Theme.of(context).colorScheme.error
+            : Theme.of(context).colorScheme.primary,
+      ),
+    );
   }
 
   @override
@@ -198,73 +316,14 @@ class _EditMotorPageState extends State<EditMotorPage> {
                       keyboardType: TextInputType.number,
                     ),
                     const SizedBox(height: 20),
-                    _buildInputField(
-                      label: l10n.licensePlate,
-                      controller: _platNomorController,
-                      placeholder: l10n.licensePlatePlaceholder,
-                    ),
-                    const SizedBox(height: 20),
-                    _buildInputField(
-                      label: l10n.motorcycleColor,
-                      controller: _warnaController,
-                      placeholder: l10n.colorPlaceholder,
-                    ),
-                    const SizedBox(height: 20),
 
                     // Checkbox Card
                     _buildMainVehicleCheckbox(),
 
                     const SizedBox(height: 28),
 
-                    // Section: Parameter Default
-                    _buildSectionHeader(
-                      'Parameter Default Penggunaan',
-                      'Digunakan sebagai baseline kalkulasi jadwal service.',
-                    ),
-                    const SizedBox(height: 16),
-                    _buildChipSelector(
-                      label: 'Kondisi Jalan Sehari-hari',
-                      options: const ['🔴 Macet', '🟡 Sedang', '🟢 Lancar'],
-                      values: const ['macet', 'sedang', 'lancar'],
-                      selected: _defaultKondisiJalan,
-                      onSelected: (v) =>
-                          setState(() => _defaultKondisiJalan = v!),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildChipSelector(
-                      label: 'Medan Jalan Dominan',
-                      options: const [
-                        '🏙️ Datar',
-                        '🌄 Campuran',
-                        '🏔️ Berbukit',
-                      ],
-                      values: const ['datar', 'campuran', 'berbukit'],
-                      selected: _defaultMedan,
-                      onSelected: (v) => setState(() => _defaultMedan = v!),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildChipSelector(
-                      label: 'Gaya Berkendara',
-                      options: const ['🐢 Pelan', '🚗 Normal', '🏎️ Agresif'],
-                      values: const ['pelan', 'normal', 'agresif'],
-                      selected: _defaultGayaBerkendara,
-                      onSelected: (v) =>
-                          setState(() => _defaultGayaBerkendara = v!),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildChipSelector(
-                      label: 'Beban Bawaan Biasa',
-                      options: const ['🎒 Ringan', '🛍️ Sedang', '📦 Berat'],
-                      values: const ['ringan', 'sedang', 'berat'],
-                      selected: _defaultBeban,
-                      onSelected: (v) => setState(() => _defaultBeban = v!),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildToggleField(
-                      label: 'Sering Bawa Penumpang?',
-                      value: _defaultPenumpang,
-                      onChanged: (v) => setState(() => _defaultPenumpang = v),
-                    ),
+                    // ── Section: Perangkat IoT ──────────────────────────────
+                    _buildIoTSection(),
 
                     const SizedBox(height: 32),
 
@@ -280,43 +339,354 @@ class _EditMotorPageState extends State<EditMotorPage> {
     );
   }
 
-  Widget _buildSectionHeader(String title, String subtitle) {
+  // ─── Section Perangkat IoT ─────────────────────────────────────────────────
+  Widget _buildIoTSection() {
     final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colorScheme.primaryContainer.withAlpha(80),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colorScheme.primary.withAlpha(60), width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    final bool isLinked = _linkedDeviceId != null && _linkedDeviceId!.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header section
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colorScheme.secondaryContainer.withAlpha(80),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: colorScheme.secondary.withAlpha(60),
+              width: 1,
+            ),
+          ),
+          child: Row(
             children: [
-              Icon(Icons.tune_rounded, size: 16, color: colorScheme.primary),
+              Icon(
+                Icons.memory_rounded,
+                size: 16,
+                color: colorScheme.secondary,
+              ),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.primary,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Perangkat IoT',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.secondary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Hubungkan perangkat ESP32 ke motor ini untuk tracking & telemetri.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurface.withAlpha(140),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: TextStyle(
-              fontSize: 12,
-              color: colorScheme.onSurface.withAlpha(140),
+        ),
+
+        const SizedBox(height: 14),
+
+        if (isLinked) ...[
+          // ── Sudah terhubung ──────────────────────────────────────────────
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              border: Border.all(color: colorScheme.outlineVariant, width: 1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Status badge
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Terhubung',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                // Device ID display
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Device ID',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _linkedDeviceId!,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: colorScheme.onSurface,
+                          fontFamily: 'monospace',
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Unlink button
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _isLinkingDevice ? null : _handleUnlinkDevice,
+                    icon: _isLinkingDevice
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.error,
+                            ),
+                          )
+                        : Icon(
+                            Icons.link_off_rounded,
+                            size: 18,
+                            color: colorScheme.error,
+                          ),
+                    label: Text(
+                      _isLinkingDevice ? 'Memutus...' : 'Putuskan Perangkat',
+                      style: TextStyle(
+                        color: colorScheme.error,
+                        fontSize: 14,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: colorScheme.error.withAlpha(100)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ] else ...[
+          // ── Belum terhubung ──────────────────────────────────────────────
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              border: Border.all(color: colorScheme.outlineVariant, width: 1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Not linked info
+                Row(
+                  children: [
+                    Icon(
+                      Icons.link_off_rounded,
+                      size: 16,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Belum ada perangkat terhubung',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                // Device ID input
+                TextFormField(
+                  controller: _deviceIdController,
+                  style: TextStyle(
+                    color: colorScheme.onSurface,
+                    fontSize: 15,
+                    fontFamily: 'monospace',
+                    letterSpacing: 0.5,
+                  ),
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: InputDecoration(
+                    labelText: 'Device ID (MAC Address)',
+                    hintText: 'XX:XX:XX:XX:XX:XX',
+                    hintStyle: TextStyle(
+                      color: colorScheme.onSurface.withAlpha(80),
+                      fontFamily: 'monospace',
+                    ),
+                    labelStyle:
+                        TextStyle(color: colorScheme.onSurfaceVariant),
+                    floatingLabelStyle:
+                        TextStyle(color: colorScheme.secondary),
+                    filled: true,
+                    fillColor: colorScheme.surfaceContainerLow,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                        color: colorScheme.outlineVariant,
+                        width: 1,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                        color: colorScheme.secondary,
+                        width: 1.5,
+                      ),
+                    ),
+                    helperText:
+                        'Lihat di Serial Monitor PlatformIO saat ESP32 boot',
+                    helperStyle: TextStyle(
+                      fontSize: 11,
+                      color: colorScheme.onSurface.withAlpha(120),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Link button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isLinkingDevice ? null : _handleLinkDevice,
+                    icon: _isLinkingDevice
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.link_rounded,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                    label: Text(
+                      _isLinkingDevice
+                          ? 'Menghubungkan...'
+                          : 'Hubungkan Perangkat',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: colorScheme.secondary,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
-      ),
+      ],
+    );
+  }
+
+  Widget _buildInputField({
+    required String label,
+    required TextEditingController controller,
+    String? placeholder,
+    TextInputType? keyboardType,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: colorScheme.onSurface,
+            ),
+          ),
+        ),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          style: TextStyle(color: colorScheme.onSurface, fontSize: 16),
+          decoration: InputDecoration(
+            hintText: placeholder,
+            hintStyle: TextStyle(
+              color: colorScheme.textSecondary.withOpacity(0.5),
+            ),
+            filled: true,
+            fillColor: colorScheme.surface,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                color: colorScheme.outlineVariant,
+                width: 1,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: colorScheme.error, width: 1),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -382,97 +752,6 @@ class _EditMotorPageState extends State<EditMotorPage> {
     );
   }
 
-  Widget _buildToggleField({
-    required String label,
-    required bool value,
-    required void Function(bool) onChanged,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        border: Border.all(color: colorScheme.outlineVariant, width: 1),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: TextStyle(fontSize: 14, color: colorScheme.onSurface),
-          ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: colorScheme.primary,
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Fungsi Input Field yang diperbaiki (Sama dengan TambahMotorPage)
-  Widget _buildInputField({
-    required String label,
-    required TextEditingController controller,
-    String? placeholder,
-    TextInputType? keyboardType,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: colorScheme.onSurface,
-            ),
-          ),
-        ),
-        TextFormField(
-          controller: controller,
-          keyboardType: keyboardType,
-          style: TextStyle(color: colorScheme.onSurface, fontSize: 16),
-          decoration: InputDecoration(
-            hintText: placeholder,
-            hintStyle: TextStyle(
-              color: colorScheme.textSecondary.withOpacity(0.5),
-            ),
-            filled: true,
-            fillColor: colorScheme.surface,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-            // Border saat diam
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(
-                color: colorScheme.outlineVariant,
-                width: 1,
-              ),
-            ),
-            // Border saat aktif/fokus
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
-            ),
-            // Border saat validasi error
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: colorScheme.error, width: 1),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildMotorcycleTypeDropdown() {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
@@ -491,13 +770,11 @@ class _EditMotorPageState extends State<EditMotorPage> {
             ),
           ),
         ),
-        // Gunakan SizedBox untuk mengunci lebar field agar konsisten
         SizedBox(
-          width: double.infinity, // Atau atur angka spesifik misal: 300
+          width: double.infinity,
           child: DropdownButtonFormField<String>(
             initialValue: _selectedMotorcycleType,
             dropdownColor: colorScheme.surfaceContainerHighest,
-            // PERBAIKAN: Matikan isExpanded agar menu tidak memaksa melebar penuh layar
             isExpanded: false,
             style: TextStyle(color: colorScheme.onSurface, fontSize: 16),
             icon: Icon(
@@ -525,7 +802,7 @@ class _EditMotorPageState extends State<EditMotorPage> {
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide(
-                  color: colorScheme.primary, // Warna hijau (6B7C4F)
+                  color: colorScheme.primary,
                   width: 1.5,
                 ),
               ),
@@ -654,33 +931,21 @@ class _EditMotorPageState extends State<EditMotorPage> {
 
   void _handleSave() async {
     if (_namaKendaraanController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Nama kendaraan tidak boleh kosong'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
+      _showSnack('Nama kendaraan tidak boleh kosong', isError: true);
       return;
     }
 
     if (_selectedMotorcycleType == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Tipe motor wajib dipilih'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
+      _showSnack('Tipe motor wajib dipilih', isError: true);
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      // Parse controllers
       final year = int.tryParse(_tahunController.text) ?? 2026;
       final odometer = int.tryParse(_odometerController.text) ?? 0;
 
-      // Create vehicle model with updated data
       final vehicle = VehicleModel(
         id: widget.vehicleId,
         title: _namaKendaraanController.text,
@@ -690,45 +955,20 @@ class _EditMotorPageState extends State<EditMotorPage> {
         tipeMotor: _selectedMotorcycleType,
         kapasitasCc: _selectedKapasitasCc,
         odometer: odometer,
-        licensePlate: _platNomorController.text.isEmpty
-            ? null
-            : _platNomorController.text,
-        color: _warnaController.text.isEmpty ? null : _warnaController.text,
         isPrimary: _isMainVehicle,
-        // Parameter default
-        defaultBeban: _defaultBeban,
-        defaultPenumpang: _defaultPenumpang,
-        defaultGayaBerkendara: _defaultGayaBerkendara,
-        defaultKondisiJalan: _defaultKondisiJalan,
-        defaultMedan: _defaultMedan,
+        deviceId: _linkedDeviceId, // Preserve linked device
       );
 
-      // Call API
       await _vehicleService.updateVehicle(widget.vehicleId, vehicle);
 
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Kendaraan berhasil diperbarui'),
-          backgroundColor: Theme.of(context).colorScheme.primary,
-        ),
-      );
-
-      Navigator.pop(context, true); // Return true to indicate success
+      _showSnack('Kendaraan berhasil diperbarui');
+      Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal memperbarui kendaraan: ${e.toString()}'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
+      _showSnack('Gagal memperbarui kendaraan: ${e.toString()}', isError: true);
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 }
