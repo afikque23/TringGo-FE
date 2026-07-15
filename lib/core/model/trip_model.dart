@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:json_annotation/json_annotation.dart';
 import 'location_point.dart';
 
@@ -148,22 +150,43 @@ class TripModel {
       return a.recordedAt.compareTo(b.recordedAt);
     });
 
-    final speedsKph = parsedPoints.map((e) => e.speedKph).toList();
+    final speedsKph = parsedPoints
+        .map((e) => e.speedKph)
+        .where((v) => v > 0)
+        .toList();
     final points = parsedPoints.map((e) => e.point).toList();
 
-    final avgSpeed = speedsKph.isEmpty
+    final avgSpeedFromPoints = speedsKph.isEmpty
         ? 0.0
         : speedsKph.reduce((a, b) => a + b) / speedsKph.length;
-    final maxSpeed = speedsKph.isEmpty
+    final maxSpeedFromPoints = speedsKph.isEmpty
         ? 0.0
         : speedsKph.reduce((a, b) => a > b ? a : b);
 
-    final distanceKm =
+    final backendAvgSpeed = _toDouble(json['avg_speed_kph']);
+    final backendMaxSpeed = _toDouble(json['max_speed_kph']);
+
+    final avgSpeed = (backendAvgSpeed != null && backendAvgSpeed > 0)
+        ? backendAvgSpeed
+        : avgSpeedFromPoints;
+    final maxSpeed = (backendMaxSpeed != null && backendMaxSpeed > 0)
+        ? backendMaxSpeed
+        : maxSpeedFromPoints;
+
+    final backendDistanceKm =
         _toDouble(json['distance_km']) ??
         ((_toDouble(json['distance_meters']) ?? 0.0) / 1000.0);
+    final pointsDistanceKm = _calculateDistanceKmFromPoints(points);
+    final distanceKm = backendDistanceKm > 0
+        ? backendDistanceKm
+        : pointsDistanceKm;
 
     final durationMinutes = _toInt(json['duration_minutes']);
-    final durationSeconds = durationMinutes != null ? durationMinutes * 60 : 0;
+    final durationSeconds = (durationMinutes != null && durationMinutes > 0)
+        ? durationMinutes * 60
+        : (endAt != null
+              ? math.max(endAt.difference(startAt).inSeconds, 0)
+              : 0);
 
     final vehicleTitle = vehicle['title']?.toString();
     final vehicleModel = vehicle['model']?.toString();
@@ -214,6 +237,45 @@ class TripModel {
     if (value is num) return value.toInt();
     return int.tryParse(value.toString());
   }
+
+  static double _calculateDistanceKmFromPoints(List<LocationPoint> points) {
+    if (points.length < 2) return 0.0;
+
+    var totalMeters = 0.0;
+    for (var i = 1; i < points.length; i++) {
+      totalMeters += _haversineMeters(
+        points[i - 1].latitude,
+        points[i - 1].longitude,
+        points[i].latitude,
+        points[i].longitude,
+      );
+    }
+
+    return totalMeters / 1000.0;
+  }
+
+  static double _haversineMeters(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const earthRadius = 6371000.0;
+    final dLat = _degToRad(lat2 - lat1);
+    final dLon = _degToRad(lon2 - lon1);
+
+    final a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degToRad(lat1)) *
+            math.cos(_degToRad(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+
+    return earthRadius * c;
+  }
+
+  static double _degToRad(double degree) => degree * (math.pi / 180.0);
 
   // Create a new trip
   factory TripModel.createNew({

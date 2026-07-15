@@ -6,8 +6,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../../core/model/vehicle_model.dart';
 import '../../../../core/services/tracking_api_service.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../core/services/vehicle_service.dart';
+import 'trip_summary_page.dart';
 
 class RoutePoint {
   const RoutePoint({
@@ -28,10 +30,14 @@ class GpsTrackingActivePage extends StatefulWidget {
     super.key,
     required this.vehicleId,
     this.vehicleName = 'My Ninja',
+    this.currentVehicle,
   });
 
   final int vehicleId;
   final String vehicleName;
+
+  /// Kendaraan aktif — diteruskan ke TripSummaryPage untuk pre-fill parameter default
+  final VehicleModel? currentVehicle;
 
   @override
   State<GpsTrackingActivePage> createState() => _GpsTrackingActivePageState();
@@ -44,7 +50,6 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
   static const _green = Color(0xFF6B7C4F);
 
   final MapController _mapController = MapController();
-  final Random _random = Random();
   Timer? _timer;
 
   bool _isTracking = false;
@@ -56,8 +61,64 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
   DateTime? _startTime;
 
   // IoT Status
-  String _iotStatus = 'unknown'; // 'online' | 'unstable' | 'offline' | 'unknown'
+  String _iotStatus =
+      'unknown'; // 'online' | 'unstable' | 'offline' | 'unknown'
   int? _iotSecondsAgo;
+  bool _gpsReady = false;
+
+  bool get _isIotOnline {
+    if (_iotStatus != 'online') return false;
+    if (_iotSecondsAgo == null) return false;
+    return _iotSecondsAgo! <= 15;
+  }
+
+  String get _iotStatusLabel {
+    if (_iotStatus == 'online' && !_gpsReady)
+      return 'IoT Online • Mencari GPS Fix';
+    if (_iotStatus == 'online') return 'IoT Online';
+    if (_iotStatus == 'unstable') return 'Tidak Stabil';
+    if (_iotStatus == 'offline') return 'IoT Offline';
+    return 'Mendeteksi...';
+  }
+
+  String _deriveIotStatus(int? secondsAgo) {
+    if (secondsAgo == null) return 'unknown';
+    if (secondsAgo <= 15) return 'online';
+    if (secondsAgo <= 60) return 'unstable';
+    return 'offline';
+  }
+
+  int? _normalizeSecondsAgo(int? secondsAgo) {
+    if (secondsAgo == null) return null;
+    // Nilai negatif menandakan clock skew/server time mismatch, jangan dianggap online.
+    if (secondsAgo < 0) return null;
+    return secondsAgo;
+  }
+
+  int? _extractSecondsAgo(Map<String, dynamic> latestData) {
+    final rawSecondsAgo = (latestData['seconds_ago'] as num?)?.toInt();
+    final normalized = _normalizeSecondsAgo(rawSecondsAgo);
+    if (normalized != null) return normalized;
+
+    // Fallback: hitung dari `received_at` agar tahan terhadap bug diff waktu backend.
+    final receivedAtRaw = latestData['received_at']?.toString();
+    if (receivedAtRaw == null || receivedAtRaw.isEmpty) {
+      return null;
+    }
+
+    try {
+      final receivedAt = DateTime.parse(receivedAtRaw).toUtc();
+      final nowUtc = DateTime.now().toUtc();
+      final diff = nowUtc.difference(receivedAt).inSeconds;
+
+      // Jika masih negatif kecil karena jitter clock, clamp ke 0.
+      if (diff < 0 && diff.abs() <= 10) return 0;
+      if (diff < 0) return null;
+      return diff;
+    } catch (_) {
+      return null;
+    }
+  }
 
   // Koordinat awal (Semarang)
   LatLng _currentLocation = const LatLng(-6.9535, 110.4388);
@@ -80,9 +141,8 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         // Fetch lokasi terakhir dari IoT segera setelah halaman dibuka (walau belum tracking/Start)
         await _fetchLatestLocationData();
 
-        if (_isTracking) {
-          _startPolling();
-        }
+        // Tetap polling status IoT meski belum tracking agar indikator tidak stale.
+        _startPolling();
       }
     } catch (e) {
       debugPrint('Error check tracking status: $e');
@@ -95,48 +155,74 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         widget.vehicleId,
       );
 
-      if (latestData != null && mounted) {
-        final newLat = (latestData['latitude'] as num).toDouble();
-        final newLng = (latestData['longitude'] as num).toDouble();
-        final currentSpeed = (latestData['speed_kph'] as num?)?.toInt() ?? 0;
+      if (!mounted) return;
 
-        // Baca IoT status dari response backend
-        final iotStatus = latestData['iot_status'] as String? ?? 'unknown';
-        final secondsAgo = (latestData['seconds_ago'] as num?)?.toInt();
-
-        // Baca data BMP280 (elevasi relatif)
-        final baroAlt = (latestData['baro_rel_alt_m'] as num?)?.toDouble();
-
+      // Jika payload kosong/gagal, turunkan status agar tidak "stuck online".
+      if (latestData == null) {
         setState(() {
-          _speedKph = currentSpeed;
-          _maxSpeedKph = max(_maxSpeedKph, currentSpeed);
-          _currentLocation = LatLng(newLat, newLng);
-          _iotStatus = iotStatus;
-          _iotSecondsAgo = secondsAgo;
-
-          if (_isTracking) {
-            final distanceDelta = (currentSpeed / 3600.0) * 5;
-            _distanceKm += distanceDelta;
-
-            if (_durationSec > 0) {
-              _avgSpeedKph = (_distanceKm / _durationSec) * 3600.0;
-            }
-
-            _routePoints.add(
-              RoutePoint(
-                lat: newLat,
-                lng: newLng,
-                speedKph: currentSpeed,
-                timestampMs: DateTime.now().millisecondsSinceEpoch,
-              ),
-            );
-          }
+          _iotStatus = 'unknown';
+          _iotSecondsAgo = null;
+          _gpsReady = false;
         });
-
-        _mapController.move(_currentLocation, _mapController.camera.zoom);
+        return;
       }
+
+      // Derive status murni dari heartbeat recency agar tidak false online.
+      final secondsAgo = _extractSecondsAgo(latestData);
+      final normalizedStatus = _deriveIotStatus(secondsAgo);
+      final gpsReady = latestData['gps_ready'] == true;
+
+      setState(() {
+        _iotStatus = normalizedStatus;
+        _iotSecondsAgo = secondsAgo;
+        _gpsReady = gpsReady;
+      });
+
+      final latRaw = latestData['latitude'];
+      final lngRaw = latestData['longitude'];
+      final newLat = latRaw is num ? latRaw.toDouble() : null;
+      final newLng = lngRaw is num ? lngRaw.toDouble() : null;
+
+      // Tidak ada koordinat: cukup update status saja.
+      if (newLat == null || newLng == null) {
+        return;
+      }
+
+      final currentSpeed = (latestData['speed_kph'] as num?)?.toInt() ?? 0;
+
+      setState(() {
+        _speedKph = currentSpeed;
+        _maxSpeedKph = max(_maxSpeedKph, currentSpeed);
+        _currentLocation = LatLng(newLat, newLng);
+
+        if (_isTracking) {
+          final distanceDelta = (currentSpeed / 3600.0) * 5;
+          _distanceKm += distanceDelta;
+
+          if (_durationSec > 0) {
+            _avgSpeedKph = (_distanceKm / _durationSec) * 3600.0;
+          }
+
+          _routePoints.add(
+            RoutePoint(
+              lat: newLat,
+              lng: newLng,
+              speedKph: currentSpeed,
+              timestampMs: DateTime.now().millisecondsSinceEpoch,
+            ),
+          );
+        }
+      });
+
+      _mapController.move(_currentLocation, _mapController.camera.zoom);
     } catch (e) {
       debugPrint('Error get latest location: $e');
+      if (mounted) {
+        setState(() {
+          _iotStatus = 'unknown';
+          _iotSecondsAgo = null;
+        });
+      }
     }
   }
 
@@ -148,7 +234,6 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
 
   // Fungsi timer 1 detik untuk UI dan polling 5 detik ke backend
   void _startPolling() {
-    _startTime ??= DateTime.now();
     _timer?.cancel();
 
     // Lakukan fetch sekali langsung agar tidak perlu menunggu 5 detik pertama
@@ -163,15 +248,72 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         });
       }
 
-      // Polling setiap 5 detik sesuai pengiriman MQTT backend
-      if (timer.tick % 5 == 0) {
+      // Saat tracking: polling 5 detik. Saat idle: polling 10 detik.
+      final shouldPoll = _isTracking
+          ? (timer.tick % 5 == 0)
+          : (timer.tick % 10 == 0);
+      if (shouldPoll) {
         await _fetchLatestLocationData();
       }
     });
   }
 
+  Future<bool> _refreshAndValidateIotBeforeStart() async {
+    try {
+      final latestData = await TrackingApiService.getLatestLocation(
+        widget.vehicleId,
+      );
+      if (latestData == null) {
+        if (mounted) {
+          setState(() {
+            _iotStatus = 'unknown';
+            _iotSecondsAgo = null;
+            _gpsReady = false;
+          });
+        }
+        return false;
+      }
+
+      final secondsAgo = _extractSecondsAgo(latestData);
+      final normalizedStatus = _deriveIotStatus(secondsAgo);
+      final gpsReady = latestData['gps_ready'] == true;
+      if (mounted) {
+        setState(() {
+          _iotStatus = normalizedStatus;
+          _iotSecondsAgo = secondsAgo;
+          _gpsReady = gpsReady;
+        });
+      }
+
+      return normalizedStatus == 'online';
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _iotStatus = 'unknown';
+          _iotSecondsAgo = null;
+          _gpsReady = false;
+        });
+      }
+      return false;
+    }
+  }
+
   Future<void> _startTracking() async {
     try {
+      final iotReady = await _refreshAndValidateIotBeforeStart();
+      if (!iotReady) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'IoT belum online. Nyalakan perangkat lalu coba lagi.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
       final success = await TrackingApiService.startTracking(widget.vehicleId);
       if (success && mounted) {
         setState(() {
@@ -252,7 +394,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                 ),
               ),
               child: const Text(
-                'Hentikan & Simpan',
+                'Hentikan',
                 style: TextStyle(color: Colors.white, fontFamily: 'Arial'),
               ),
             ),
@@ -272,6 +414,20 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
     try {
       final tripSummary = await TrackingApiService.stopTracking(
         widget.vehicleId,
+        clientDistanceKm: _distanceKm,
+        clientAvgSpeedKph: _avgSpeedKph,
+        clientMaxSpeedKph: _maxSpeedKph,
+        clientDurationSec: _durationSec,
+        clientRoutePoints: _routePoints
+            .map(
+              (p) => {
+                'lat': p.lat,
+                'lng': p.lng,
+                'speed_kph': p.speedKph,
+                'timestamp': p.timestampMs,
+              },
+            )
+            .toList(),
       );
 
       if (mounted) {
@@ -303,31 +459,54 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
     final endTime = DateTime.now();
     final stTime = _startTime ?? endTime;
 
-    // Gunakan summary dari backend jika tersedia, fallback ke kalkulasi lokal
+    // Gunakan summary dari backend jika tersedia, fallback ke kalkulasi lokal.
+    // Jika backend mengembalikan distance = 0 (TripPoints tidak tersimpan),
+    // gunakan kalkulasi lokal dari polling kecepatan sebagai fallback.
     final summary = tripSummary?['summary'] as Map<String, dynamic>?;
 
-    final distKm = summary?['distance_km'] != null
-        ? (summary!['distance_km'] as num).toStringAsFixed(2)
-        : tripSummary != null && tripSummary['distance_meters'] != null
-            ? ((tripSummary['distance_meters'] as num) / 1000).toStringAsFixed(2)
-            : _distanceKm.toStringAsFixed(2);
+    final summaryDistance = summary != null ? summary['distance_km'] : null;
+    final tripDistanceMeters = tripSummary?['distance_meters'];
+    final backendDistKm = summaryDistance is num
+        ? summaryDistance.toDouble()
+        : (tripDistanceMeters is num
+              ? tripDistanceMeters.toDouble() / 1000
+              : null);
 
-    final durMin = summary?['duration_minutes'] != null
-        ? summary!['duration_minutes'].toString()
-        : tripSummary != null && tripSummary['duration_minutes'] != null
-            ? tripSummary['duration_minutes'].toString()
-            : (_durationSec ~/ 60).toString();
+    // Pakai backend jika nilainya > 0, fallback ke lokal jika 0 atau null
+    final bool useBackend = backendDistKm != null && backendDistKm > 0;
 
-    final avgKph = summary?['avg_speed_kph'] != null
-        ? (summary!['avg_speed_kph'] as num).toStringAsFixed(1)
+    final distKm = (useBackend ? backendDistKm : _distanceKm).toStringAsFixed(
+      2,
+    );
+
+    final summaryDuration = summary != null
+        ? summary['duration_minutes']
+        : null;
+    final summaryAvgSpeed = summary != null ? summary['avg_speed_kph'] : null;
+    final summaryMaxSpeed = summary != null ? summary['max_speed_kph'] : null;
+
+    final durMin = useBackend && summaryDuration != null
+        ? summaryDuration.toString()
+        : (_durationSec ~/ 60).toString();
+
+    final avgKph = useBackend && summaryAvgSpeed is num
+        ? summaryAvgSpeed.toStringAsFixed(1)
         : _avgSpeedKph.toStringAsFixed(1);
 
-    final maxKph = summary?['max_speed_kph'] != null
-        ? summary!['max_speed_kph'].toString()
+    final maxKph = useBackend && summaryMaxSpeed != null
+        ? summaryMaxSpeed.toString()
         : _maxSpeedKph.toString();
 
-    final elevationGainM = summary?['elevation_gain_m'] as int?;
-    final newOdometer = summary?['new_odometer'];
+    // elevation & odometer hanya dari backend
+    final elevationGainRaw = summary != null
+        ? summary['elevation_gain_m']
+        : null;
+    final elevationGainM = elevationGainRaw is num
+        ? elevationGainRaw.toInt()
+        : null;
+    final newOdometer = useBackend && summary != null
+        ? summary['new_odometer']
+        : null;
 
     final tripData = {
       'vehicle': widget.vehicleName,
@@ -352,7 +531,37 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
       },
     };
 
-    Navigator.of(context).pop(tripData);
+    // Ambil vehicle terkini dari service untuk pre-fill parameter default
+    _navigateToSummary(tripData);
+  }
+
+  Future<void> _navigateToSummary(Map<String, dynamic> tripData) async {
+    VehicleModel? currentVehicle;
+    try {
+      currentVehicle = await VehicleService().getVehicleById(widget.vehicleId);
+    } catch (_) {
+      // Jika gagal fetch, pakai currentVehicle dari widget (bisa null)
+      currentVehicle = widget.currentVehicle;
+    }
+
+    if (!mounted) return;
+
+    // Push ke TripSummaryPage, lalu pop hasil ke dashboard
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => TripSummaryPage(
+          tripData: tripData,
+          vehicleId: widget.vehicleId,
+          vehicleName: widget.vehicleName,
+          currentVehicle: currentVehicle,
+        ),
+      ),
+    );
+
+    if (mounted) {
+      // Pop tracking page juga, bawa result ke dashboard
+      Navigator.of(context).pop(result ?? tripData);
+    }
   }
 
   static String _formatDuration(int seconds) {
@@ -367,7 +576,6 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     final points = _routePoints.map((p) => LatLng(p.lat, p.lng)).toList();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -467,7 +675,10 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                       // Indikator tracking AKTIF
                       if (_isTracking)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFF1A2A1A).withOpacity(0.9),
                             borderRadius: BorderRadius.circular(10),
@@ -478,14 +689,25 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                             children: [
                               _PulseDot(),
                               SizedBox(width: 8),
-                              Text('AKTIF', style: TextStyle(fontFamily: 'Arial', color: Color(0xFF8FA06A), fontSize: 12, fontWeight: FontWeight.w600)),
+                              Text(
+                                'AKTIF',
+                                style: TextStyle(
+                                  fontFamily: 'Arial',
+                                  color: Color(0xFF8FA06A),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ],
                           ),
                         ),
                       if (_isTracking) const SizedBox(height: 8),
                       // Indikator IoT Online/Offline
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
                         decoration: BoxDecoration(
                           color: _card.withOpacity(0.85),
                           borderRadius: BorderRadius.circular(8),
@@ -493,8 +715,8 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                             color: _iotStatus == 'online'
                                 ? _green
                                 : _iotStatus == 'unstable'
-                                    ? Colors.orange
-                                    : Colors.redAccent,
+                                ? Colors.orange
+                                : Colors.redAccent,
                             width: 1,
                           ),
                         ),
@@ -508,27 +730,23 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                                 color: _iotStatus == 'online'
                                     ? _green
                                     : _iotStatus == 'unstable'
-                                        ? Colors.orange
-                                        : Colors.redAccent,
+                                    ? Colors.orange
+                                    : Colors.redAccent,
                                 shape: BoxShape.circle,
                               ),
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              _iotStatus == 'online'
-                                  ? 'IoT Online'
-                                  : _iotStatus == 'unstable'
-                                      ? 'Tidak Stabil'
-                                      : _iotStatus == 'offline'
-                                          ? 'IoT Offline'
-                                          : 'Mendeteksi...',
+                              _iotSecondsAgo == null
+                                  ? _iotStatusLabel
+                                  : '$_iotStatusLabel (${_iotSecondsAgo}s)',
                               style: TextStyle(
                                 fontFamily: 'Arial',
                                 color: _iotStatus == 'online'
                                     ? const Color(0xFF8FA06A)
                                     : _iotStatus == 'unstable'
-                                        ? Colors.orange
-                                        : Colors.redAccent,
+                                    ? Colors.orange
+                                    : Colors.redAccent,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -663,7 +881,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                         ],
                       ),
                       const SizedBox(height: 32),
-                       // Tombol START/STOP
+                      // Tombol START/STOP
                       SizedBox(
                         width: double.infinity,
                         height: 56,
@@ -671,15 +889,15 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                           // Disable START jika IoT offline atau unknown
                           onPressed: _isTracking
                               ? _confirmStopTracking
-                              : (_iotStatus == 'offline' || _iotStatus == 'unknown')
-                                  ? null
-                                  : _startTracking,
+                              : !_isIotOnline
+                              ? null
+                              : _startTracking,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _isTracking
                                 ? Colors.redAccent
-                                : (_iotStatus == 'offline' || _iotStatus == 'unknown')
-                                    ? const Color(0xFF3A3A3A)
-                                    : _green,
+                                : !_isIotOnline
+                                ? const Color(0xFF3A3A3A)
+                                : _green,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
@@ -689,9 +907,9 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                           child: Text(
                             _isTracking
                                 ? 'STOP'
-                                : (_iotStatus == 'offline' || _iotStatus == 'unknown')
-                                    ? 'IoT Offline'
-                                    : 'START',
+                                : !_isIotOnline
+                                ? 'IoT Offline'
+                                : 'START',
                             style: const TextStyle(
                               fontFamily: 'Arial',
                               fontSize: 18,

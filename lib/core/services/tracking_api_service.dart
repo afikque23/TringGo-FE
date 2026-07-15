@@ -1,7 +1,6 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'auth_storage.dart';
 
+import '../network/api_client.dart';
 import '../network/api_config.dart';
 
 class TrackingStatus {
@@ -23,23 +22,13 @@ class TrackingStatus {
 class TrackingApiService {
   // Gunakan IP yang sesuai dengan backend
   static String get baseUrl => ApiConfig.baseUrl;
-
-  static Future<Map<String, String>> _getHeaders() async {
-    final authStorage = AuthStorage();
-    final token = await authStorage.getAccessToken();
-    return {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
-  }
+  static final ApiClient _apiClient = ApiClient();
 
   /// 1. Cek Status Tracking
   static Future<TrackingStatus> checkStatus(int motorId) async {
-    final headers = await _getHeaders();
     final url = '$baseUrl/motors/$motorId/tracking/status';
     print('🌐 [GET] $url');
-    final response = await http.get(Uri.parse(url), headers: headers);
+    final response = await _apiClient.get(url);
 
     print('📥 Response status: ${response.statusCode}');
     print('📥 Response body: ${response.body}');
@@ -56,10 +45,9 @@ class TrackingApiService {
 
   /// 2. Mulai Tracking (Start)
   static Future<bool> startTracking(int motorId) async {
-    final headers = await _getHeaders();
     final url = '$baseUrl/motors/$motorId/tracking/start';
     print('🌐 [POST] $url');
-    final response = await http.post(Uri.parse(url), headers: headers);
+    final response = await _apiClient.post(url);
 
     print('📥 Response status: ${response.statusCode}');
     print('📥 Response body: ${response.body}');
@@ -75,17 +63,35 @@ class TrackingApiService {
   }
 
   /// 3. Berhentikan Tracking (Stop)
-  static Future<Map<String, dynamic>> stopTracking(int motorId) async {
-    final headers = await _getHeaders();
-    final response = await http.post(
-      Uri.parse('$baseUrl/motors/$motorId/tracking/stop'),
-      headers: headers,
+  /// [clientDistanceKm] — jarak yang dihitung lokal di mobile, dikirim sebagai fallback
+  /// ke backend jika TripPoints tidak tersimpan (mqtt:subscribe tidak berjalan)
+  static Future<Map<String, dynamic>> stopTracking(
+    int motorId, {
+    double clientDistanceKm = 0,
+    double clientAvgSpeedKph = 0,
+    int clientMaxSpeedKph = 0,
+    int clientDurationSec = 0,
+    List<Map<String, dynamic>> clientRoutePoints = const [],
+  }) async {
+    final body = {
+      if (clientDistanceKm > 0)
+        'client_distance_meters': (clientDistanceKm * 1000).round(),
+      if (clientAvgSpeedKph > 0) 'client_avg_speed_kph': clientAvgSpeedKph,
+      if (clientMaxSpeedKph > 0) 'client_max_speed_kph': clientMaxSpeedKph,
+      if (clientDurationSec > 0) 'client_duration_seconds': clientDurationSec,
+      if (clientRoutePoints.isNotEmpty)
+        'client_route_points': clientRoutePoints,
+    };
+
+    final response = await _apiClient.post(
+      '$baseUrl/motors/$motorId/tracking/stop',
+      body: body,
     );
 
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body);
-      return json['trip'] ??
-          {}; // Mengembalikan data summary trip (termasuk duration_minutes)
+      // Kembalikan respons penuh (termasuk 'summary' dengan distance_km)
+      return json as Map<String, dynamic>;
     } else {
       throw Exception('Gagal menghentikan tracking');
     }
@@ -93,17 +99,31 @@ class TrackingApiService {
 
   /// 4. Ambil Lokasi Terakhir (IoT)
   static Future<Map<String, dynamic>?> getLatestLocation(int motorId) async {
-    final headers = await _getHeaders();
-    final response = await http.get(
-      Uri.parse('$baseUrl/motors/$motorId/tracking/last-location'),
-      headers: headers,
+    final uri = Uri.parse('$baseUrl/motors/$motorId/tracking/last-location')
+        .replace(
+          queryParameters: {
+            '_': DateTime.now().millisecondsSinceEpoch.toString(),
+          },
+        );
+    final response = await _apiClient.get(
+      uri.toString(),
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
     );
 
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body);
-      // Jika belum ada data koordinat
-      if (json['latitude'] == null) return null;
-      return json;
+      // Tetap kembalikan payload walau koordinat null, agar status IoT bisa di-update.
+      if (json is Map<String, dynamic>) {
+        return json;
+      }
+      if (json is Map) {
+        return Map<String, dynamic>.from(json);
+      }
+      return null;
     } else {
       throw Exception('Gagal mengambil lokasi terakhir');
     }
