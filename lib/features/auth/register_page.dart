@@ -5,6 +5,7 @@ import 'otp_verification_page.dart';
 import '../widget/page_transition.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/network/api_config.dart';
+import '../../core/services/auth_storage.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -22,6 +23,7 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
   int _passwordStrength = -1; // -1: not show, 0: weak, 1: medium, 2: strong
+  final _authStorage = AuthStorage();
 
   @override
   void initState() {
@@ -121,12 +123,16 @@ class _RegisterPageState extends State<RegisterPage> {
       if (!mounted) return;
 
       if (response.statusCode == 201 || response.statusCode == 200) {
+        await _authStorage.savePendingVerificationEmail(
+          _emailController.text.trim(),
+        );
+
         // Registrasi berhasil, arahkan ke OTP verification
         Navigator.push(
           context,
           SmoothPageRoute(
             page: OtpVerificationPage(
-              email: _emailController.text,
+              email: _emailController.text.trim(),
               isFromRegistration: true,
             ),
           ),

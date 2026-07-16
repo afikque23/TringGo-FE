@@ -19,6 +19,11 @@ VehicleModel _$VehicleModelFromJson(Map<String, dynamic> json) => VehicleModel(
   isPrimary: json['is_primary'] as bool? ?? false,
   deviceId: json['device_id'] as String?,
   userId: (json['user_id'] as num?)?.toInt(),
+  defaultBeban: json['default_beban'] as String?,
+  defaultPenumpang: json['default_penumpang'] as bool?,
+  defaultGayaBerkendara: json['default_gaya_berkendara'] as String?,
+  defaultKondisiJalan: json['default_kondisi_jalan'] as String?,
+  defaultMedan: json['default_medan'] as String?,
   createdAt: json['created_at'] == null
       ? null
       : DateTime.parse(json['created_at'] as String),
@@ -41,6 +46,11 @@ Map<String, dynamic> _$VehicleModelToJson(VehicleModel instance) =>
       'is_primary': instance.isPrimary,
       'device_id': instance.deviceId,
       'user_id': instance.userId,
+      'default_beban': instance.defaultBeban,
+      'default_penumpang': instance.defaultPenumpang,
+      'default_gaya_berkendara': instance.defaultGayaBerkendara,
+      'default_kondisi_jalan': instance.defaultKondisiJalan,
+      'default_medan': instance.defaultMedan,
       'created_at': instance.createdAt?.toIso8601String(),
       'updated_at': instance.updatedAt?.toIso8601String(),
     };

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'register_page.dart';
 import 'forgot_password_page.dart';
+import 'otp_verification_page.dart';
 import '../dashboard/dashboard.dart';
 import '../widget/page_transition.dart';
 import '../../l10n/app_localizations.dart';
@@ -23,6 +24,58 @@ class _LoginPageState extends State<LoginPage> {
   final _authStorage = AuthStorage();
   bool _obscurePassword = true;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPendingVerification();
+  }
+
+  Future<void> _checkPendingVerification() async {
+    final pendingEmail = await _authStorage.getPendingVerificationEmail();
+    if (!mounted || pendingEmail == null || pendingEmail.isEmpty) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Lanjut Verifikasi'),
+          content: Text(
+            'Anda punya proses verifikasi OTP yang belum selesai untuk $pendingEmail. Lanjutkan sekarang?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _authStorage.clearPendingVerificationEmail();
+              },
+              child: const Text('Nanti'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  SmoothPageRoute(
+                    page: OtpVerificationPage(
+                      email: pendingEmail,
+                      isFromRegistration: true,
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Lanjut'),
+            ),
+          ],
+        ),
+      );
+    });
+  }
 
   @override
   void dispose() {
@@ -137,7 +190,28 @@ class _LoginPageState extends State<LoginPage> {
         }
       } else {
         final error = jsonDecode(response.body);
-        _showErrorDialog(error['message'] ?? 'Login gagal');
+        final message = (error['message'] ?? 'Login gagal').toString();
+        final requiresVerification = error['errors'] is Map
+            ? (error['errors']['requires_verification'] == true)
+            : false;
+
+        if (response.statusCode == 403 && requiresVerification) {
+          final email = _emailController.text.trim();
+          if (email.isNotEmpty) {
+            await _authStorage.savePendingVerificationEmail(email);
+          }
+
+          if (!mounted) return;
+          Navigator.push(
+            context,
+            SmoothPageRoute(
+              page: OtpVerificationPage(email: email, isFromRegistration: true),
+            ),
+          );
+          return;
+        }
+
+        _showErrorDialog(message);
       }
     } catch (e) {
       if (mounted) {

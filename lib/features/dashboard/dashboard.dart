@@ -600,6 +600,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                         page: GpsTrackingPage(
                                           vehicleId: _primaryVehicle!.id!,
                                           vehicleName: _primaryVehicle!.title,
+                                          currentVehicle: _primaryVehicle,
                                         ),
                                       ),
                                     );

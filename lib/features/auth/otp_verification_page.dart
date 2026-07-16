@@ -122,11 +122,12 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
 
         if (response.statusCode == 200) {
           final responseData = jsonDecode(response.body)['data'];
+          final authStorage = AuthStorage();
+
+          await authStorage.clearPendingVerificationEmail();
 
           // Save tokens from response
           if (responseData != null && responseData['access_token'] != null) {
-            final authStorage = AuthStorage();
-
             // Save tokens
             await authStorage.saveTokens(
               accessToken: responseData['access_token'],
@@ -361,68 +362,70 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                         children: List.generate(6, (index) {
                           return Flexible(
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 2,
+                              ),
                               child: SizedBox(
                                 width: 48,
                                 height: 56,
                                 child: TextField(
                                   controller: _otpControllers[index],
                                   focusNode: _focusNodes[index],
-                                textAlign: TextAlign.center,
-                                keyboardType: TextInputType.number,
-                                maxLength: 1,
-                                style: TextStyle(
-                                  fontFamily: 'Arial',
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w600,
-                                  color: colorScheme.onSurface,
+                                  textAlign: TextAlign.center,
+                                  keyboardType: TextInputType.number,
+                                  maxLength: 1,
+                                  style: TextStyle(
+                                    fontFamily: 'Arial',
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w600,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                  ],
+                                  decoration: InputDecoration(
+                                    counterText: '',
+                                    filled: true,
+                                    fillColor: colorScheme.surface,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: BorderSide(
+                                        color: colorScheme.outlineVariant,
+                                        width: 0.65,
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: BorderSide(
+                                        color: colorScheme.outlineVariant,
+                                        width: 0.65,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: BorderSide(
+                                        color: colorScheme.primary,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                  onChanged: (value) {
+                                    if (value.isNotEmpty && index < 5) {
+                                      _focusNodes[index + 1].requestFocus();
+                                    }
+                                    _checkOtpComplete();
+                                  },
+                                  onTap: () {
+                                    // Clear the field when tapped
+                                    _otpControllers[index].clear();
+                                  },
                                 ),
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.digitsOnly,
-                                ],
-                                decoration: InputDecoration(
-                                  counterText: '',
-                                  filled: true,
-                                  fillColor: colorScheme.surface,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide(
-                                      color: colorScheme.outlineVariant,
-                                      width: 0.65,
-                                    ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide(
-                                      color: colorScheme.outlineVariant,
-                                      width: 0.65,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide(
-                                      color: colorScheme.primary,
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  contentPadding: EdgeInsets.zero,
-                                ),
-                                onChanged: (value) {
-                                  if (value.isNotEmpty && index < 5) {
-                                    _focusNodes[index + 1].requestFocus();
-                                  }
-                                  _checkOtpComplete();
-                                },
-                                onTap: () {
-                                  // Clear the field when tapped
-                                  _otpControllers[index].clear();
-                                },
                               ),
                             ),
-                          ),
-                        );
-                      }),
-                    ),
+                          );
+                        }),
+                      ),
                       const SizedBox(height: 16),
                       // Countdown Timer
                       Container(

@@ -18,6 +18,7 @@ class AuthStorage {
   static const _userIdKey = 'user_id';
   static const _userEmailKey = 'user_email';
   static const _userNameKey = 'user_name';
+  static const _pendingVerificationEmailKey = 'pending_verification_email';
 
   /// Save authentication tokens after login
   Future<void> saveTokens({
@@ -83,5 +84,20 @@ class AuthStorage {
   /// Update access token only (after refresh)
   Future<void> updateAccessToken(String accessToken) async {
     await _storage.write(key: _accessTokenKey, value: accessToken);
+  }
+
+  /// Save pending email verification state (for register/login recovery flow)
+  Future<void> savePendingVerificationEmail(String email) async {
+    await _storage.write(key: _pendingVerificationEmailKey, value: email);
+  }
+
+  /// Read pending email verification state
+  Future<String?> getPendingVerificationEmail() async {
+    return await _storage.read(key: _pendingVerificationEmailKey);
+  }
+
+  /// Clear pending email verification state
+  Future<void> clearPendingVerificationEmail() async {
+    await _storage.delete(key: _pendingVerificationEmailKey);
   }
 }
