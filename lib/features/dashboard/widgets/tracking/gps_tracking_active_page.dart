@@ -162,7 +162,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
 
       final startAtRaw = trip['start_at']?.toString();
       final startAt = startAtRaw != null && startAtRaw.isNotEmpty
-          ? DateTime.tryParse(startAtRaw)
+          ? DateTime.tryParse(startAtRaw)?.toLocal()
           : null;
 
       final distanceMetersRaw = trip['distance_meters'];
@@ -551,11 +551,11 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
     final summaryMaxSpeed = summary != null ? summary['max_speed_kph'] : null;
 
     final durMin = useBackend && summaryDuration != null
-      ? (summaryDuration is num
-          ? summaryDuration.round().toString()
-          : int.tryParse(summaryDuration.toString())?.toString() ??
-            summaryDuration.toString())
-      : (_durationSec ~/ 60).toString();
+        ? (summaryDuration is num
+              ? summaryDuration.round().toString()
+              : int.tryParse(summaryDuration.toString())?.toString() ??
+                    summaryDuration.toString())
+        : (_durationSec ~/ 60).toString();
 
     final avgKph = useBackend && summaryAvgSpeed is num
         ? summaryAvgSpeed.toStringAsFixed(1)
@@ -575,6 +575,14 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
     final newOdometer = useBackend && summary != null
         ? summary['new_odometer']
         : null;
+    final tripPointsCountRaw = summary != null
+        ? summary['trip_points_count']
+        : null;
+    final tripPointsCount = tripPointsCountRaw is num
+        ? tripPointsCountRaw.toInt()
+        : int.tryParse(tripPointsCountRaw?.toString() ?? '');
+    final usedClientDistance =
+        summary != null && summary['used_client_distance'] == true;
 
     final tripData = {
       'vehicle': widget.vehicleName,
@@ -584,6 +592,8 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
       'maxSpeedKph': maxKph,
       'elevationGainM': elevationGainM,
       'newOdometer': newOdometer,
+      'tripPointsCount': tripPointsCount,
+      'usedClientDistance': usedClientDistance,
       'startTime':
           '${stTime.hour.toString().padLeft(2, '0')}:${stTime.minute.toString().padLeft(2, '0')}',
       'endTime':

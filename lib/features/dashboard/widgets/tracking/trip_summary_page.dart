@@ -134,7 +134,7 @@ class _TripSummaryPageState extends State<TripSummaryPage>
         updatedJson['default_gaya_berkendara'] = _defaultGayaBerkendara;
         updatedJson['default_kondisi_jalan'] = _defaultKondisiJalan;
         updatedJson['default_medan'] = _defaultMedan;
-        
+
         final updatedVehicle = VehicleModel.fromJson(updatedJson);
         await _vehicleService.updateVehicle(widget.vehicleId, updatedVehicle);
       }
@@ -212,6 +212,12 @@ class _TripSummaryPageState extends State<TripSummaryPage>
   @override
   Widget build(BuildContext context) {
     final tripData = widget.tripData;
+    final tripPointsCount = (tripData['tripPointsCount'] as int?) ?? 0;
+    final usedClientDistance = tripData['usedClientDistance'] == true;
+    final distanceValue =
+        (tripData['distanceValue'] as num?)?.toDouble() ?? 0.0;
+    final hasInsufficientTelemetry =
+        usedClientDistance || (tripPointsCount > 0 && tripPointsCount < 2);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
@@ -299,6 +305,52 @@ class _TripSummaryPageState extends State<TripSummaryPage>
                             fontSize: 12,
                           ),
                         ),
+                        if (hasInsufficientTelemetry)
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(top: 12, bottom: 8),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.orange.withOpacity(0.35),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Data tracking kurang lengkap',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.orange,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  usedClientDistance
+                                      ? 'Jarak dihitung dari HP karena data rute IoT tidak mencukupi.'
+                                      : 'Jumlah titik rute hanya $tripPointsCount, sehingga ringkasan jarak bisa kurang akurat.',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade700,
+                                    height: 1.35,
+                                  ),
+                                ),
+                                if (distanceValue <= 0)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text(
+                                      'Pastikan GPS IoT sudah fix sebelum START, dan IoT tetap online saat perjalanan.',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade700,
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
                         if (_hasPreviousParams) ...[
                           const SizedBox(height: 12),
                           OutlinedButton.icon(
@@ -333,7 +385,11 @@ class _TripSummaryPageState extends State<TripSummaryPage>
                           label: 'Beban Bawaan Biasa',
                           icon: Icons.shopping_bag_outlined,
                           child: _buildChipSelector(
-                            options: const ['🎒 Ringan', '🛍️ Sedang', '📦 Berat'],
+                            options: const [
+                              '🎒 Ringan',
+                              '🛍️ Sedang',
+                              '📦 Berat',
+                            ],
                             values: const ['ringan', 'sedang', 'berat'],
                             selected: _defaultBeban,
                             onSelected: (v) =>
@@ -685,8 +741,7 @@ class _TripSummaryPageState extends State<TripSummaryPage>
               style: TextStyle(
                 fontFamily: 'Arial',
                 fontSize: 13,
-                fontWeight:
-                    isSelected ? FontWeight.w600 : FontWeight.w400,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                 color: isSelected ? _greenLight : const Color(0xFF9CA3AF),
               ),
             ),
@@ -706,11 +761,7 @@ class _TripSummaryPageState extends State<TripSummaryPage>
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.person_outline,
-            color: Color(0xFF6B7280),
-            size: 16,
-          ),
+          const Icon(Icons.person_outline, color: Color(0xFF6B7280), size: 16),
           const SizedBox(width: 10),
           const Expanded(
             child: Column(
