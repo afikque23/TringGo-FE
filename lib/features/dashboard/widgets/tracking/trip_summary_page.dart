@@ -87,6 +87,35 @@ class _TripSummaryPageState extends State<TripSummaryPage>
     });
   }
 
+  int _toInt(dynamic value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is num) return value.round();
+    if (value is String) return int.tryParse(value) ?? fallback;
+    return fallback;
+  }
+
+  double _toDouble(dynamic value, {double fallback = 0.0}) {
+    if (value is double) return value;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? fallback;
+    return fallback;
+  }
+
+  bool _toBool(dynamic value, {bool fallback = false}) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized == 'true' || normalized == '1' || normalized == 'yes') {
+        return true;
+      }
+      if (normalized == 'false' || normalized == '0' || normalized == 'no') {
+        return false;
+      }
+    }
+    return fallback;
+  }
+
   String _formatDuration(dynamic rawValue) {
     final minutes = rawValue is num
         ? rawValue.toDouble()
@@ -212,10 +241,9 @@ class _TripSummaryPageState extends State<TripSummaryPage>
   @override
   Widget build(BuildContext context) {
     final tripData = widget.tripData;
-    final tripPointsCount = (tripData['tripPointsCount'] as int?) ?? 0;
-    final usedClientDistance = tripData['usedClientDistance'] == true;
-    final distanceValue =
-        (tripData['distanceValue'] as num?)?.toDouble() ?? 0.0;
+    final tripPointsCount = _toInt(tripData['tripPointsCount']);
+    final usedClientDistance = _toBool(tripData['usedClientDistance']);
+    final distanceValue = _toDouble(tripData['distanceValue']);
     final hasInsufficientTelemetry =
         usedClientDistance || (tripPointsCount > 0 && tripPointsCount < 2);
 
