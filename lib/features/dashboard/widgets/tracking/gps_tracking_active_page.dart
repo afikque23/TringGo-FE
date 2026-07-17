@@ -72,6 +72,8 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
     return _iotSecondsAgo! <= 15;
   }
 
+  bool get _canStartTracking => _isIotOnline && _gpsReady;
+
   String get _iotStatusLabel {
     if (_iotStatus == 'online' && !_gpsReady)
       return 'IoT Online • Mencari GPS Fix';
@@ -285,7 +287,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         });
       }
 
-      return normalizedStatus == 'online';
+      return normalizedStatus == 'online' && gpsReady;
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -324,16 +326,9 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
           _avgSpeedKph = 0;
           _maxSpeedKph = 0;
           _startTime = DateTime.now();
-          _routePoints
-            ..clear()
-            ..add(
-              RoutePoint(
-                lat: _currentLocation.latitude,
-                lng: _currentLocation.longitude,
-                speedKph: 0,
-                timestampMs: DateTime.now().millisecondsSinceEpoch,
-              ),
-            );
+          // Jangan seed titik awal dari _currentLocation, agar tidak menyimpan
+          // koordinat stale ketika GPS belum benar-benar fix sebelumnya.
+          _routePoints.clear();
         });
 
         _startPolling();
@@ -886,16 +881,16 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton(
-                          // Disable START jika IoT offline atau unknown
+                          // Disable START jika IoT belum online atau GPS belum fix.
                           onPressed: _isTracking
                               ? _confirmStopTracking
-                              : !_isIotOnline
+                              : !_canStartTracking
                               ? null
                               : _startTracking,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _isTracking
                                 ? Colors.redAccent
-                                : !_isIotOnline
+                                : !_canStartTracking
                                 ? const Color(0xFF3A3A3A)
                                 : _green,
                             foregroundColor: Colors.white,
@@ -909,6 +904,8 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                                 ? 'STOP'
                                 : !_isIotOnline
                                 ? 'IoT Offline'
+                                : !_gpsReady
+                                ? 'Menunggu GPS Fix'
                                 : 'START',
                             style: const TextStyle(
                               fontFamily: 'Arial',
