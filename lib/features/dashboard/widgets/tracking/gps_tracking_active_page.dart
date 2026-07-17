@@ -303,7 +303,6 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         restoredPoints.addAll(
           _sanitizeRestoredRoute(parsedRows.map((e) => e.point).toList()),
         );
-        }
       }
 
       setState(() {
