@@ -163,7 +163,9 @@ class TripModel {
         .map((e) => e.speedKph)
         .where((v) => v > 0)
         .toList();
-    final points = _sanitizeRoutePoints(parsedPoints.map((e) => e.point).toList());
+    final points = _sanitizeRoutePoints(
+      parsedPoints.map((e) => e.point).toList(),
+    );
 
     final avgSpeedFromPoints = speedsKph.isEmpty
         ? 0.0
