@@ -43,6 +43,25 @@ class TrackingApiService {
     }
   }
 
+  /// 1b. Ambil detail trip berdasarkan ID.
+  static Future<Map<String, dynamic>> getTripById(int tripId) async {
+    final response = await _apiClient.get('$baseUrl/trips/$tripId');
+
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      if (json is Map<String, dynamic> &&
+          json['data'] is Map<String, dynamic>) {
+        return json['data'] as Map<String, dynamic>;
+      }
+      if (json is Map && json['data'] is Map) {
+        return Map<String, dynamic>.from(json['data'] as Map);
+      }
+      throw Exception('Format detail trip tidak valid');
+    }
+
+    throw Exception('Gagal mengambil detail trip');
+  }
+
   /// 2. Mulai Tracking (Start)
   static Future<bool> startTracking(int motorId) async {
     final url = '$baseUrl/motors/$motorId/tracking/start';

@@ -140,6 +140,10 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
           _isTracking = status.isTracking;
         });
 
+        if (status.isTracking && status.activeTripId != null) {
+          await _restoreActiveTripState(status.activeTripId!);
+        }
+
         // Fetch lokasi terakhir dari IoT segera setelah halaman dibuka (walau belum tracking/Start)
         await _fetchLatestLocationData();
 
@@ -148,6 +152,72 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
       }
     } catch (e) {
       debugPrint('Error check tracking status: $e');
+    }
+  }
+
+  Future<void> _restoreActiveTripState(int tripId) async {
+    try {
+      final trip = await TrackingApiService.getTripById(tripId);
+      if (!mounted) return;
+
+      final startAtRaw = trip['start_at']?.toString();
+      final startAt = startAtRaw != null && startAtRaw.isNotEmpty
+          ? DateTime.tryParse(startAtRaw)
+          : null;
+
+      final distanceMetersRaw = trip['distance_meters'];
+      final distanceKm = distanceMetersRaw is num
+          ? distanceMetersRaw.toDouble() / 1000.0
+          : (trip['distance_km'] is num
+                ? (trip['distance_km'] as num).toDouble()
+                : 0.0);
+
+      final avgSpeedRaw = trip['avg_speed_kph'];
+      final maxSpeedRaw = trip['max_speed_kph'];
+
+      final pointsRaw = trip['points'];
+      final restoredPoints = <RoutePoint>[];
+      if (pointsRaw is List) {
+        for (final item in pointsRaw) {
+          if (item is! Map) continue;
+          final point = Map<String, dynamic>.from(item);
+          final lat = point['latitude'];
+          final lng = point['longitude'];
+          if (lat is! num || lng is! num) continue;
+
+          restoredPoints.add(
+            RoutePoint(
+              lat: lat.toDouble(),
+              lng: lng.toDouble(),
+              speedKph: (point['speed_kph'] as num?)?.toInt() ?? 0,
+              timestampMs:
+                  startAt?.millisecondsSinceEpoch ??
+                  DateTime.now().millisecondsSinceEpoch,
+            ),
+          );
+        }
+      }
+
+      setState(() {
+        _startTime = startAt;
+        if (_startTime != null) {
+          _durationSec = DateTime.now().difference(_startTime!).inSeconds;
+        }
+        _distanceKm = distanceKm;
+        _avgSpeedKph = avgSpeedRaw is num
+            ? avgSpeedRaw.toDouble()
+            : _avgSpeedKph;
+        _maxSpeedKph = maxSpeedRaw is num ? maxSpeedRaw.toInt() : _maxSpeedKph;
+        if (restoredPoints.isNotEmpty) {
+          _routePoints
+            ..clear()
+            ..addAll(restoredPoints);
+          final lastPoint = restoredPoints.last;
+          _currentLocation = LatLng(lastPoint.lat, lastPoint.lng);
+        }
+      });
+    } catch (e) {
+      debugPrint('Error restore active trip state: $e');
     }
   }
 
@@ -481,8 +551,11 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
     final summaryMaxSpeed = summary != null ? summary['max_speed_kph'] : null;
 
     final durMin = useBackend && summaryDuration != null
-        ? summaryDuration.toString()
-        : (_durationSec ~/ 60).toString();
+      ? (summaryDuration is num
+          ? summaryDuration.round().toString()
+          : int.tryParse(summaryDuration.toString())?.toString() ??
+            summaryDuration.toString())
+      : (_durationSec ~/ 60).toString();
 
     final avgKph = useBackend && summaryAvgSpeed is num
         ? summaryAvgSpeed.toStringAsFixed(1)

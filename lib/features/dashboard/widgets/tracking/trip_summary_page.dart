@@ -87,6 +87,37 @@ class _TripSummaryPageState extends State<TripSummaryPage>
     });
   }
 
+  String _formatDuration(dynamic rawValue) {
+    final minutes = rawValue is num
+        ? rawValue.toDouble()
+        : double.tryParse(rawValue?.toString() ?? '');
+
+    if (minutes == null || minutes.isNaN || minutes < 0) {
+      return '0 mnt';
+    }
+
+    final totalSeconds = (minutes * 60).round();
+    final hours = totalSeconds ~/ 3600;
+    final remainingMinutes = (totalSeconds % 3600) ~/ 60;
+    final remainingSeconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      if (remainingSeconds > 0) {
+        return '$hours jam ${remainingMinutes} mnt ${remainingSeconds} dtk';
+      }
+      return '$hours jam ${remainingMinutes} mnt';
+    }
+
+    if (remainingMinutes > 0) {
+      if (remainingSeconds > 0) {
+        return '${remainingMinutes} mnt ${remainingSeconds} dtk';
+      }
+      return '${remainingMinutes} mnt';
+    }
+
+    return '${remainingSeconds} dtk';
+  }
+
   @override
   void dispose() {
     _fadeController.dispose();
@@ -421,7 +452,7 @@ class _TripSummaryPageState extends State<TripSummaryPage>
 
   Widget _buildTripStatsCard(Map<String, dynamic> tripData) {
     final distance = tripData['distanceValue']?.toString() ?? '0.00';
-    final duration = tripData['durationMinutes']?.toString() ?? '0';
+    final duration = _formatDuration(tripData['durationMinutes']);
     final avgSpeed = tripData['averageSpeedKph']?.toString() ?? '0.0';
     final maxSpeed = tripData['maxSpeedKph']?.toString() ?? '0';
     final elevGain = tripData['elevationGainM'];
@@ -512,7 +543,7 @@ class _TripSummaryPageState extends State<TripSummaryPage>
                 child: _buildStatItem(
                   icon: Icons.timer_outlined,
                   label: 'Durasi',
-                  value: '${duration} mnt',
+                  value: duration,
                 ),
               ),
               Container(width: 1, height: 40, color: _border),
