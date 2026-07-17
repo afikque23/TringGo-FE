@@ -17,6 +17,7 @@ import '../../core/model/vehicle_model.dart';
 import '../../core/model/service_schedule_model.dart';
 import '../../core/services/notification_api_service.dart';
 import '../../core/services/service_schedule_service.dart';
+import '../../core/services/tracking_api_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../recommendation/screens/recommendation_home_insight_screen.dart';
 import '../recommendation/state/recommendation_home_insight_notifier.dart';
@@ -31,12 +32,14 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> {
+class _DashboardPageState extends State<DashboardPage>
+    with WidgetsBindingObserver {
   final int _selectedIndex = 0;
   final _vehicleService = VehicleService();
   final _scheduleService = ServiceScheduleService();
   VehicleModel? _primaryVehicle;
   bool _isLoadingVehicle = true;
+  bool _isTrackingActive = false;
   Map<String, dynamic> _serviceMetrics = {};
   bool _isLoadingMetrics = true;
   int _unreadNotificationCount = 0;
@@ -48,6 +51,7 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _homeInsightNotifier = RecommendationHomeInsightNotifier();
     _loadPrimaryVehicle();
     _loadServiceMetrics();
@@ -58,8 +62,40 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _homeInsightNotifier.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshTrackingStatus();
+    }
+  }
+
+  Future<void> _refreshTrackingStatus() async {
+    final motorId = _primaryVehicle?.id;
+    if (motorId == null) {
+      if (mounted) {
+        setState(() => _isTrackingActive = false);
+      }
+      return;
+    }
+
+    try {
+      final status = await TrackingApiService.checkStatus(motorId);
+      if (!mounted) return;
+      setState(() {
+        _isTrackingActive = status.isTracking;
+      });
+    } catch (e) {
+      print('Failed to refresh tracking status: $e');
+      if (!mounted) return;
+      setState(() {
+        _isTrackingActive = false;
+      });
+    }
   }
 
   Future<void> _loadDashboardSchedules() async {
@@ -116,6 +152,11 @@ class _DashboardPageState extends State<DashboardPage> {
         final motorId = vehicle?.id;
         if (motorId != null) {
           _homeInsightNotifier.load(motorId);
+          _refreshTrackingStatus();
+        } else {
+          setState(() {
+            _isTrackingActive = false;
+          });
         }
 
         // Check service reminders after loading vehicle on app startup
@@ -593,8 +634,8 @@ class _DashboardPageState extends State<DashboardPage> {
                           child: ElevatedButton(
                             onPressed: _primaryVehicle == null
                                 ? null
-                                : () {
-                                    Navigator.push(
+                                : () async {
+                                    await Navigator.push(
                                       context,
                                       SmoothPageRoute(
                                         page: GpsTrackingPage(
@@ -604,11 +645,16 @@ class _DashboardPageState extends State<DashboardPage> {
                                         ),
                                       ),
                                     );
+
+                                    // Saat kembali dari halaman tracking, sinkronkan lagi status tombol.
+                                    await _refreshTrackingStatus();
                                   },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: _primaryVehicle == null
                                   ? colorScheme.surfaceContainerHighest
-                                  : colorScheme.primary,
+                                  : (_isTrackingActive
+                                        ? colorScheme.error
+                                        : colorScheme.primary),
                               disabledBackgroundColor:
                                   colorScheme.surfaceContainerHighest,
                               elevation: 0,
@@ -621,7 +667,9 @@ class _DashboardPageState extends State<DashboardPage> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(
-                                  Icons.location_on,
+                                  _isTrackingActive
+                                      ? Icons.stop_circle_outlined
+                                      : Icons.location_on,
                                   size: 24,
                                   color: _primaryVehicle == null
                                       ? colorScheme.onSurfaceVariant
@@ -632,7 +680,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                   child: Text(
                                     _primaryVehicle == null
                                         ? 'Tambah kendaraan terlebih dahulu'
-                                        : l10n.startTracking,
+                                        : (_isTrackingActive
+                                              ? 'Sedang Melacak'
+                                              : l10n.startTracking),
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontFamily: 'Arial',
