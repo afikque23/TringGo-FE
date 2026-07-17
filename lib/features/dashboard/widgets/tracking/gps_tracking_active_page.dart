@@ -122,6 +122,88 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
     }
   }
 
+  double? _toDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
+
+  int? _toInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.round();
+    return int.tryParse(value.toString());
+  }
+
+  DateTime? _toDateTime(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value.toLocal();
+    try {
+      return DateTime.parse(value.toString()).toLocal();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  double _haversineMeters(double lat1, double lon1, double lat2, double lon2) {
+    const earthRadius = 6371000.0;
+    final dLat = (lat2 - lat1) * pi / 180.0;
+    final dLon = (lon2 - lon1) * pi / 180.0;
+    final a =
+        sin(dLat / 2) * sin(dLat / 2) +
+        cos(lat1 * pi / 180.0) *
+            cos(lat2 * pi / 180.0) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
+    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  List<RoutePoint> _sanitizeRestoredRoute(List<RoutePoint> points) {
+    if (points.length <= 2) return points;
+
+    const minUsefulStepMeters = 2.0;
+    const maxReasonableSpeedKph = 180.0;
+    const maxJumpNoTimeMeters = 800.0;
+
+    final cleaned = <RoutePoint>[points.first];
+
+    for (var i = 1; i < points.length; i++) {
+      final candidate = points[i];
+      final prev = cleaned.last;
+
+      final meters = _haversineMeters(
+        prev.lat,
+        prev.lng,
+        candidate.lat,
+        candidate.lng,
+      );
+
+      if (meters < minUsefulStepMeters) {
+        continue;
+      }
+
+      final dtSeconds = (candidate.timestampMs - prev.timestampMs) ~/ 1000;
+
+      if (dtSeconds <= 0) {
+        if (meters > maxJumpNoTimeMeters) {
+          continue;
+        }
+        cleaned.add(candidate);
+        continue;
+      }
+
+      final speedKph = (meters / dtSeconds) * 3.6;
+      if (speedKph > maxReasonableSpeedKph && meters > 120) {
+        continue;
+      }
+
+      cleaned.add(candidate);
+    }
+
+    return cleaned;
+  }
+
   // Koordinat awal (Semarang)
   LatLng _currentLocation = const LatLng(-6.9535, 110.4388);
   final List<RoutePoint> _routePoints = <RoutePoint>[];
@@ -178,23 +260,49 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
       final pointsRaw = trip['points'];
       final restoredPoints = <RoutePoint>[];
       if (pointsRaw is List) {
-        for (final item in pointsRaw) {
+        final parsedRows =
+            <({int index, int? sequence, DateTime recordedAt, RoutePoint point})>[];
+
+        for (var i = 0; i < pointsRaw.length; i++) {
+          final item = pointsRaw[i];
           if (item is! Map) continue;
           final point = Map<String, dynamic>.from(item);
-          final lat = point['latitude'];
-          final lng = point['longitude'];
-          if (lat is! num || lng is! num) continue;
+          final lat = _toDouble(point['latitude']);
+          final lng = _toDouble(point['longitude']);
+          if (lat == null || lng == null) continue;
+          if (lat < -90 || lat > 90 || lng < -180 || lng > 180) continue;
+          if (lat == 0.0 && lng == 0.0) continue;
 
-          restoredPoints.add(
-            RoutePoint(
-              lat: lat.toDouble(),
-              lng: lng.toDouble(),
-              speedKph: (point['speed_kph'] as num?)?.toInt() ?? 0,
-              timestampMs:
-                  startAt?.millisecondsSinceEpoch ??
-                  DateTime.now().millisecondsSinceEpoch,
+          final recordedAt =
+              _toDateTime(point['recorded_at']) ?? startAt ?? DateTime.now();
+
+          parsedRows.add((
+            index: i,
+            sequence: _toInt(point['sequence']),
+            recordedAt: recordedAt,
+            point: RoutePoint(
+              lat: lat,
+              lng: lng,
+              speedKph: _toInt(point['speed_kph']) ?? 0,
+              timestampMs: recordedAt.millisecondsSinceEpoch,
             ),
-          );
+          ));
+        }
+
+        parsedRows.sort((a, b) {
+          final aSeq = a.sequence;
+          final bSeq = b.sequence;
+          if (aSeq != null && bSeq != null && aSeq != bSeq) {
+            return aSeq.compareTo(bSeq);
+          }
+          final byTime = a.recordedAt.compareTo(b.recordedAt);
+          if (byTime != 0) return byTime;
+          return a.index.compareTo(b.index);
+        });
+
+        restoredPoints.addAll(
+          _sanitizeRestoredRoute(parsedRows.map((e) => e.point).toList()),
+        );
         }
       }
 

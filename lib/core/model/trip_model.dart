@@ -109,17 +109,23 @@ class TripModel {
           ({
             int? sequence,
             DateTime recordedAt,
+            int sourceIndex,
             double speedKph,
             LocationPoint point,
           })
         >[];
 
-    for (final raw in pointsJson) {
+    for (var i = 0; i < pointsJson.length; i++) {
+      final raw = pointsJson[i];
       if (raw is! Map) continue;
       final pointJson = Map<String, dynamic>.from(raw);
 
-      final lat = _toDouble(pointJson['latitude']) ?? 0.0;
-      final lng = _toDouble(pointJson['longitude']) ?? 0.0;
+      final lat = _toDouble(pointJson['latitude']);
+      final lng = _toDouble(pointJson['longitude']);
+      if (lat == null || lng == null) continue;
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) continue;
+      if (lat == 0.0 && lng == 0.0) continue;
+
       final speedKph = _toDouble(pointJson['speed_kph']) ?? 0.0;
       final recordedAt =
           _parseDateTimeOrNull(pointJson['recorded_at']) ?? startAt;
@@ -128,6 +134,7 @@ class TripModel {
       parsedPoints.add((
         sequence: sequence,
         recordedAt: recordedAt,
+        sourceIndex: i,
         speedKph: speedKph,
         point: LocationPoint(
           latitude: lat,
@@ -147,14 +154,16 @@ class TripModel {
       if (aSeq != null && bSeq != null && aSeq != bSeq) {
         return aSeq.compareTo(bSeq);
       }
-      return a.recordedAt.compareTo(b.recordedAt);
+      final byTime = a.recordedAt.compareTo(b.recordedAt);
+      if (byTime != 0) return byTime;
+      return a.sourceIndex.compareTo(b.sourceIndex);
     });
 
     final speedsKph = parsedPoints
         .map((e) => e.speedKph)
         .where((v) => v > 0)
         .toList();
-    final points = parsedPoints.map((e) => e.point).toList();
+    final points = _sanitizeRoutePoints(parsedPoints.map((e) => e.point).toList());
 
     final avgSpeedFromPoints = speedsKph.isEmpty
         ? 0.0
@@ -276,6 +285,54 @@ class TripModel {
   }
 
   static double _degToRad(double degree) => degree * (math.pi / 180.0);
+
+  // Hapus titik duplikat/noise agar polyline riwayat lebih stabil.
+  static List<LocationPoint> _sanitizeRoutePoints(List<LocationPoint> points) {
+    if (points.length <= 2) return points;
+
+    const minUsefulStepMeters = 2.0;
+    const maxReasonableSpeedKph = 180.0;
+    const maxJumpNoTimeMeters = 800.0;
+
+    final cleaned = <LocationPoint>[points.first];
+
+    for (var i = 1; i < points.length; i++) {
+      final candidate = points[i];
+      final prev = cleaned.last;
+
+      final meters = _haversineMeters(
+        prev.latitude,
+        prev.longitude,
+        candidate.latitude,
+        candidate.longitude,
+      );
+
+      if (meters < minUsefulStepMeters) {
+        continue;
+      }
+
+      final dtSeconds = candidate.timestamp
+          .difference(prev.timestamp)
+          .inSeconds;
+
+      if (dtSeconds <= 0) {
+        if (meters > maxJumpNoTimeMeters) {
+          continue;
+        }
+        cleaned.add(candidate);
+        continue;
+      }
+
+      final speedKph = (meters / dtSeconds) * 3.6;
+      if (speedKph > maxReasonableSpeedKph && meters > 120) {
+        continue;
+      }
+
+      cleaned.add(candidate);
+    }
+
+    return cleaned;
+  }
 
   // Create a new trip
   factory TripModel.createNew({
