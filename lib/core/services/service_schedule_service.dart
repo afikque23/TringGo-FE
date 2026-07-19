@@ -480,4 +480,69 @@ class ServiceScheduleService {
       rethrow;
     }
   }
+
+  /// Mark schedule as completed and roll the next target forward.
+  Future<ServiceScheduleModel> completeSchedule({
+    required int scheduleId,
+    required DateTime performedAt,
+    int? odometer,
+    String? serviceProvider,
+    double? cost,
+    String? notes,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'performed_at': performedAt.toIso8601String().split('T')[0],
+        if (odometer != null) 'odometer': odometer,
+        if (serviceProvider != null && serviceProvider.trim().isNotEmpty)
+          'service_provider': serviceProvider.trim(),
+        if (cost != null) 'cost': cost,
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      };
+
+      final response = await _apiClient
+          .post('/service-schedules/$scheduleId/complete', body: body)
+          .timeout(ApiConfig.connectTimeout);
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          'Failed to complete schedule: ${response.statusCode} - ${response.body}',
+        );
+      }
+
+      final jsonData = json.decode(response.body);
+      final data = jsonData['data'];
+      if (data is! Map || data['schedule'] is! Map) {
+        throw Exception('Invalid complete schedule response');
+      }
+
+      final apiData = Map<String, dynamic>.from(data['schedule'] as Map);
+      final scheduleType = apiData['schedule_type'] ?? 'km';
+
+      final transformedData = <String, dynamic>{
+        'id': apiData['id'],
+        'vehicle_id': apiData['vehicle_id'],
+        'service_type_id': apiData['service_type']?['id'],
+        'service_name':
+            apiData['service_name'] ?? apiData['service_type']?['name'],
+        'interval_type': scheduleType == 'km' ? 'mileage' : 'time',
+        'interval_value': apiData['interval_value'] ?? 0,
+        'last_service_mileage': apiData['last_service_mileage'],
+        'last_service_date': apiData['last_service_date'],
+        'next_service_mileage': apiData['target_km'],
+        'next_service_date': apiData['target_date'],
+        'reminder_threshold': apiData['reminder_threshold'],
+        'reminder_enabled': apiData['is_active'] ?? true,
+        'status': apiData['status'] ?? 'active',
+        'notes': apiData['notes'],
+        'created_at': apiData['created_at'],
+        'updated_at': apiData['updated_at'],
+      };
+
+      return ServiceScheduleModel.fromJson(transformedData);
+    } catch (e) {
+      print('Failed to complete schedule: $e');
+      rethrow;
+    }
+  }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/model/service_schedule_model.dart';
 import '../../../core/model/vehicle_model.dart';
@@ -37,6 +38,7 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
   final _scheduleService = ServiceScheduleService();
   final _vehicleService = VehicleService();
   bool _isDeleting = false;
+  bool _isCompleting = false;
   VehicleModel? _primaryVehicle;
 
   // Dynamic schedule data
@@ -354,6 +356,8 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
                     const SizedBox(height: 16),
                     _buildDetailCard(context),
                     const SizedBox(height: 16),
+                    _buildCompleteServiceButton(context),
+                    const SizedBox(height: 16),
                   ],
                 ),
               ),
@@ -362,6 +366,242 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
         ),
       ),
     );
+  }
+
+  Widget _buildCompleteServiceButton(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton.icon(
+        onPressed: _isCompleting ? null : _showCompleteServiceDialog,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: colorScheme.primary,
+          disabledBackgroundColor: colorScheme.surfaceContainerHighest,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        icon: _isCompleting
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.check_circle_outline),
+        label: Text(
+          _isCompleting ? 'Menyimpan...' : 'Tandai Sudah Servis',
+          style: const TextStyle(
+            fontFamily: 'Arial',
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCompleteServiceDialog() async {
+    final colorScheme = Theme.of(context).colorScheme;
+    final odometerController = TextEditingController(
+      text: (_primaryVehicle?.odometer ?? widget.schedule.lastServiceMileage ?? 0)
+          .toString(),
+    );
+    final notesController = TextEditingController();
+    final serviceProviderController = TextEditingController();
+    DateTime selectedDate = DateTime.now();
+
+    try {
+      final payload = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (dialogContext) {
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                backgroundColor: colorScheme.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                title: Text(
+                  'Konfirmasi Servis',
+                  style: TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 18,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Tanggal servis',
+                        style: TextStyle(
+                          fontFamily: 'Arial',
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: selectedDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now(),
+                          );
+                          if (picked != null) {
+                            setDialogState(() {
+                              selectedDate = picked;
+                            });
+                          }
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: colorScheme.outlineVariant),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            DateFormat('yyyy-MM-dd').format(selectedDate),
+                            style: TextStyle(
+                              fontFamily: 'Arial',
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: odometerController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Odometer saat servis (km)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: serviceProviderController,
+                        decoration: const InputDecoration(
+                          labelText: 'Nama bengkel (opsional)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: notesController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Catatan (opsional)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Batal'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      final odometerValue =
+                          int.tryParse(odometerController.text.trim());
+                      if (odometerValue == null || odometerValue < 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Odometer harus angka >= 0'),
+                          ),
+                        );
+                        return;
+                      }
+
+                      Navigator.pop(dialogContext, {
+                        'performedAt': selectedDate,
+                        'odometer': odometerValue,
+                        'serviceProvider': serviceProviderController.text.trim(),
+                        'notes': notesController.text.trim(),
+                      });
+                    },
+                    child: const Text('Simpan Servis'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+
+      if (payload == null) return;
+
+      await _completeSchedule(
+        performedAt: payload['performedAt'] as DateTime,
+        odometer: payload['odometer'] as int,
+        serviceProvider: payload['serviceProvider'] as String?,
+        notes: payload['notes'] as String?,
+      );
+    } finally {
+      odometerController.dispose();
+      notesController.dispose();
+      serviceProviderController.dispose();
+    }
+  }
+
+  Future<void> _completeSchedule({
+    required DateTime performedAt,
+    required int odometer,
+    String? serviceProvider,
+    String? notes,
+  }) async {
+    if (widget.schedule.id == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ID jadwal tidak valid.')),
+      );
+      return;
+    }
+
+    setState(() => _isCompleting = true);
+    try {
+      await _scheduleService.completeSchedule(
+        scheduleId: widget.schedule.id!,
+        performedAt: performedAt,
+        odometer: odometer,
+        serviceProvider: serviceProvider,
+        notes: notes,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Servis berhasil dicatat. Jadwal berikutnya diperbarui.'),
+        ),
+      );
+
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menyimpan servis: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isCompleting = false);
+    }
   }
 
   Widget _buildStatusCard(BuildContext context) {
