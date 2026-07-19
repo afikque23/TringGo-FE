@@ -3,9 +3,17 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'statistik_mingguan.dart';
 import '../../../widget/page_transition.dart';
+import '../../../../core/services/trip_service.dart';
 
 class PolaMingguanPage extends StatefulWidget {
-  const PolaMingguanPage({super.key});
+  final String vehicleId;
+  final String vehicleName;
+
+  const PolaMingguanPage({
+    super.key,
+    required this.vehicleId,
+    required this.vehicleName,
+  });
 
   @override
   State<PolaMingguanPage> createState() => _PolaMingguanPageState();
@@ -13,9 +21,66 @@ class PolaMingguanPage extends StatefulWidget {
 
 class _PolaMingguanPageState extends State<PolaMingguanPage> {
   int _selectedTabIndex = 1; // Patterns tab is active
+  bool _isLoading = true;
 
-  // Sample data for hourly riding patterns (trips per hour)
-  final List<double> hourlyData = [4, 7, 3, 5, 8, 4];
+  double _totalDistance = 0;
+  double _avgTrip = 0;
+  double _totalTimeHours = 0;
+  double _maxSpeed = 0;
+
+  List<double> hourlyData = List.filled(6, 0);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPolaStats();
+  }
+
+  Future<void> _loadPolaStats() async {
+    try {
+      if (mounted) setState(() => _isLoading = true);
+      final tripService = TripService();
+      final trips = await tripService.getAllTrips(vehicleId: widget.vehicleId);
+
+      double distance = 0;
+      double durationSecs = 0;
+      double maxSpd = 0;
+      int count = 0;
+
+      // Group by hours: 00-04, 04-08, 08-12, 12-16, 16-20, 20-24
+      List<double> hData = List.filled(6, 0);
+
+      for (var trip in trips) {
+        if (trip.status != 'completed' && trip.status != 'stopped') continue;
+        distance += trip.totalDistance;
+        durationSecs += trip.duration;
+        if (trip.maxSpeed > maxSpd) maxSpd = trip.maxSpeed;
+        count++;
+
+        final hour = trip.startTime.hour;
+        if (hour < 4) hData[0]++;
+        else if (hour < 8) hData[1]++;
+        else if (hour < 12) hData[2]++;
+        else if (hour < 16) hData[3]++;
+        else if (hour < 20) hData[4]++;
+        else hData[5]++;
+      }
+
+      if (mounted) {
+        setState(() {
+          _totalDistance = distance;
+          _avgTrip = count > 0 ? distance / count : 0;
+          _totalTimeHours = durationSecs / 3600;
+          _maxSpeed = maxSpd;
+          hourlyData = hData;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Failed to load pola stats: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +128,7 @@ class _PolaMingguanPageState extends State<PolaMingguanPage> {
                               ),
                             ),
                             Text(
-                              'My Ninja',
+                              widget.vehicleName,
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w400,
@@ -86,7 +151,10 @@ class _PolaMingguanPageState extends State<PolaMingguanPage> {
                             Navigator.pushReplacement(
                               context,
                               SmoothPageRoute(
-                                page: const StatistikMingguanPage(),
+                                page: StatistikMingguanPage(
+                                  vehicleId: widget.vehicleId,
+                                  vehicleName: widget.vehicleName,
+                                ),
                               ),
                             );
                           },
@@ -174,7 +242,7 @@ class _PolaMingguanPageState extends State<PolaMingguanPage> {
                                 child: _buildStatCard(
                                   icon: Icons.trending_up,
                                   label: l10n.totalDistanceWeek,
-                                  value: '78',
+                                  value: _isLoading ? '...' : _totalDistance.toStringAsFixed(1),
                                   unit: l10n.kilometers,
                                   context: context,
                                 ),
@@ -184,7 +252,7 @@ class _PolaMingguanPageState extends State<PolaMingguanPage> {
                                 child: _buildStatCard(
                                   icon: Icons.route,
                                   label: l10n.avgTrip,
-                                  value: '39.0',
+                                  value: _isLoading ? '...' : _avgTrip.toStringAsFixed(1),
                                   unit: l10n.kmPerTrip,
                                   context: context,
                                 ),
@@ -200,7 +268,7 @@ class _PolaMingguanPageState extends State<PolaMingguanPage> {
                                 child: _buildStatCard(
                                   icon: Icons.access_time,
                                   label: l10n.totalTime,
-                                  value: '1',
+                                  value: _isLoading ? '...' : _totalTimeHours.toStringAsFixed(1),
                                   unit: l10n.hoursRiding,
                                   context: context,
                                 ),
@@ -209,8 +277,8 @@ class _PolaMingguanPageState extends State<PolaMingguanPage> {
                               Expanded(
                                 child: _buildStatCard(
                                   icon: Icons.speed,
-                                  label: l10n.avgSpeed,
-                                  value: '41.5',
+                                  label: 'Max Speed', // Kecepatan Tertinggi
+                                  value: _isLoading ? '...' : _maxSpeed.toStringAsFixed(1),
                                   unit: 'km/h',
                                   context: context,
                                 ),

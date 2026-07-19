@@ -579,8 +579,7 @@ class _EditMotorPageState extends State<EditMotorPage> {
                         width: 1.5,
                       ),
                     ),
-                    helperText:
-                        'Lihat di Serial Monitor PlatformIO saat ESP32 boot',
+                    helperText: 'Cek Serial Monitor PlatformIO saat ESP32 menyala',
                     helperStyle: TextStyle(
                       fontSize: 11,
                       color: colorScheme.onSurface.withAlpha(120),
@@ -625,11 +624,84 @@ class _EditMotorPageState extends State<EditMotorPage> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 10),
+                // Info box: perilaku device_id saat dijadikan kendaraan aktif
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer.withAlpha(70),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: colorScheme.primary.withAlpha(60),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline_rounded,
+                            size: 13,
+                            color: colorScheme.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Perilaku Device ID saat dijadikan Kendaraan Aktif',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      _buildInfoRow(
+                        colorScheme,
+                        '• Belum punya Device ID:',
+                        'Device ID dari kendaraan aktif sebelumnya dipindah ke sini secara otomatis.',
+                      ),
+                      const SizedBox(height: 3),
+                      _buildInfoRow(
+                        colorScheme,
+                        '• Sudah punya Device ID:',
+                        'Device ID tetap, tidak diubah.',
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildInfoRow(
+    ColorScheme colorScheme,
+    String label,
+    String value,
+  ) {
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(
+          fontSize: 11,
+          color: colorScheme.onSurface.withAlpha(160),
+          height: 1.4,
+        ),
+        children: [
+          TextSpan(
+            text: label,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          TextSpan(text: ' $value'),
+        ],
+      ),
     );
   }
 

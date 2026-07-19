@@ -3,9 +3,17 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'pola_mingguan.dart';
 import '../../../widget/page_transition.dart';
+import '../../../../core/services/trip_service.dart';
 
 class StatistikMingguanPage extends StatefulWidget {
-  const StatistikMingguanPage({super.key});
+  final String vehicleId;
+  final String vehicleName;
+
+  const StatistikMingguanPage({
+    super.key,
+    required this.vehicleId,
+    required this.vehicleName,
+  });
 
   @override
   State<StatistikMingguanPage> createState() => _StatistikMingguanPageState();
@@ -13,16 +21,73 @@ class StatistikMingguanPage extends StatefulWidget {
 
 class _StatistikMingguanPageState extends State<StatistikMingguanPage> {
   int _selectedTabIndex = 0;
+  bool _isLoading = true;
 
-  final List<FlSpot> weeklyData = [
-    const FlSpot(0, 15),
-    const FlSpot(1, 12),
-    const FlSpot(2, 28),
-    const FlSpot(3, 8),
-    const FlSpot(4, 22),
-    const FlSpot(5, 35),
-    const FlSpot(6, 10),
-  ];
+  double _totalDistance = 0;
+  double _avgTrip = 0;
+  double _totalTimeHours = 0;
+  double _avgSpeed = 0;
+
+  List<FlSpot> weeklyData = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWeeklyStats();
+  }
+
+  Future<void> _loadWeeklyStats() async {
+    try {
+      if (mounted) setState(() => _isLoading = true);
+      final tripService = TripService();
+      final trips = await tripService.getAllTrips(vehicleId: widget.vehicleId);
+      
+      final now = DateTime.now();
+      final startOfThisWeek = now.subtract(Duration(days: now.weekday - 1));
+      final startOfThisWeekDate = DateTime(startOfThisWeek.year, startOfThisWeek.month, startOfThisWeek.day);
+      
+      double distance = 0;
+      double durationSecs = 0;
+      double speedSum = 0;
+      int count = 0;
+      
+      // Initialize map for chart (0=Mon, 1=Tue, ..., 6=Sun)
+      Map<int, double> dailyDistance = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0};
+
+      for (var trip in trips) {
+        if (trip.status != 'completed' && trip.status != 'stopped') continue;
+        final tripDate = trip.startTime;
+        if (tripDate.isAfter(startOfThisWeekDate) || tripDate.isAtSameMomentAs(startOfThisWeekDate)) {
+          distance += trip.totalDistance;
+          durationSecs += trip.duration;
+          speedSum += trip.averageSpeed;
+          count++;
+          
+          final dayIndex = tripDate.weekday - 1; // 0=Mon, 6=Sun
+          dailyDistance[dayIndex] = (dailyDistance[dayIndex] ?? 0) + trip.totalDistance;
+        }
+      }
+
+      final List<FlSpot> spots = [];
+      dailyDistance.forEach((key, value) {
+        spots.add(FlSpot(key.toDouble(), value));
+      });
+
+      if (mounted) {
+        setState(() {
+          _totalDistance = distance;
+          _avgTrip = count > 0 ? distance / count : 0;
+          _totalTimeHours = durationSecs / 3600;
+          _avgSpeed = count > 0 ? speedSum / count : 0;
+          weeklyData = spots;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Failed to load stats: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,7 +160,7 @@ class _StatistikMingguanPageState extends State<StatistikMingguanPage> {
                       ),
                     ),
                     Text(
-                      'My Ninja',
+                      widget.vehicleName,
                       style: TextStyle(
                         fontFamily: 'Arial',
                         fontSize: 14,
@@ -131,7 +196,10 @@ class _StatistikMingguanPageState extends State<StatistikMingguanPage> {
           // Navigate to Patterns page
           Navigator.pushReplacement(
             context,
-            SmoothPageRoute(page: const PolaMingguanPage()),
+            SmoothPageRoute(page: PolaMingguanPage(
+              vehicleId: widget.vehicleId,
+              vehicleName: widget.vehicleName,
+            )),
           );
         } else {
           setState(() {
@@ -182,7 +250,7 @@ class _StatistikMingguanPageState extends State<StatistikMingguanPage> {
               child: _buildStatCard(
                 icon: Icons.map_outlined,
                 label: l10n.totalDistanceWeek,
-                value: '78',
+                value: _isLoading ? '...' : _totalDistance.toStringAsFixed(1),
                 unit: l10n.kilometers,
               ),
             ),
@@ -191,7 +259,7 @@ class _StatistikMingguanPageState extends State<StatistikMingguanPage> {
               child: _buildStatCard(
                 icon: Icons.calendar_today_outlined,
                 label: l10n.avgTrip,
-                value: '39.0',
+                value: _isLoading ? '...' : _avgTrip.toStringAsFixed(1),
                 unit: l10n.kmPerTrip,
               ),
             ),
@@ -204,7 +272,7 @@ class _StatistikMingguanPageState extends State<StatistikMingguanPage> {
               child: _buildStatCard(
                 icon: Icons.access_time,
                 label: l10n.totalTime,
-                value: '1',
+                value: _isLoading ? '...' : _totalTimeHours.toStringAsFixed(1),
                 unit: l10n.hoursRiding,
               ),
             ),
@@ -213,7 +281,7 @@ class _StatistikMingguanPageState extends State<StatistikMingguanPage> {
               child: _buildStatCard(
                 icon: Icons.speed,
                 label: l10n.avgSpeed,
-                value: '41.5',
+                value: _isLoading ? '...' : _avgSpeed.toStringAsFixed(1),
                 unit: 'km/h',
               ),
             ),

@@ -18,6 +18,7 @@ import '../../core/model/service_schedule_model.dart';
 import '../../core/services/notification_api_service.dart';
 import '../../core/services/service_schedule_service.dart';
 import '../../core/services/tracking_api_service.dart';
+import '../../core/services/trip_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../recommendation/screens/recommendation_home_insight_screen.dart';
 import '../recommendation/state/recommendation_home_insight_notifier.dart';
@@ -43,6 +44,11 @@ class _DashboardPageState extends State<DashboardPage>
   Map<String, dynamic> _serviceMetrics = {};
   bool _isLoadingMetrics = true;
   int _unreadNotificationCount = 0;
+
+  // Weekly Trend State
+  double _thisWeekDistance = 0.0;
+  double _lastWeekDistance = 0.0;
+  bool _isLoadingTrends = true;
 
   late final RecommendationHomeInsightNotifier _homeInsightNotifier;
   List<ServiceScheduleModel> _dashboardSchedules = [];
@@ -153,6 +159,7 @@ class _DashboardPageState extends State<DashboardPage>
         if (motorId != null) {
           _homeInsightNotifier.load(motorId);
           _refreshTrackingStatus();
+          _loadWeeklyTrends(motorId);
         } else {
           setState(() {
             _isTrackingActive = false;
@@ -179,6 +186,46 @@ class _DashboardPageState extends State<DashboardPage>
           _isLoadingVehicle = false;
         });
       }
+    }
+  }
+  Future<void> _loadWeeklyTrends(int vehicleId) async {
+    try {
+      if (mounted) setState(() => _isLoadingTrends = true);
+      final tripService = TripService();
+      final allTrips = await tripService.getAllTrips(vehicleId: vehicleId.toString());
+      
+      final now = DateTime.now();
+      // Asumsikan minggu dimulai dari Senin (1) hingga Minggu (7)
+      final startOfThisWeek = now.subtract(Duration(days: now.weekday - 1));
+      final startOfThisWeekDate = DateTime(startOfThisWeek.year, startOfThisWeek.month, startOfThisWeek.day);
+      
+      final startOfLastWeekDate = startOfThisWeekDate.subtract(const Duration(days: 7));
+      final endOfLastWeekDate = startOfThisWeekDate.subtract(const Duration(milliseconds: 1));
+
+      double thisWeekDist = 0;
+      double lastWeekDist = 0;
+
+      for (var trip in allTrips) {
+        if (trip.status != 'completed' && trip.status != 'stopped') continue;
+        
+        final tripDate = trip.startTime;
+        if (tripDate.isAfter(startOfThisWeekDate) || tripDate.isAtSameMomentAs(startOfThisWeekDate)) {
+          thisWeekDist += trip.totalDistance;
+        } else if (tripDate.isAfter(startOfLastWeekDate) && tripDate.isBefore(endOfLastWeekDate)) {
+          lastWeekDist += trip.totalDistance;
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _thisWeekDistance = thisWeekDist;
+          _lastWeekDistance = lastWeekDist;
+          _isLoadingTrends = false;
+        });
+      }
+    } catch (e) {
+      print('Failed to load weekly trends: $e');
+      if (mounted) setState(() => _isLoadingTrends = false);
     }
   }
 
@@ -319,16 +366,30 @@ class _DashboardPageState extends State<DashboardPage>
                                             ),
                                           ),
                                           const SizedBox(height: 4),
-                                          Text(
-                                            _primaryVehicle?.title ??
-                                                'Belum ada kendaraan',
-                                            style: TextStyle(
-                                              fontFamily: 'Arial',
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.w400,
-                                              height: 1.33,
-                                              color: colorScheme.onSurface,
-                                            ),
+                                          Row(
+                                            crossAxisAlignment: CrossAxisAlignment.center,
+                                            children: [
+                                              Flexible(
+                                                child: Text(
+                                                  _primaryVehicle?.title ??
+                                                      'Belum ada kendaraan',
+                                                  style: TextStyle(
+                                                    fontFamily: 'Arial',
+                                                    fontSize: 20,
+                                                    fontWeight: FontWeight.w400,
+                                                    height: 1.33,
+                                                    color: colorScheme.onSurface,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Icon(
+                                                Icons.swap_horiz_rounded,
+                                                size: 18,
+                                                color: colorScheme.secondary.withAlpha(180),
+                                              ),
+                                            ],
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
@@ -837,7 +898,7 @@ class _DashboardPageState extends State<DashboardPage>
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      '11.1 km',
+                                      _isLoadingTrends ? '...' : '${(_thisWeekDistance / DateTime.now().weekday).toStringAsFixed(1)} km',
                                       style: TextStyle(
                                         fontFamily: 'Arial',
                                         fontSize: 24,
@@ -889,7 +950,7 @@ class _DashboardPageState extends State<DashboardPage>
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      '78.0 km',
+                                      _isLoadingTrends ? '...' : '${_thisWeekDistance.toStringAsFixed(1)} km',
                                       style: TextStyle(
                                         fontFamily: 'Arial',
                                         fontSize: 24,
@@ -1193,12 +1254,15 @@ class _DashboardPageState extends State<DashboardPage>
                                   ),
                                   TextButton(
                                     onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        SmoothPageRoute(
-                                          page: const StatistikMingguanPage(),
-                                        ),
-                                      );
+                                        Navigator.push(
+                                          context,
+                                          SmoothPageRoute(
+                                            page: StatistikMingguanPage(
+                                              vehicleId: _primaryVehicle!.id.toString(),
+                                              vehicleName: _primaryVehicle!.title,
+                                            ),
+                                          ),
+                                        );
                                     },
                                     child: Text(
                                       l10n.viewDetails,
@@ -1232,7 +1296,7 @@ class _DashboardPageState extends State<DashboardPage>
                                         ),
                                       ),
                                       Text(
-                                        '0.0 km',
+                                        _isLoadingTrends ? '...' : '${_lastWeekDistance.toStringAsFixed(1)} km',
                                         style: TextStyle(
                                           fontFamily: 'Arial',
                                           fontSize: 12,
@@ -1259,12 +1323,12 @@ class _DashboardPageState extends State<DashboardPage>
                                         ),
                                       ),
                                       FractionallySizedBox(
-                                        widthFactor: 0.15,
+                                        widthFactor: _isLoadingTrends ? 0 : (_lastWeekDistance > 0 ? 1.0 : 0.0),
                                         child: Container(
                                           height: 8,
                                           decoration: BoxDecoration(
                                             color: colorScheme.onSurfaceVariant
-                                                .withValues(alpha: 0.6),
+                                                .withAlpha((255 * 0.6).round()),
                                             borderRadius: BorderRadius.circular(
                                               100,
                                             ),
@@ -1294,7 +1358,7 @@ class _DashboardPageState extends State<DashboardPage>
                                         ),
                                       ),
                                       Text(
-                                        '78.0 km',
+                                        _isLoadingTrends ? '...' : '${_thisWeekDistance.toStringAsFixed(1)} km',
                                         style: TextStyle(
                                           fontFamily: 'Arial',
                                           fontSize: 12,
@@ -1306,13 +1370,33 @@ class _DashboardPageState extends State<DashboardPage>
                                     ],
                                   ),
                                   const SizedBox(height: 8),
-                                  Container(
-                                    width: double.infinity,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      color: colorScheme.primary,
-                                      borderRadius: BorderRadius.circular(100),
-                                    ),
+                                  Stack(
+                                    children: [
+                                      Container(
+                                        width: double.infinity,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(
+                                            context,
+                                          ).scaffoldBackgroundColor,
+                                          borderRadius: BorderRadius.circular(
+                                            100,
+                                          ),
+                                        ),
+                                      ),
+                                      FractionallySizedBox(
+                                        widthFactor: _isLoadingTrends ? 0 : (_thisWeekDistance > 0 && _thisWeekDistance >= _lastWeekDistance ? 1.0 : (_lastWeekDistance > 0 ? _thisWeekDistance / _lastWeekDistance : 0.0)),
+                                        child: Container(
+                                          height: 8,
+                                          decoration: BoxDecoration(
+                                            color: colorScheme.primary,
+                                            borderRadius: BorderRadius.circular(
+                                              100,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -1353,7 +1437,7 @@ class _DashboardPageState extends State<DashboardPage>
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
-                                      '78.0 km',
+                                      _isLoadingTrends ? '...' : '${_thisWeekDistance.toStringAsFixed(1)} km',
                                       style: TextStyle(
                                         fontFamily: 'Arial',
                                         fontSize: 14,

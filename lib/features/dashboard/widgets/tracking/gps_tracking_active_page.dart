@@ -261,7 +261,14 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
       final restoredPoints = <RoutePoint>[];
       if (pointsRaw is List) {
         final parsedRows =
-            <({int index, int? sequence, DateTime recordedAt, RoutePoint point})>[];
+            <
+              ({
+                int index,
+                int? sequence,
+                DateTime recordedAt,
+                RoutePoint point,
+              })
+            >[];
 
         for (var i = 0; i < pointsRaw.length; i++) {
           final item = pointsRaw[i];
