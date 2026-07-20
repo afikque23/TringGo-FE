@@ -15,6 +15,23 @@ class RecommendationRepository {
     return (data: res.data, meta: res.meta);
   }
 
+  Future<void> completeFuzzyService({
+    required int motorId,
+    required String componentName,
+    required DateTime performedAt,
+    required int odometer,
+    String? serviceProvider,
+    String? notes,
+  }) async {
+    await _apiClient.completeFuzzyService(
+      motorId: motorId,
+      componentName: componentName,
+      performedAt: performedAt,
+      odometer: odometer,
+      serviceProvider: serviceProvider,
+      notes: notes,
+    );
+  }
   Future<({HomeInsightDto data, MetaDto meta})> fetchHomeInsight(
     int motorId,
   ) async {

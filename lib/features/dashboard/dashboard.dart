@@ -9,6 +9,7 @@ import 'widgets/tren_mingguan/statistik_mingguan.dart';
 import 'widgets/tambah_motor/list_motor.dart';
 import '../notification/notification_page.dart';
 import '../servis/service.dart';
+import '../servis/schedule/jadwal.dart';
 import '../servis/schedule/tambah_jadwal.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/utils/app_theme.dart';
@@ -20,11 +21,10 @@ import '../../core/services/service_schedule_service.dart';
 import '../../core/services/tracking_api_service.dart';
 import '../../core/services/trip_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import '../recommendation/screens/recommendation_home_insight_screen.dart';
+import '../recommendation/screens/recommendation_service_screen.dart';
 import '../recommendation/state/recommendation_home_insight_notifier.dart';
 import '../recommendation/widgets/fuzzy_scores_section.dart';
 import '../recommendation/widgets/meta_info_row.dart';
-import '../recommendation/widgets/priority_badge.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -188,30 +188,43 @@ class _DashboardPageState extends State<DashboardPage>
       }
     }
   }
+
   Future<void> _loadWeeklyTrends(int vehicleId) async {
     try {
       if (mounted) setState(() => _isLoadingTrends = true);
       final tripService = TripService();
-      final allTrips = await tripService.getAllTrips(vehicleId: vehicleId.toString());
-      
+      final allTrips = await tripService.getAllTrips(
+        vehicleId: vehicleId.toString(),
+      );
+
       final now = DateTime.now();
       // Asumsikan minggu dimulai dari Senin (1) hingga Minggu (7)
       final startOfThisWeek = now.subtract(Duration(days: now.weekday - 1));
-      final startOfThisWeekDate = DateTime(startOfThisWeek.year, startOfThisWeek.month, startOfThisWeek.day);
-      
-      final startOfLastWeekDate = startOfThisWeekDate.subtract(const Duration(days: 7));
-      final endOfLastWeekDate = startOfThisWeekDate.subtract(const Duration(milliseconds: 1));
+      final startOfThisWeekDate = DateTime(
+        startOfThisWeek.year,
+        startOfThisWeek.month,
+        startOfThisWeek.day,
+      );
+
+      final startOfLastWeekDate = startOfThisWeekDate.subtract(
+        const Duration(days: 7),
+      );
+      final endOfLastWeekDate = startOfThisWeekDate.subtract(
+        const Duration(milliseconds: 1),
+      );
 
       double thisWeekDist = 0;
       double lastWeekDist = 0;
 
       for (var trip in allTrips) {
         if (trip.status != 'completed' && trip.status != 'stopped') continue;
-        
+
         final tripDate = trip.startTime;
-        if (tripDate.isAfter(startOfThisWeekDate) || tripDate.isAtSameMomentAs(startOfThisWeekDate)) {
+        if (tripDate.isAfter(startOfThisWeekDate) ||
+            tripDate.isAtSameMomentAs(startOfThisWeekDate)) {
           thisWeekDist += trip.totalDistance;
-        } else if (tripDate.isAfter(startOfLastWeekDate) && tripDate.isBefore(endOfLastWeekDate)) {
+        } else if (tripDate.isAfter(startOfLastWeekDate) &&
+            tripDate.isBefore(endOfLastWeekDate)) {
           lastWeekDist += trip.totalDistance;
         }
       }
@@ -252,48 +265,6 @@ class _DashboardPageState extends State<DashboardPage>
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-
-    // Compute vehicle condition dynamically from schedules
-    String conditionText;
-    Color conditionColor;
-    double conditionProgress;
-    if (_isLoadingSchedules || _isLoadingVehicle) {
-      conditionText = '...';
-      conditionColor = colorScheme.secondary;
-      conditionProgress = 0.0;
-    } else if (_dashboardSchedules.isEmpty) {
-      conditionText = 'Belum ada jadwal';
-      conditionColor = colorScheme.secondary;
-      conditionProgress = 0.0;
-    } else {
-      int urgentCount = 0;
-      int soonCount = 0;
-      final currentOdometer = _primaryVehicle?.odometer ?? 0;
-      for (final schedule in _dashboardSchedules) {
-        if (schedule.intervalType == 'mileage') {
-          final nextService = schedule.nextServiceMileage ?? 0;
-          final remaining = nextService - currentOdometer;
-          if (remaining <= 0) {
-            urgentCount++;
-          } else if (remaining <= 500) {
-            soonCount++;
-          }
-        }
-      }
-      if (urgentCount > 0) {
-        conditionText = l10n.urgent;
-        conditionColor = colorScheme.error;
-        conditionProgress = 0.3;
-      } else if (soonCount > 0) {
-        conditionText = l10n.soon;
-        conditionColor = colorScheme.warning;
-        conditionProgress = 0.6;
-      } else {
-        conditionText = l10n.goodCondition;
-        conditionColor = colorScheme.primary;
-        conditionProgress = 0.85;
-      }
-    }
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -367,7 +338,8 @@ class _DashboardPageState extends State<DashboardPage>
                                           ),
                                           const SizedBox(height: 4),
                                           Row(
-                                            crossAxisAlignment: CrossAxisAlignment.center,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.center,
                                             children: [
                                               Flexible(
                                                 child: Text(
@@ -378,16 +350,19 @@ class _DashboardPageState extends State<DashboardPage>
                                                     fontSize: 20,
                                                     fontWeight: FontWeight.w400,
                                                     height: 1.33,
-                                                    color: colorScheme.onSurface,
+                                                    color:
+                                                        colorScheme.onSurface,
                                                   ),
-                                                  overflow: TextOverflow.ellipsis,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                 ),
                                               ),
                                               const SizedBox(width: 6),
                                               Icon(
                                                 Icons.swap_horiz_rounded,
                                                 size: 18,
-                                                color: colorScheme.secondary.withAlpha(180),
+                                                color: colorScheme.secondary
+                                                    .withAlpha(180),
                                               ),
                                             ],
                                           ),
@@ -533,158 +508,209 @@ class _DashboardPageState extends State<DashboardPage>
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       children: [
-                        // Vehicle Status Card
-                        Container(
-                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 1),
-                          decoration: BoxDecoration(
-                            color: conditionColor.withValues(alpha: 0.1),
-                            border: Border.all(
-                              color: conditionColor,
-                              width: 0.65,
-                            ),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Column(
-                            children: [
-                              // Status Header
-                              GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    SmoothPageRoute(
-                                      page: const MaintenancePage(),
-                                    ),
-                                  );
-                                },
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          width: 12,
-                                          height: 12,
-                                          decoration: BoxDecoration(
-                                            color: conditionColor,
-                                            shape: BoxShape.circle,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          conditionText,
+                        // Monitored Components Card
+                        AnimatedBuilder(
+                          animation: _homeInsightNotifier,
+                          builder: (context, _) {
+                            final motorId = _primaryVehicle?.id;
+                            final insight = _homeInsightNotifier.homeInsight;
+                            final summary = insight?.monitoredSummary;
+
+                            int criticalCount = summary?.critical ?? 0;
+                            int warningCount = summary?.warning ?? 0;
+                            int normalCount = summary?.normal ?? 0;
+                            int totalComponents = summary?.total ?? 0;
+
+                            if (totalComponents <= 0) {
+                              totalComponents =
+                                  insight?.fuzzyScores.length ?? 0;
+                            }
+
+                            if (criticalCount + warningCount + normalCount ==
+                                    0 &&
+                                (insight?.fuzzyStatuses.isNotEmpty ?? false)) {
+                              for (final status
+                                  in insight!.fuzzyStatuses.values) {
+                                if (status == 'critical') {
+                                  criticalCount++;
+                                } else if (status == 'warning') {
+                                  warningCount++;
+                                } else {
+                                  normalCount++;
+                                }
+                              }
+                            }
+
+                            return Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: colorScheme.surface,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.tune,
+                                        size: 20,
+                                        color: colorScheme.primary,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          '$totalComponents Komponen Sedang Dipantau',
                                           style: TextStyle(
                                             fontFamily: 'Arial',
                                             fontSize: 16,
-                                            fontWeight: FontWeight.w400,
-                                            height: 1.5,
-                                            color: conditionColor,
+                                            fontWeight: FontWeight.w700,
+                                            height: 1.4,
+                                            color: colorScheme.onSurface,
                                           ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  if (motorId == null)
+                                    Text(
+                                      'Pilih kendaraan untuk melihat rekomendasi.',
+                                      style: TextStyle(
+                                        fontFamily: 'Arial',
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w400,
+                                        height: 1.67,
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                    )
+                                  else if (_homeInsightNotifier
+                                          .isLoadingInsight &&
+                                      (insight == null ||
+                                          insight.fuzzyScores.isEmpty))
+                                    const Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.all(8),
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    )
+                                  else
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Status komponen berdasarkan fuzzy monitoring saat ini.',
+                                          style: TextStyle(
+                                            fontFamily: 'Arial',
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w400,
+                                            height: 1.6,
+                                            color: colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: _buildMonitoringStatChip(
+                                                label: 'Critical',
+                                                value: criticalCount,
+                                                color: colorScheme.error,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: _buildMonitoringStatChip(
+                                                label: 'Warning',
+                                                value: warningCount,
+                                                color: colorScheme.warning,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: _buildMonitoringStatChip(
+                                                label: 'Normal',
+                                                value: normalCount,
+                                                color: colorScheme.primary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 14),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: ElevatedButton(
+                                                onPressed: () {
+                                                  Navigator.push(
+                                                    context,
+                                                    SmoothPageRoute(
+                                                      page:
+                                                          RecommendationServiceScreen(
+                                                            motorId: motorId,
+                                                          ),
+                                                    ),
+                                                  );
+                                                },
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor:
+                                                      colorScheme.primary,
+                                                  foregroundColor: Colors.white,
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        vertical: 12,
+                                                      ),
+                                                ),
+                                                child: const Text(
+                                                  'Cek Sekarang',
+                                                  style: TextStyle(
+                                                    fontFamily: 'Arial',
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: OutlinedButton(
+                                                onPressed: () {
+                                                  Navigator.push(
+                                                    context,
+                                                    SmoothPageRoute(
+                                                      page: const JadwalPage(),
+                                                    ),
+                                                  );
+                                                },
+                                                style: OutlinedButton.styleFrom(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        vertical: 12,
+                                                      ),
+                                                  side: BorderSide(
+                                                    color: colorScheme.outline,
+                                                  ),
+                                                ),
+                                                child: const Text(
+                                                  'Buat Reminder',
+                                                  style: TextStyle(
+                                                    fontFamily: 'Arial',
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 10),
+                                        MetaInfoRow(
+                                          meta: _homeInsightNotifier
+                                              .effectiveMeta,
                                         ),
                                       ],
                                     ),
-                                    Icon(
-                                      Icons.arrow_forward_ios,
-                                      size: 16,
-                                      color: colorScheme.secondary,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              // Service Info
-                              Column(
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        l10n.distanceSinceService,
-                                        style: TextStyle(
-                                          fontFamily: 'Arial',
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w400,
-                                          height: 1.43,
-                                          color: colorScheme.onSurface,
-                                        ),
-                                      ),
-                                      Text(
-                                        _isLoadingMetrics
-                                            ? '...'
-                                            : '${_serviceMetrics['distance_since_service'] ?? 0} km',
-                                        style: TextStyle(
-                                          fontFamily: 'Arial',
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w400,
-                                          height: 1.43,
-                                          color: colorScheme.onSurface,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        l10n.untilNextService,
-                                        style: TextStyle(
-                                          fontFamily: 'Arial',
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w400,
-                                          height: 1.43,
-                                          color: colorScheme.onSurface,
-                                        ),
-                                      ),
-                                      Text(
-                                        _isLoadingMetrics
-                                            ? '...'
-                                            : '${_serviceMetrics['distance_until_next_service'] ?? 0} km',
-                                        style: TextStyle(
-                                          fontFamily: 'Arial',
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w400,
-                                          height: 1.43,
-                                          color: colorScheme.primary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
                                 ],
                               ),
-                              const SizedBox(height: 16),
-                              // Progress Bar
-                              Stack(
-                                children: [
-                                  Container(
-                                    width: double.infinity,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(
-                                        context,
-                                      ).scaffoldBackgroundColor,
-                                      borderRadius: BorderRadius.circular(100),
-                                    ),
-                                  ),
-                                  FractionallySizedBox(
-                                    widthFactor: conditionProgress,
-                                    child: Container(
-                                      height: 8,
-                                      decoration: BoxDecoration(
-                                        color: conditionColor,
-                                        borderRadius: BorderRadius.circular(
-                                          100,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                            ],
-                          ),
+                            );
+                          },
                         ),
                         const SizedBox(height: 16),
 
@@ -898,7 +924,9 @@ class _DashboardPageState extends State<DashboardPage>
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      _isLoadingTrends ? '...' : '${(_thisWeekDistance / DateTime.now().weekday).toStringAsFixed(1)} km',
+                                      _isLoadingTrends
+                                          ? '...'
+                                          : '${(_thisWeekDistance / DateTime.now().weekday).toStringAsFixed(1)} km',
                                       style: TextStyle(
                                         fontFamily: 'Arial',
                                         fontSize: 24,
@@ -950,7 +978,9 @@ class _DashboardPageState extends State<DashboardPage>
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      _isLoadingTrends ? '...' : '${_thisWeekDistance.toStringAsFixed(1)} km',
+                                      _isLoadingTrends
+                                          ? '...'
+                                          : '${_thisWeekDistance.toStringAsFixed(1)} km',
                                       style: TextStyle(
                                         fontFamily: 'Arial',
                                         fontSize: 24,
@@ -965,183 +995,6 @@ class _DashboardPageState extends State<DashboardPage>
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Smart Insights Card
-                        AnimatedBuilder(
-                          animation: _homeInsightNotifier,
-                          builder: (context, _) {
-                            final motorId = _primaryVehicle?.id;
-                            final items =
-                                _homeInsightNotifier
-                                    .homeInsight
-                                    ?.wawasanPintar ??
-                                const [];
-
-                            return Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: colorScheme.surface,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  GestureDetector(
-                                    onTap: motorId == null
-                                        ? null
-                                        : () {
-                                            Navigator.push(
-                                              context,
-                                              SmoothPageRoute(
-                                                page:
-                                                    RecommendationHomeInsightScreen(
-                                                      motorId: motorId,
-                                                    ),
-                                              ),
-                                            );
-                                          },
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              Icons.lightbulb_outline,
-                                              size: 20,
-                                              color: colorScheme.primary,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              'Wawasan Pintar',
-                                              style: TextStyle(
-                                                fontFamily: 'Arial',
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w400,
-                                                height: 1.5,
-                                                color: colorScheme.onSurface,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        Icon(
-                                          Icons.arrow_forward_ios,
-                                          size: 16,
-                                          color: colorScheme.secondary,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  if (motorId == null)
-                                    Text(
-                                      'Pilih kendaraan untuk melihat rekomendasi.',
-                                      style: TextStyle(
-                                        fontFamily: 'Arial',
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w400,
-                                        height: 1.67,
-                                        color: colorScheme.onSurfaceVariant,
-                                      ),
-                                    )
-                                  else if (_homeInsightNotifier
-                                          .isLoadingInsight &&
-                                      items.isEmpty)
-                                    const Center(
-                                      child: Padding(
-                                        padding: EdgeInsets.all(8),
-                                        child: CircularProgressIndicator(),
-                                      ),
-                                    )
-                                  else if (items.isEmpty)
-                                    Text(
-                                      'Belum ada wawasan pintar saat ini.',
-                                      style: TextStyle(
-                                        fontFamily: 'Arial',
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w400,
-                                        height: 1.67,
-                                        color: colorScheme.onSurfaceVariant,
-                                      ),
-                                    )
-                                  else
-                                    Column(
-                                      children: [
-                                        for (final item in items)
-                                          Container(
-                                            width: double.infinity,
-                                            margin: const EdgeInsets.only(
-                                              bottom: 10,
-                                            ),
-                                            padding: const EdgeInsets.all(16),
-                                            decoration: BoxDecoration(
-                                              color: Theme.of(
-                                                context,
-                                              ).scaffoldBackgroundColor,
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              border: Border(
-                                                left: BorderSide(
-                                                  color: colorScheme.primary,
-                                                  width: 4,
-                                                ),
-                                              ),
-                                            ),
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Row(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Expanded(
-                                                      child: Text(
-                                                        item.judul,
-                                                        style: TextStyle(
-                                                          fontFamily: 'Arial',
-                                                          fontSize: 14,
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                          height: 1.43,
-                                                          color: colorScheme
-                                                              .onSurface,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    PriorityBadge(
-                                                      priority: item.prioritas,
-                                                    ),
-                                                  ],
-                                                ),
-                                                const SizedBox(height: 6),
-                                                Text(
-                                                  item.isi,
-                                                  style: TextStyle(
-                                                    fontFamily: 'Arial',
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w400,
-                                                    height: 1.67,
-                                                    color: colorScheme
-                                                        .onSurfaceVariant,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        MetaInfoRow(
-                                          meta: _homeInsightNotifier
-                                              .effectiveMeta,
-                                        ),
-                                      ],
-                                    ),
-                                ],
-                              ),
-                            );
-                          },
                         ),
                         const SizedBox(height: 16),
 
@@ -1254,15 +1107,16 @@ class _DashboardPageState extends State<DashboardPage>
                                   ),
                                   TextButton(
                                     onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          SmoothPageRoute(
-                                            page: StatistikMingguanPage(
-                                              vehicleId: _primaryVehicle!.id.toString(),
-                                              vehicleName: _primaryVehicle!.title,
-                                            ),
+                                      Navigator.push(
+                                        context,
+                                        SmoothPageRoute(
+                                          page: StatistikMingguanPage(
+                                            vehicleId: _primaryVehicle!.id
+                                                .toString(),
+                                            vehicleName: _primaryVehicle!.title,
                                           ),
-                                        );
+                                        ),
+                                      );
                                     },
                                     child: Text(
                                       l10n.viewDetails,
@@ -1296,7 +1150,9 @@ class _DashboardPageState extends State<DashboardPage>
                                         ),
                                       ),
                                       Text(
-                                        _isLoadingTrends ? '...' : '${_lastWeekDistance.toStringAsFixed(1)} km',
+                                        _isLoadingTrends
+                                            ? '...'
+                                            : '${_lastWeekDistance.toStringAsFixed(1)} km',
                                         style: TextStyle(
                                           fontFamily: 'Arial',
                                           fontSize: 12,
@@ -1323,7 +1179,11 @@ class _DashboardPageState extends State<DashboardPage>
                                         ),
                                       ),
                                       FractionallySizedBox(
-                                        widthFactor: _isLoadingTrends ? 0 : (_lastWeekDistance > 0 ? 1.0 : 0.0),
+                                        widthFactor: _isLoadingTrends
+                                            ? 0
+                                            : (_lastWeekDistance > 0
+                                                  ? 1.0
+                                                  : 0.0),
                                         child: Container(
                                           height: 8,
                                           decoration: BoxDecoration(
@@ -1358,7 +1218,9 @@ class _DashboardPageState extends State<DashboardPage>
                                         ),
                                       ),
                                       Text(
-                                        _isLoadingTrends ? '...' : '${_thisWeekDistance.toStringAsFixed(1)} km',
+                                        _isLoadingTrends
+                                            ? '...'
+                                            : '${_thisWeekDistance.toStringAsFixed(1)} km',
                                         style: TextStyle(
                                           fontFamily: 'Arial',
                                           fontSize: 12,
@@ -1385,7 +1247,16 @@ class _DashboardPageState extends State<DashboardPage>
                                         ),
                                       ),
                                       FractionallySizedBox(
-                                        widthFactor: _isLoadingTrends ? 0 : (_thisWeekDistance > 0 && _thisWeekDistance >= _lastWeekDistance ? 1.0 : (_lastWeekDistance > 0 ? _thisWeekDistance / _lastWeekDistance : 0.0)),
+                                        widthFactor: _isLoadingTrends
+                                            ? 0
+                                            : (_thisWeekDistance > 0 &&
+                                                      _thisWeekDistance >=
+                                                          _lastWeekDistance
+                                                  ? 1.0
+                                                  : (_lastWeekDistance > 0
+                                                        ? _thisWeekDistance /
+                                                              _lastWeekDistance
+                                                        : 0.0)),
                                         child: Container(
                                           height: 8,
                                           decoration: BoxDecoration(
@@ -1437,7 +1308,9 @@ class _DashboardPageState extends State<DashboardPage>
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
-                                      _isLoadingTrends ? '...' : '${_thisWeekDistance.toStringAsFixed(1)} km',
+                                      _isLoadingTrends
+                                          ? '...'
+                                          : '${_thisWeekDistance.toStringAsFixed(1)} km',
                                       style: TextStyle(
                                         fontFamily: 'Arial',
                                         fontSize: 14,
@@ -1689,6 +1562,48 @@ class _DashboardPageState extends State<DashboardPage>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildMonitoringStatChip({
+    required String label,
+    required int value,
+    required Color color,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 0.65),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 12,
+              fontWeight: FontWeight.w400,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$value',
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: color,
+              height: 1.2,
+            ),
+          ),
+        ],
       ),
     );
   }
