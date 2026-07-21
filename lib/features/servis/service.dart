@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../core/utils/app_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../widget/bottom_navbar.dart';
 import '../widget/page_transition.dart';
@@ -28,7 +27,6 @@ class _MaintenancePageState extends State<MaintenancePage> {
   final _scheduleService = ServiceScheduleService();
 
   VehicleModel? _primaryVehicle;
-  List<ServiceScheduleModel> _schedules = [];
   bool _isLoading = true;
   Map<String, dynamic> _usagePattern = {};
   bool _isLoadingPattern = true;
@@ -71,7 +69,6 @@ class _MaintenancePageState extends State<MaintenancePage> {
       if (mounted) {
         setState(() {
           _primaryVehicle = vehicle;
-          _schedules = schedules;
           _isLoading = false;
         });
       }
@@ -164,11 +161,7 @@ class _MaintenancePageState extends State<MaintenancePage> {
                         padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
                         child: Column(
                           children: [
-                            _buildStatusCard(),
-                            const SizedBox(height: 16),
                             _buildInfoCard(),
-                            const SizedBox(height: 16),
-                            _buildStatsRow(),
                             const SizedBox(height: 16),
                             _buildRecommendationsCard(),
                             const SizedBox(height: 16),
@@ -264,188 +257,8 @@ class _MaintenancePageState extends State<MaintenancePage> {
     );
   }
 
-  Map<String, int> _calculateScheduleStatuses() {
-    if (_schedules.isEmpty || _primaryVehicle == null) {
-      return {'urgent': 0, 'soon': 0, 'good': 0};
-    }
 
-    int urgent = 0;
-    int soon = 0;
-    int good = 0;
-    final currentOdometer = _primaryVehicle!.odometer;
 
-    for (final schedule in _schedules) {
-      if (schedule.intervalType == 'mileage') {
-        final nextService = schedule.nextServiceMileage ?? 0;
-        final remaining = nextService - currentOdometer;
-
-        if (remaining <= 0) {
-          urgent++;
-        } else if (remaining <= 500) {
-          soon++;
-        } else {
-          good++;
-        }
-      }
-    }
-
-    return {'urgent': urgent, 'soon': soon, 'good': good};
-  }
-
-  Widget _buildStatusCard() {
-    final colorScheme = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
-    final statuses = _calculateScheduleStatuses();
-    final urgentCount = statuses['urgent'] ?? 0;
-    final soonCount = statuses['soon'] ?? 0;
-    final goodCount = statuses['good'] ?? 0;
-
-    final totalSchedules = urgentCount + soonCount + goodCount;
-
-    final String statusText;
-    final Color statusColor;
-    final double progressValue;
-    final int conditionPercentage;
-
-    if (totalSchedules == 0) {
-      statusText = 'Belum ada jadwal servis';
-      statusColor = colorScheme.primary;
-      progressValue = 1;
-      conditionPercentage = 100;
-    } else if (urgentCount > 0) {
-      statusText = 'Perlu servis segera';
-      statusColor = colorScheme.error;
-      progressValue = 0.25;
-      conditionPercentage = 25;
-    } else if (soonCount > 0) {
-      statusText = 'Jadwalkan servis';
-      statusColor = colorScheme.warning;
-      progressValue = 0.6;
-      conditionPercentage = 60;
-    } else {
-      statusText = 'Kondisi baik';
-      statusColor = colorScheme.primary;
-      progressValue = 1;
-      conditionPercentage = 100;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        border: Border.all(color: colorScheme.outlineVariant, width: 0.65),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            statusText,
-            style: TextStyle(
-              fontFamily: 'Arial',
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: colorScheme.onSurface,
-              height: 1.43,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: progressValue,
-              minHeight: 12,
-              backgroundColor: colorScheme.outlineVariant,
-              valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            l10n.vehicleCondition(conditionPercentage),
-            style: TextStyle(
-              fontFamily: 'Arial',
-              fontSize: 12,
-              fontWeight: FontWeight.w400,
-              color: colorScheme.secondary,
-              height: 1.33,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _buildStatBox(
-                l10n.urgent,
-                urgentCount.toString(),
-                colorScheme.error,
-                Icons.warning_amber_outlined,
-              ),
-              const SizedBox(width: 12),
-              _buildStatBox(
-                l10n.soon,
-                soonCount.toString(),
-                colorScheme.warning,
-                Icons.access_time,
-              ),
-              const SizedBox(width: 12),
-              _buildStatBox(
-                l10n.good,
-                goodCount.toString(),
-                colorScheme.primary,
-                Icons.check_circle_outline,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatBox(String label, String value, Color color, IconData icon) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          border: Border.all(color: color.withValues(alpha: 0.2), width: 0.65),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 16, color: color.withValues(alpha: 0.5)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontFamily: 'Arial',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      color: Theme.of(context).colorScheme.secondary,
-                      height: 1.33,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: TextStyle(
-                fontFamily: 'Arial',
-                fontSize: 24,
-                fontWeight: FontWeight.w400,
-                color: color,
-                height: 1.33,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildInfoCard() {
     final colorScheme = Theme.of(context).colorScheme;
@@ -499,121 +312,6 @@ class _MaintenancePageState extends State<MaintenancePage> {
     );
   }
 
-  Widget _buildStatsRow() {
-    final colorScheme = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
-    final statuses = _calculateScheduleStatuses();
-    final totalComponents = _schedules.length;
-    final needsAttention = (statuses['urgent'] ?? 0) + (statuses['soon'] ?? 0);
-
-    return Row(
-      children: [
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              border: Border.all(
-                color: colorScheme.outlineVariant,
-                width: 0.65,
-              ),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.totalComponents,
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: colorScheme.secondary,
-                    height: 1.33,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  totalComponents.toString(),
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 24,
-                    fontWeight: FontWeight.w400,
-                    color: colorScheme.onSurface,
-                    height: 1.33,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  l10n.monitored,
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: colorScheme.secondary,
-                    height: 1.33,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              border: Border.all(
-                color: colorScheme.outlineVariant,
-                width: 0.65,
-              ),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.needsAttention,
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: colorScheme.secondary,
-                    height: 1.33,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  needsAttention.toString(),
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 24,
-                    fontWeight: FontWeight.w400,
-                    color: needsAttention > 0
-                        ? colorScheme.warning
-                        : colorScheme.primary,
-                    height: 1.33,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  l10n.item,
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: colorScheme.secondary,
-                    height: 1.33,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildRecommendationsCard() {
     final colorScheme = Theme.of(context).colorScheme;
@@ -826,56 +524,6 @@ class _MaintenancePageState extends State<MaintenancePage> {
     );
   }
 
-  Widget _buildRecommendationItem({
-    required IconData icon,
-    required Color color,
-    required String title,
-    required String description,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        border: Border.all(color: color.withValues(alpha: 0.2), width: 0.65),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    color: color,
-                    height: 1.43,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: Theme.of(context).colorScheme.secondary,
-                    height: 1.33,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildUsagePatternCard() {
     final colorScheme = Theme.of(context).colorScheme;

@@ -1,4 +1,5 @@
 import 'recommendation_priority.dart';
+import 'service_recommendation_dto.dart';
 import '../utils/json_utils.dart';
 
 class WawasanPintarItemDto {
@@ -41,11 +42,15 @@ class HomeInsightDto {
   final List<WawasanPintarItemDto> wawasanPintar;
   final InsightSistemDto? insightSistem;
   final Map<String, double> fuzzyScores;
+  final Map<String, String> fuzzyStatuses;
+  final MonitoredSummaryDto monitoredSummary;
 
   const HomeInsightDto({
     required this.wawasanPintar,
     required this.insightSistem,
     required this.fuzzyScores,
+    required this.fuzzyStatuses,
+    required this.monitoredSummary,
   });
 
   factory HomeInsightDto.fromJson(Map<String, dynamic> json) {
@@ -59,11 +64,24 @@ class HomeInsightDto {
     final insight = insightRaw == null || insightMap.isEmpty
         ? null
         : InsightSistemDto.fromJson(insightMap);
+    final statusesRaw = JsonUtils.asMap(json['fuzzy_statuses']);
+    final fuzzyStatuses = <String, String>{};
+    for (final entry in statusesRaw.entries) {
+      final value = JsonUtils.asNullableString(entry.value);
+      if (value != null && value.trim().isNotEmpty) {
+        fuzzyStatuses[entry.key] = value.trim().toLowerCase();
+      }
+    }
+    final monitoredSummaryRaw = JsonUtils.asMap(json['monitored_summary']);
 
     return HomeInsightDto(
       wawasanPintar: wawasan,
       insightSistem: insight,
       fuzzyScores: JsonUtils.asStringDoubleMap(json['fuzzy_scores']),
+      fuzzyStatuses: fuzzyStatuses,
+      monitoredSummary: monitoredSummaryRaw.isEmpty
+          ? const MonitoredSummaryDto.empty()
+          : MonitoredSummaryDto.fromJson(monitoredSummaryRaw),
     );
   }
 }

@@ -29,6 +29,30 @@ class RecommendationServiceNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> completeFuzzyService({
+    required int motorId,
+    required String componentName,
+    required DateTime performedAt,
+    required int odometer,
+    String? serviceProvider,
+    String? notes,
+  }) async {
+    try {
+      await _repository.completeFuzzyService(
+        motorId: motorId,
+        componentName: componentName,
+        performedAt: performedAt,
+        odometer: odometer,
+        serviceProvider: serviceProvider,
+        notes: notes,
+      );
+      // Refresh data after marking complete
+      await refresh(motorId);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   @override
   void dispose() {
     _isDisposed = true;

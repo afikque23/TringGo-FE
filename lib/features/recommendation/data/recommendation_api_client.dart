@@ -61,6 +61,28 @@ class RecommendationApiClient {
     });
   }
 
+  Future<void> completeFuzzyService({
+    required int motorId,
+    required String componentName,
+    required DateTime performedAt,
+    required int odometer,
+    String? serviceProvider,
+    String? notes,
+  }) async {
+    final payload = {
+      'component_name': componentName,
+      'performed_at': performedAt.toIso8601String().split('T')[0],
+      'odometer': odometer,
+      if (serviceProvider != null) 'service_provider': serviceProvider,
+      if (notes != null) 'notes': notes,
+    };
+    final res = await _apiClient.post(
+      '/vehicles//fuzzy-service-complete',
+      body: payload,
+    );
+    _parseResponse(res.statusCode, res.body, (dataJson) => null);
+  }
+
   ApiResult<T> _parseResponse<T>(
     int statusCode,
     String body,

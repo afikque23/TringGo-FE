@@ -409,8 +409,9 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
   Future<void> _showCompleteServiceDialog() async {
     final colorScheme = Theme.of(context).colorScheme;
     final odometerController = TextEditingController(
-      text: (_primaryVehicle?.odometer ?? widget.schedule.lastServiceMileage ?? 0)
-          .toString(),
+      text:
+          (_primaryVehicle?.odometer ?? widget.schedule.lastServiceMileage ?? 0)
+              .toString(),
     );
     final notesController = TextEditingController();
     final serviceProviderController = TextEditingController();
@@ -469,7 +470,9 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
                             vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            border: Border.all(color: colorScheme.outlineVariant),
+                            border: Border.all(
+                              color: colorScheme.outlineVariant,
+                            ),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
@@ -517,8 +520,9 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
                   ),
                   ElevatedButton(
                     onPressed: () {
-                      final odometerValue =
-                          int.tryParse(odometerController.text.trim());
+                      final odometerValue = int.tryParse(
+                        odometerController.text.trim(),
+                      );
                       if (odometerValue == null || odometerValue < 0) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -531,7 +535,8 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
                       Navigator.pop(dialogContext, {
                         'performedAt': selectedDate,
                         'odometer': odometerValue,
-                        'serviceProvider': serviceProviderController.text.trim(),
+                        'serviceProvider': serviceProviderController.text
+                            .trim(),
                         'notes': notesController.text.trim(),
                       });
                     },
@@ -567,9 +572,9 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
   }) async {
     if (widget.schedule.id == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ID jadwal tidak valid.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('ID jadwal tidak valid.')));
       return;
     }
 
@@ -586,7 +591,9 @@ class _DetailJadwalPageState extends State<DetailJadwalPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Servis berhasil dicatat. Jadwal berikutnya diperbarui.'),
+          content: Text(
+            'Servis berhasil dicatat. Jadwal berikutnya diperbarui.',
+          ),
         ),
       );
 
