@@ -131,10 +131,11 @@ class RekomendasiKomponenItemDto {
   });
 
   factory RekomendasiKomponenItemDto.fromJson(Map<String, dynamic> json) {
+    final statusFuzzy = JsonUtils.asNullableString(json['status_fuzzy']);
     return RekomendasiKomponenItemDto(
       komponen: JsonUtils.asString(json['komponen'], fallback: '-'),
       prioritas: parseRecommendationPriority(
-        JsonUtils.asNullableString(json['prioritas']),
+        statusFuzzy ?? JsonUtils.asNullableString(json['prioritas']),
       ),
       saran: JsonUtils.asString(json['saran'], fallback: ''),
       estimasiWaktu: JsonUtils.asString(json['estimasi_waktu'], fallback: ''),
@@ -151,7 +152,7 @@ class RekomendasiKomponenItemDto {
         json['hingga_servis_berikutnya_km'],
       ),
       targetServisKm: JsonUtils.asNullableDouble(json['target_servis_km']),
-      statusFuzzy: JsonUtils.asNullableString(json['status_fuzzy']),
+      statusFuzzy: statusFuzzy,
       isServiceDue: JsonUtils.asBool(json['is_service_due']),
     );
   }
