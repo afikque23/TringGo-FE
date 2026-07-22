@@ -20,6 +20,32 @@ class _RecommendationServiceScreenState
   late final RecommendationServiceNotifier _notifier;
   final Set<String> _completingComponentNames = <String>{};
 
+  String _statusBadgeLabel(String status) {
+    switch (status.toLowerCase()) {
+      case 'critical':
+        return 'Kritis';
+      case 'warning':
+        return 'Perhatian';
+      case 'normal':
+        return 'Normal';
+      default:
+        return 'Tidak diketahui';
+    }
+  }
+
+  Color _statusBadgeColor(String status, ColorScheme colorScheme) {
+    switch (status.toLowerCase()) {
+      case 'critical':
+        return colorScheme.error;
+      case 'warning':
+        return const Color(0xFFE6A700);
+      case 'normal':
+        return colorScheme.primary;
+      default:
+        return colorScheme.secondary;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -34,10 +60,14 @@ class _RecommendationServiceScreenState
   }
 
   Widget _buildVariableChip(
-    String label,
-    String value,
+    ComponentVariableRequirementDto variable,
     ColorScheme colorScheme,
   ) {
+    final statusColor = _statusBadgeColor(
+      variable.statusByThreshold,
+      colorScheme,
+    );
+
     return Container(
       constraints: const BoxConstraints(minWidth: 130),
       padding: const EdgeInsets.all(12),
@@ -50,7 +80,7 @@ class _RecommendationServiceScreenState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            label,
+            variable.label,
             style: TextStyle(
               fontFamily: 'Arial',
               fontSize: 11,
@@ -60,14 +90,81 @@ class _RecommendationServiceScreenState
             ),
           ),
           const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  variable.formattedValue,
+                  style: TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onSurface,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: statusColor.withValues(alpha: 0.35),
+                    width: 0.65,
+                  ),
+                ),
+                child: Text(
+                  _statusBadgeLabel(variable.statusByThreshold),
+                  style: TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: statusColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
           Text(
-            value,
+            'Batas perhatian: ${variable.formattedWarningThreshold}',
             style: TextStyle(
               fontFamily: 'Arial',
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: colorScheme.onSurface,
-              height: 1.35,
+              fontSize: 10,
+              fontWeight: FontWeight.w400,
+              color: colorScheme.onSurfaceVariant,
+              height: 1.3,
+            ),
+          ),
+          Text(
+            'Batas kritis: ${variable.formattedCriticalThreshold}',
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 10,
+              fontWeight: FontWeight.w400,
+              color: colorScheme.onSurfaceVariant,
+              height: 1.3,
+            ),
+          ),
+          Text(
+            'Status ke batas perhatian: ${variable.formattedToWarning}',
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 10,
+              fontWeight: FontWeight.w400,
+              color: colorScheme.onSurfaceVariant,
+              height: 1.3,
+            ),
+          ),
+          Text(
+            'Status ke batas kritis: ${variable.formattedToCritical}',
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 10,
+              fontWeight: FontWeight.w400,
+              color: colorScheme.onSurfaceVariant,
+              height: 1.3,
             ),
           ),
         ],
@@ -510,11 +607,7 @@ class _RecommendationServiceScreenState
                     runSpacing: 8,
                     children: [
                       for (final variable in item.requiredVariables)
-                        _buildVariableChip(
-                          variable.label,
-                          variable.formattedValue,
-                          colorScheme,
-                        ),
+                        _buildVariableChip(variable, colorScheme),
                     ],
                   ),
                 const SizedBox(height: 10),

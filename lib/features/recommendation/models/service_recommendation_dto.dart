@@ -7,6 +7,15 @@ class ComponentVariableRequirementDto {
   final String? unit;
   final dynamic value;
   final String formattedValue;
+  final double? warningThreshold;
+  final double? criticalThreshold;
+  final String formattedWarningThreshold;
+  final String formattedCriticalThreshold;
+  final double? toWarning;
+  final double? toCritical;
+  final String formattedToWarning;
+  final String formattedToCritical;
+  final String statusByThreshold;
 
   const ComponentVariableRequirementDto({
     required this.key,
@@ -14,6 +23,15 @@ class ComponentVariableRequirementDto {
     required this.unit,
     required this.value,
     required this.formattedValue,
+    required this.warningThreshold,
+    required this.criticalThreshold,
+    required this.formattedWarningThreshold,
+    required this.formattedCriticalThreshold,
+    required this.toWarning,
+    required this.toCritical,
+    required this.formattedToWarning,
+    required this.formattedToCritical,
+    required this.statusByThreshold,
   });
 
   factory ComponentVariableRequirementDto.fromJson(Map<String, dynamic> json) {
@@ -25,6 +43,30 @@ class ComponentVariableRequirementDto {
       formattedValue: JsonUtils.asString(
         json['formatted_value'],
         fallback: '-',
+      ),
+      warningThreshold: JsonUtils.asNullableDouble(json['warning_threshold']),
+      criticalThreshold: JsonUtils.asNullableDouble(json['critical_threshold']),
+      formattedWarningThreshold: JsonUtils.asString(
+        json['formatted_warning_threshold'],
+        fallback: '-',
+      ),
+      formattedCriticalThreshold: JsonUtils.asString(
+        json['formatted_critical_threshold'],
+        fallback: '-',
+      ),
+      toWarning: JsonUtils.asNullableDouble(json['to_warning']),
+      toCritical: JsonUtils.asNullableDouble(json['to_critical']),
+      formattedToWarning: JsonUtils.asString(
+        json['formatted_to_warning'],
+        fallback: '-',
+      ),
+      formattedToCritical: JsonUtils.asString(
+        json['formatted_to_critical'],
+        fallback: '-',
+      ),
+      statusByThreshold: JsonUtils.asString(
+        json['status_by_threshold'],
+        fallback: 'unknown',
       ),
     );
   }
