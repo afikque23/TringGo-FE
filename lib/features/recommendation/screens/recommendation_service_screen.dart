@@ -19,6 +19,31 @@ class _RecommendationServiceScreenState
     extends State<RecommendationServiceScreen> {
   late final RecommendationServiceNotifier _notifier;
   final Set<String> _completingComponentNames = <String>{};
+  bool _isBackfillSubmitting = false;
+
+  bool _isMileageVariableKey(String key) {
+    final normalized = key.trim().toLowerCase();
+    return normalized == 'jarak' ||
+        normalized == 'jarak_tempuh' ||
+        normalized == 'mileage' ||
+        normalized == 'distance_since_service_km' ||
+        normalized == 'distance';
+  }
+
+  bool _requiresOdometerForItem(RekomendasiKomponenItemDto item) {
+    return item.requiredVariables.any((v) => _isMileageVariableKey(v.key));
+  }
+
+  bool _selectionRequiresOdometer(
+    List<RekomendasiKomponenItemDto> items,
+    Set<String> selectedNames,
+  ) {
+    return items.any(
+      (item) =>
+          selectedNames.contains(item.komponen) &&
+          _requiresOdometerForItem(item),
+    );
+  }
 
   String _statusBadgeLabel(String status) {
     switch (status.toLowerCase()) {
@@ -175,10 +200,12 @@ class _RecommendationServiceScreenState
   Future<void> _showCompleteServiceDialog(
     RekomendasiKomponenItemDto item,
   ) async {
+    final requiresOdometer = _requiresOdometerForItem(item);
     final odometerController = TextEditingController();
     final notesController = TextEditingController();
     final serviceProviderController = TextEditingController();
     DateTime selectedDate = DateTime.now();
+    String? validationMessage;
 
     try {
       final payload = await showDialog<Map<String, dynamic>>(
@@ -216,7 +243,7 @@ class _RecommendationServiceScreenState
                       InkWell(
                         onTap: () async {
                           final picked = await showDatePicker(
-                            context: context,
+                            context: dialogContext,
                             initialDate: selectedDate,
                             firstDate: DateTime(2020),
                             lastDate: DateTime.now(),
@@ -254,9 +281,13 @@ class _RecommendationServiceScreenState
                       TextField(
                         controller: odometerController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Odometer saat servis (km)',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: requiresOdometer
+                              ? 'Odometer saat servis (km) *'
+                              : 'Odometer saat servis (km) (opsional)',
+                          helperText:
+                              'Boleh lebih kecil dari odometer saat ini jika ini servis historis.',
+                          border: const OutlineInputBorder(),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -276,6 +307,17 @@ class _RecommendationServiceScreenState
                           border: OutlineInputBorder(),
                         ),
                       ),
+                      if (validationMessage != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          validationMessage!,
+                          style: TextStyle(
+                            fontFamily: 'Arial',
+                            fontSize: 12,
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -286,15 +328,21 @@ class _RecommendationServiceScreenState
                   ),
                   ElevatedButton(
                     onPressed: () {
-                      final odometerValue = int.tryParse(
-                        odometerController.text.trim(),
-                      );
-                      if (odometerValue == null || odometerValue < 0) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Odometer harus angka >= 0'),
-                          ),
-                        );
+                      final rawOdometer = odometerController.text.trim();
+                      final odometerValue = rawOdometer.isEmpty
+                          ? null
+                          : int.tryParse(rawOdometer);
+                      if (requiresOdometer && odometerValue == null) {
+                        setDialogState(() {
+                          validationMessage =
+                              'Odometer wajib diisi untuk komponen berbasis jarak.';
+                        });
+                        return;
+                      }
+                      if (odometerValue != null && odometerValue < 0) {
+                        setDialogState(() {
+                          validationMessage = 'Odometer harus angka >= 0';
+                        });
                         return;
                       }
 
@@ -320,7 +368,7 @@ class _RecommendationServiceScreenState
       await _completeFuzzyService(
         komponen: item.komponen,
         performedAt: payload['performedAt'] as DateTime,
-        odometer: payload['odometer'] as int,
+        odometer: payload['odometer'] as int?,
         serviceProvider: payload['serviceProvider'] as String?,
         notes: payload['notes'] as String?,
       );
@@ -334,7 +382,7 @@ class _RecommendationServiceScreenState
   Future<void> _completeFuzzyService({
     required String komponen,
     required DateTime performedAt,
-    required int odometer,
+    int? odometer,
     String? serviceProvider,
     String? notes,
   }) async {
@@ -380,6 +428,287 @@ class _RecommendationServiceScreenState
     }
   }
 
+  Future<void> _showBackfillOnboardingDialog(
+    List<RekomendasiKomponenItemDto> items,
+  ) async {
+    final selectedNames = <String>{};
+    final odometerController = TextEditingController();
+    final notesController = TextEditingController();
+    final serviceProviderController = TextEditingController();
+    DateTime selectedDate = DateTime.now();
+    String? validationMessage;
+
+    try {
+      final payload = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (dialogContext) {
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              final needsOdometer = _selectionRequiresOdometer(
+                items,
+                selectedNames,
+              );
+
+              return AlertDialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                title: const Text(
+                  'Backfill Servis Awal',
+                  style: TextStyle(fontFamily: 'Arial', fontSize: 18),
+                ),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Pilih komponen yang sudah pernah diservis sebelumnya.',
+                        style: TextStyle(fontFamily: 'Arial', fontSize: 12),
+                      ),
+                      const SizedBox(height: 8),
+                      ...items.map((item) {
+                        final checked = selectedNames.contains(item.komponen);
+                        return CheckboxListTile(
+                          value: checked,
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            item.komponen,
+                            style: const TextStyle(
+                              fontFamily: 'Arial',
+                              fontSize: 13,
+                            ),
+                          ),
+                          subtitle: Text(
+                            _requiresOdometerForItem(item)
+                                ? 'Memakai variabel jarak (butuh odometer).'
+                                : 'Tidak wajib odometer.',
+                            style: const TextStyle(
+                              fontFamily: 'Arial',
+                              fontSize: 11,
+                            ),
+                          ),
+                          onChanged: (value) {
+                            setDialogState(() {
+                              if (value == true) {
+                                selectedNames.add(item.komponen);
+                              } else {
+                                selectedNames.remove(item.komponen);
+                              }
+                            });
+                          },
+                        );
+                      }),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Tanggal servis',
+                        style: TextStyle(fontFamily: 'Arial'),
+                      ),
+                      const SizedBox(height: 6),
+                      InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: dialogContext,
+                            initialDate: selectedDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now(),
+                          );
+                          if (picked != null) {
+                            setDialogState(() {
+                              selectedDate = picked;
+                            });
+                          }
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.outlineVariant,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '${selectedDate.year.toString().padLeft(4, '0')}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}',
+                            style: TextStyle(
+                              fontFamily: 'Arial',
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: odometerController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: needsOdometer
+                              ? 'Odometer saat servis (km) *'
+                              : 'Odometer saat servis (km) (opsional)',
+                          helperText:
+                              'Wajib jika ada komponen terpilih yang memakai variabel jarak.',
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: serviceProviderController,
+                        decoration: const InputDecoration(
+                          labelText: 'Nama bengkel (opsional)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: notesController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Catatan (opsional)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      if (validationMessage != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          validationMessage!,
+                          style: TextStyle(
+                            fontFamily: 'Arial',
+                            fontSize: 12,
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Batal'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      if (selectedNames.isEmpty) {
+                        setDialogState(() {
+                          validationMessage = 'Pilih minimal satu komponen.';
+                        });
+                        return;
+                      }
+
+                      final rawOdometer = odometerController.text.trim();
+                      final odometerValue = rawOdometer.isEmpty
+                          ? null
+                          : int.tryParse(rawOdometer);
+
+                      if (needsOdometer && odometerValue == null) {
+                        setDialogState(() {
+                          validationMessage =
+                              'Odometer wajib diisi karena ada komponen berbasis jarak.';
+                        });
+                        return;
+                      }
+
+                      if (odometerValue != null && odometerValue < 0) {
+                        setDialogState(() {
+                          validationMessage = 'Odometer harus angka >= 0';
+                        });
+                        return;
+                      }
+
+                      Navigator.pop(dialogContext, {
+                        'selectedNames': selectedNames.toList(),
+                        'performedAt': selectedDate,
+                        'odometer': odometerValue,
+                        'serviceProvider': serviceProviderController.text
+                            .trim(),
+                        'notes': notesController.text.trim(),
+                      });
+                    },
+                    child: const Text('Simpan Backfill'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+
+      if (payload == null) return;
+
+      final selectedNamesFromPayload = (payload['selectedNames'] as List)
+          .map((e) => e.toString())
+          .toSet();
+      final performedAt = payload['performedAt'] as DateTime;
+      final sharedOdometer = payload['odometer'] as int?;
+      final serviceProvider = payload['serviceProvider'] as String?;
+      final notes = payload['notes'] as String?;
+
+      final selectedItems = items
+          .where((item) => selectedNamesFromPayload.contains(item.komponen))
+          .toList();
+
+      if (selectedItems.isEmpty) return;
+
+      setState(() {
+        _isBackfillSubmitting = true;
+        for (final item in selectedItems) {
+          _completingComponentNames.add(item.komponen);
+        }
+      });
+
+      final entries = selectedItems.map((item) {
+        return (
+          componentName: item.komponen,
+          performedAt: performedAt,
+          odometer: sharedOdometer,
+          serviceProvider: (serviceProvider?.trim().isEmpty ?? true)
+              ? null
+              : serviceProvider?.trim(),
+          notes: (notes?.trim().isEmpty ?? true) ? null : notes?.trim(),
+        );
+      }).toList();
+
+      await _notifier.completeFuzzyServicesBulk(
+        motorId: widget.motorId,
+        entries: entries,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Backfill servis awal berhasil untuk ${selectedItems.length} komponen.',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menyimpan backfill: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBackfillSubmitting = false;
+          _completingComponentNames.clear();
+        });
+      }
+      odometerController.dispose();
+      notesController.dispose();
+      serviceProviderController.dispose();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -417,7 +746,55 @@ class _RecommendationServiceScreenState
                   _buildRingkasanCard(context),
 
                   const SizedBox(height: 16),
-                  const _SectionTitle(title: 'Rekomendasi Komponen'),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: _SectionTitle(title: 'Rekomendasi Komponen'),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: _isBackfillSubmitting
+                            ? null
+                            : () {
+                                final items =
+                                    _notifier
+                                        .recommendation
+                                        ?.rekomendasiKomponen ??
+                                    const <RekomendasiKomponenItemDto>[];
+                                if (items.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Belum ada komponen untuk backfill.',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                _showBackfillOnboardingDialog(items);
+                              },
+                        icon: _isBackfillSubmitting
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.playlist_add_check, size: 16),
+                        label: Text(
+                          _isBackfillSubmitting
+                              ? 'Menyimpan...'
+                              : 'Backfill Servis Awal',
+                          style: const TextStyle(
+                            fontFamily: 'Arial',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 10),
                   _buildRekomendasiKomponenList(context),
 
@@ -614,7 +991,9 @@ class _RecommendationServiceScreenState
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () => _showCompleteServiceDialog(item),
+                    onPressed: _isBackfillSubmitting
+                        ? null
+                        : () => _showCompleteServiceDialog(item),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: colorScheme.primary,
                       foregroundColor: Colors.white,

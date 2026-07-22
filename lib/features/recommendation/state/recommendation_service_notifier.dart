@@ -33,9 +33,10 @@ class RecommendationServiceNotifier extends ChangeNotifier {
     required int motorId,
     required String componentName,
     required DateTime performedAt,
-    required int odometer,
+    int? odometer,
     String? serviceProvider,
     String? notes,
+    bool refreshAfter = true,
   }) async {
     try {
       await _repository.completeFuzzyService(
@@ -46,11 +47,41 @@ class RecommendationServiceNotifier extends ChangeNotifier {
         serviceProvider: serviceProvider,
         notes: notes,
       );
-      // Refresh data after marking complete
-      await refresh(motorId);
+      if (refreshAfter) {
+        // Refresh data after marking complete
+        await refresh(motorId);
+      }
     } catch (e) {
       rethrow;
     }
+  }
+
+  Future<void> completeFuzzyServicesBulk({
+    required int motorId,
+    required List<
+      ({
+        String componentName,
+        DateTime performedAt,
+        int? odometer,
+        String? serviceProvider,
+        String? notes,
+      })
+    >
+    entries,
+  }) async {
+    for (final entry in entries) {
+      await completeFuzzyService(
+        motorId: motorId,
+        componentName: entry.componentName,
+        performedAt: entry.performedAt,
+        odometer: entry.odometer,
+        serviceProvider: entry.serviceProvider,
+        notes: entry.notes,
+        refreshAfter: false,
+      );
+    }
+
+    await refresh(motorId);
   }
 
   @override

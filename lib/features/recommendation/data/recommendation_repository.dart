@@ -19,7 +19,7 @@ class RecommendationRepository {
     required int motorId,
     required String componentName,
     required DateTime performedAt,
-    required int odometer,
+    int? odometer,
     String? serviceProvider,
     String? notes,
   }) async {
@@ -32,6 +32,7 @@ class RecommendationRepository {
       notes: notes,
     );
   }
+
   Future<({HomeInsightDto data, MetaDto meta})> fetchHomeInsight(
     int motorId,
   ) async {
