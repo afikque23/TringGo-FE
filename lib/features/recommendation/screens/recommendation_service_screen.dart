@@ -33,29 +33,46 @@ class _RecommendationServiceScreenState
     super.dispose();
   }
 
-  String _formatKm(double? km) {
-    if (km == null) return '-';
-    if (km >= 1000) return '${km.toStringAsFixed(0)} km';
-    return '${km.toStringAsFixed(1)} km';
-  }
-
-  String _buildEstimasiText(RekomendasiKomponenItemDto item) {
-    final raw = item.estimasiWaktu.trim();
-    if (raw.isNotEmpty && raw != '-') {
-      return raw;
-    }
-
-    final remainingKm = item.hinggaServisBerikutnyaKm;
-    if (remainingKm == null) {
-      return 'Estimasi belum tersedia';
-    }
-    if (remainingKm <= 0) {
-      return 'Jatuh tempo sekarang';
-    }
-    if (remainingKm < 1) {
-      return 'Kurang dari 1 km lagi';
-    }
-    return '${remainingKm.toStringAsFixed(0)} km lagi';
+  Widget _buildVariableChip(
+    String label,
+    String value,
+    ColorScheme colorScheme,
+  ) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 130),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colorScheme.outlineVariant, width: 0.65),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 11,
+              fontWeight: FontWeight.w400,
+              color: colorScheme.onSurfaceVariant,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: colorScheme.onSurface,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _showCompleteServiceDialog(
@@ -455,14 +472,14 @@ class _RecommendationServiceScreenState
                   child: Row(
                     children: [
                       Icon(
-                        Icons.schedule,
+                        Icons.tune,
                         size: 16,
                         color: colorScheme.onSurfaceVariant,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          _buildEstimasiText(item),
+                          'Variabel yang dibutuhkan',
                           style: TextStyle(
                             fontFamily: 'Arial',
                             fontSize: 12,
@@ -476,26 +493,30 @@ class _RecommendationServiceScreenState
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  'Jarak sejak servis: ${_formatKm(item.jarakSejakServisKm)}',
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    height: 1.5,
-                    color: colorScheme.onSurfaceVariant,
+                if (item.requiredVariables.isEmpty)
+                  Text(
+                    'Variabel komponen belum tersedia.',
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      height: 1.5,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final variable in item.requiredVariables)
+                        _buildVariableChip(
+                          variable.label,
+                          variable.formattedValue,
+                          colorScheme,
+                        ),
+                    ],
                   ),
-                ),
-                Text(
-                  'Hingga servis berikutnya: ${_formatKm(item.hinggaServisBerikutnyaKm)}',
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    height: 1.5,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,

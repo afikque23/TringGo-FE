@@ -1,6 +1,35 @@
 import 'recommendation_priority.dart';
 import '../utils/json_utils.dart';
 
+class ComponentVariableRequirementDto {
+  final String key;
+  final String label;
+  final String? unit;
+  final dynamic value;
+  final String formattedValue;
+
+  const ComponentVariableRequirementDto({
+    required this.key,
+    required this.label,
+    required this.unit,
+    required this.value,
+    required this.formattedValue,
+  });
+
+  factory ComponentVariableRequirementDto.fromJson(Map<String, dynamic> json) {
+    return ComponentVariableRequirementDto(
+      key: JsonUtils.asString(json['key'], fallback: ''),
+      label: JsonUtils.asString(json['label'], fallback: ''),
+      unit: JsonUtils.asNullableString(json['unit']),
+      value: json['value'],
+      formattedValue: JsonUtils.asString(
+        json['formatted_value'],
+        fallback: '-',
+      ),
+    );
+  }
+}
+
 class MonitoredSummaryDto {
   final int total;
   final int critical;
@@ -35,6 +64,7 @@ class RekomendasiKomponenItemDto {
   final RecommendationPriority prioritas;
   final String saran;
   final String estimasiWaktu;
+  final List<ComponentVariableRequirementDto> requiredVariables;
   final int? componentConfigId;
   final int? scheduleId;
   final double? jarakSejakServisKm;
@@ -48,6 +78,7 @@ class RekomendasiKomponenItemDto {
     required this.prioritas,
     required this.saran,
     required this.estimasiWaktu,
+    required this.requiredVariables,
     required this.componentConfigId,
     required this.scheduleId,
     required this.jarakSejakServisKm,
@@ -65,6 +96,10 @@ class RekomendasiKomponenItemDto {
       ),
       saran: JsonUtils.asString(json['saran'], fallback: ''),
       estimasiWaktu: JsonUtils.asString(json['estimasi_waktu'], fallback: ''),
+      requiredVariables: JsonUtils.asList(json['required_variables'])
+          .map((e) => JsonUtils.asMap(e))
+          .map(ComponentVariableRequirementDto.fromJson)
+          .toList(),
       componentConfigId: JsonUtils.asNullableInt(json['component_config_id']),
       scheduleId: JsonUtils.asNullableInt(json['schedule_id']),
       jarakSejakServisKm: JsonUtils.asNullableDouble(
