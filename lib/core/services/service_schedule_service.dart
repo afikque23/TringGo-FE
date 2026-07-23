@@ -192,8 +192,8 @@ class ServiceScheduleService {
         'service_type_id': schedule.serviceTypeId ?? 1,
         'schedule_type': scheduleType, // 'km' or 'time'
         'interval_value': schedule.intervalValue, // Add interval_value
-        // Don't send service_name - backend doesn't support this column
-        // Backend will get it from service_type relationship
+        if (schedule.serviceName != null && schedule.serviceName!.isNotEmpty)
+          'service_name': schedule.serviceName,
         if (schedule.notes != null && schedule.notes!.isNotEmpty)
           'notes': schedule.notes,
       };
