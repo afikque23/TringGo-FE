@@ -227,15 +227,15 @@ class _SplashScreenState extends State<SplashScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'Moto',
+              'Tring',
               style: TextStyle(
                 fontSize: 36,
                 fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
+                color: Colors.white,
               ),
             ),
             Text(
-              'Tracker',
+              'Go',
               style: TextStyle(
                 fontSize: 36,
                 fontWeight: FontWeight.bold,

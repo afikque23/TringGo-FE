@@ -6,6 +6,7 @@ import '../widget/page_transition.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/network/api_config.dart';
 import '../../core/services/auth_storage.dart';
+import '../../core/utils/json_utils.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -138,8 +139,11 @@ class _RegisterPageState extends State<RegisterPage> {
           ),
         );
       } else {
-        final error = jsonDecode(response.body);
-        _showErrorDialog(error['message'] ?? 'Registrasi gagal');
+        final error = tryDecodeJsonMap(response.body);
+        _showErrorDialog(
+          error?['message'] ??
+              'Registrasi gagal: respons server kosong atau tidak valid',
+        );
       }
     } catch (e) {
       print('❌ Error: $e'); // Debug log

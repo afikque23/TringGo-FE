@@ -23,7 +23,6 @@ import '../../core/services/trip_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../recommendation/screens/recommendation_service_screen.dart';
 import '../recommendation/state/recommendation_home_insight_notifier.dart';
-import '../recommendation/widgets/fuzzy_scores_section.dart';
 import '../recommendation/widgets/meta_info_row.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -508,6 +507,80 @@ class _DashboardPageState extends State<DashboardPage>
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       children: [
+                        // Start Tracking Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 60,
+                          child: ElevatedButton(
+                            onPressed: _primaryVehicle == null
+                                ? null
+                                : () async {
+                                    await Navigator.push(
+                                      context,
+                                      SmoothPageRoute(
+                                        page: GpsTrackingPage(
+                                          vehicleId: _primaryVehicle!.id!,
+                                          vehicleName: _primaryVehicle!.title,
+                                          currentVehicle: _primaryVehicle,
+                                        ),
+                                      ),
+                                    );
+
+                                    // Saat kembali dari halaman tracking, sinkronkan lagi status tombol.
+                                    await _refreshTrackingStatus();
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _primaryVehicle == null
+                                  ? colorScheme.surfaceContainerHighest
+                                  : (_isTrackingActive
+                                        ? colorScheme.error
+                                        : colorScheme.primary),
+                              disabledBackgroundColor:
+                                  colorScheme.surfaceContainerHighest,
+                              elevation: 0,
+                              shadowColor: Colors.black.withValues(alpha: 0.1),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  _isTrackingActive
+                                      ? Icons.stop_circle_outlined
+                                      : Icons.location_on,
+                                  size: 24,
+                                  color: _primaryVehicle == null
+                                      ? colorScheme.onSurfaceVariant
+                                      : Colors.white,
+                                ),
+                                const SizedBox(width: 12),
+                                Flexible(
+                                  child: Text(
+                                    _primaryVehicle == null
+                                        ? 'Tambah kendaraan terlebih dahulu'
+                                        : (_isTrackingActive
+                                              ? 'Sedang Melacak'
+                                              : l10n.startTracking),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontFamily: 'Arial',
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w400,
+                                      height: 1.56,
+                                      color: _primaryVehicle == null
+                                          ? colorScheme.onSurfaceVariant
+                                          : Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
                         // Monitored Components Card
                         AnimatedBuilder(
                           animation: _homeInsightNotifier,
@@ -711,80 +784,6 @@ class _DashboardPageState extends State<DashboardPage>
                               ),
                             );
                           },
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Start Tracking Button
-                        SizedBox(
-                          width: double.infinity,
-                          height: 60,
-                          child: ElevatedButton(
-                            onPressed: _primaryVehicle == null
-                                ? null
-                                : () async {
-                                    await Navigator.push(
-                                      context,
-                                      SmoothPageRoute(
-                                        page: GpsTrackingPage(
-                                          vehicleId: _primaryVehicle!.id!,
-                                          vehicleName: _primaryVehicle!.title,
-                                          currentVehicle: _primaryVehicle,
-                                        ),
-                                      ),
-                                    );
-
-                                    // Saat kembali dari halaman tracking, sinkronkan lagi status tombol.
-                                    await _refreshTrackingStatus();
-                                  },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _primaryVehicle == null
-                                  ? colorScheme.surfaceContainerHighest
-                                  : (_isTrackingActive
-                                        ? colorScheme.error
-                                        : colorScheme.primary),
-                              disabledBackgroundColor:
-                                  colorScheme.surfaceContainerHighest,
-                              elevation: 0,
-                              shadowColor: Colors.black.withValues(alpha: 0.1),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  _isTrackingActive
-                                      ? Icons.stop_circle_outlined
-                                      : Icons.location_on,
-                                  size: 24,
-                                  color: _primaryVehicle == null
-                                      ? colorScheme.onSurfaceVariant
-                                      : Colors.white,
-                                ),
-                                const SizedBox(width: 12),
-                                Flexible(
-                                  child: Text(
-                                    _primaryVehicle == null
-                                        ? 'Tambah kendaraan terlebih dahulu'
-                                        : (_isTrackingActive
-                                              ? 'Sedang Melacak'
-                                              : l10n.startTracking),
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontFamily: 'Arial',
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w400,
-                                      height: 1.56,
-                                      color: _primaryVehicle == null
-                                          ? colorScheme.onSurfaceVariant
-                                          : Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
                         ),
                         const SizedBox(height: 16),
 
@@ -1452,58 +1451,7 @@ class _DashboardPageState extends State<DashboardPage>
                                           ],
                                         ),
                                 ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Skor Fuzzy',
-                                  style: TextStyle(
-                                    fontFamily: 'Arial',
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w400,
-                                    height: 1.5,
-                                    color: colorScheme.onSurface,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: colorScheme.surface,
-                                    border: Border.all(
-                                      color: colorScheme.outlineVariant,
-                                      width: 0.65,
-                                    ),
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      if (motorId == null)
-                                        Text(
-                                          'Pilih kendaraan untuk melihat skor fuzzy.',
-                                          style: TextStyle(
-                                            fontFamily: 'Arial',
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w400,
-                                            height: 1.67,
-                                            color: colorScheme.onSurfaceVariant,
-                                          ),
-                                        )
-                                      else ...[
-                                        FuzzyScoresSection(
-                                          fuzzyScores:
-                                              _homeInsightNotifier.fuzzyScores,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        MetaInfoRow(
-                                          meta: _homeInsightNotifier
-                                              .effectiveMeta,
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
+
                               ],
                             );
                           },
@@ -1554,7 +1502,7 @@ class _DashboardPageState extends State<DashboardPage>
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'Arial',
-                fontSize: 12,
+                fontSize: 10,
                 fontWeight: FontWeight.w400,
                 height: 1.33,
                 color: colorScheme.onSurface,

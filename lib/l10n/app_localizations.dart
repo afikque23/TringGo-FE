@@ -497,13 +497,13 @@ abstract class AppLocalizations {
   /// No description provided for @footerAppName.
   ///
   /// In en, this message translates to:
-  /// **'MotoTracker v1.0.0'**
+  /// **'TringGo v1.0.0'**
   String get footerAppName;
 
   /// No description provided for @footerCopyright.
   ///
   /// In en, this message translates to:
-  /// **'© 2026 MotoTracker. All rights reserved.'**
+  /// **'© 2026 TringGo. All rights reserved.'**
   String get footerCopyright;
 
   /// No description provided for @noData.
@@ -3173,7 +3173,7 @@ abstract class AppLocalizations {
   /// No description provided for @appName.
   ///
   /// In en, this message translates to:
-  /// **'MotoTracker'**
+  /// **'TringGo'**
   String get appName;
 
   /// No description provided for @appTagline.
@@ -3197,7 +3197,7 @@ abstract class AppLocalizations {
   /// No description provided for @joinToday.
   ///
   /// In en, this message translates to:
-  /// **'Join MotoTracker today'**
+  /// **'Join TringGo today'**
   String get joinToday;
 
   /// No description provided for @passwordStrength.
@@ -3425,7 +3425,7 @@ abstract class AppLocalizations {
   /// No description provided for @welcomeTo.
   ///
   /// In en, this message translates to:
-  /// **'Welcome to MotoTracker! Your account for {email} has been created successfully. Let\'s start tracking your motorcycle.'**
+  /// **'Welcome to TringGo! Your account for {email} has been created successfully. Let\'s start tracking your motorcycle.'**
   String welcomeTo(String email);
 
   /// No description provided for @featureGPSTracking.
@@ -3863,7 +3863,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyCommitmentDesc.
   ///
   /// In en, this message translates to:
-  /// **'At MotoTracker, we highly value your privacy. This policy explains how we collect, use, and protect your personal information.'**
+  /// **'At TringGo, we highly value your privacy. This policy explains how we collect, use, and protect your personal information.'**
   String get privacyCommitmentDesc;
 
   /// No description provided for @section1Title.
@@ -4193,13 +4193,13 @@ abstract class AppLocalizations {
   /// No description provided for @privacyEmail.
   ///
   /// In en, this message translates to:
-  /// **'privacy@mototracker.id'**
+  /// **'privacy@tringgo.id'**
   String get privacyEmail;
 
   /// No description provided for @privacyFooter1.
   ///
   /// In en, this message translates to:
-  /// **'© 2026 MotoTracker. This policy may be updated at any time.'**
+  /// **'© 2026 TringGo. This policy may be updated at any time.'**
   String get privacyFooter1;
 
   /// No description provided for @privacyFooter2.
@@ -4211,7 +4211,7 @@ abstract class AppLocalizations {
   /// No description provided for @completeGuideSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Complete MotoTracker tutorial'**
+  /// **'Complete TringGo tutorial'**
   String get completeGuideSubtitle;
 
   /// No description provided for @welcomeGuideTitle.
@@ -4223,13 +4223,13 @@ abstract class AppLocalizations {
   /// No description provided for @welcomeGuideDesc.
   ///
   /// In en, this message translates to:
-  /// **'Complete guide to maximize your experience with MotoTracker. Tap each category to view detailed tutorials.'**
+  /// **'Complete guide to maximize your experience with TringGo. Tap each category to view detailed tutorials.'**
   String get welcomeGuideDesc;
 
   /// No description provided for @gettingStartedTitle.
   ///
   /// In en, this message translates to:
-  /// **'Getting Started with MotoTracker'**
+  /// **'Getting Started with TringGo'**
   String get gettingStartedTitle;
 
   /// No description provided for @topics.
@@ -4523,7 +4523,7 @@ abstract class AppLocalizations {
   /// No description provided for @supportEmail.
   ///
   /// In en, this message translates to:
-  /// **'support@mototracker.id'**
+  /// **'support@tringgo.id'**
   String get supportEmail;
 
   /// No description provided for @termsAndConditions.
@@ -4538,16 +4538,16 @@ abstract class AppLocalizations {
   /// **'Effective since: January 30, 2026'**
   String get effectiveSince30Jan2026;
 
-  /// No description provided for @welcomeToMotoTracker.
+  /// No description provided for @welcomeToTringGo.
   ///
   /// In en, this message translates to:
-  /// **'Welcome to MotoTracker'**
-  String get welcomeToMotoTracker;
+  /// **'Welcome to TringGo'**
+  String get welcomeToTringGo;
 
   /// No description provided for @termsWelcomeDesc.
   ///
   /// In en, this message translates to:
-  /// **'By using the MotoTracker app, you agree to the following terms and conditions. Please read carefully before continuing to use the app.'**
+  /// **'By using the TringGo app, you agree to the following terms and conditions. Please read carefully before continuing to use the app.'**
   String get termsWelcomeDesc;
 
   /// No description provided for @section1AcceptanceTitle.
@@ -4559,7 +4559,7 @@ abstract class AppLocalizations {
   /// No description provided for @acceptanceIntro.
   ///
   /// In en, this message translates to:
-  /// **'By creating an account or using MotoTracker, you automatically agree to:'**
+  /// **'By creating an account or using TringGo, you automatically agree to:'**
   String get acceptanceIntro;
 
   /// No description provided for @ageRequirement.
@@ -4619,7 +4619,7 @@ abstract class AppLocalizations {
   /// No description provided for @noLiabilityForNegligence.
   ///
   /// In en, this message translates to:
-  /// **'MotoTracker is not responsible for losses due to your negligence'**
+  /// **'TringGo is not responsible for losses due to your negligence'**
   String get noLiabilityForNegligence;
 
   /// No description provided for @dataAccuracy.
@@ -4679,7 +4679,7 @@ abstract class AppLocalizations {
   /// No description provided for @asIsProvision.
   ///
   /// In en, this message translates to:
-  /// **'This app is provided \'as is\'. MotoTracker does not guarantee:'**
+  /// **'This app is provided \'as is\'. TringGo does not guarantee:'**
   String get asIsProvision;
 
   /// No description provided for @limitationItem1.
@@ -4805,7 +4805,7 @@ abstract class AppLocalizations {
   /// No description provided for @intellectualPropertyDesc1.
   ///
   /// In en, this message translates to:
-  /// **'All content, features, and functionality of the MotoTracker app (including but not limited to text, graphics, logos, icons, and source code) are our exclusive property and protected by international copyright.'**
+  /// **'All content, features, and functionality of the TringGo app (including but not limited to text, graphics, logos, icons, and source code) are our exclusive property and protected by international copyright.'**
   String get intellectualPropertyDesc1;
 
   /// No description provided for @intellectualPropertyDesc2.
@@ -4823,7 +4823,7 @@ abstract class AppLocalizations {
   /// No description provided for @liabilityIntro.
   ///
   /// In en, this message translates to:
-  /// **'MotoTracker is not responsible for:'**
+  /// **'TringGo is not responsible for:'**
   String get liabilityIntro;
 
   /// No description provided for @liabilityItem1.
@@ -4919,13 +4919,13 @@ abstract class AppLocalizations {
   /// No description provided for @legalEmail.
   ///
   /// In en, this message translates to:
-  /// **'legal@mototracker.id'**
+  /// **'legal@tringgo.id'**
   String get legalEmail;
 
   /// No description provided for @termsFooter1.
   ///
   /// In en, this message translates to:
-  /// **'© 2026 MotoTracker. All Rights Reserved.'**
+  /// **'© 2026 TringGo. All Rights Reserved.'**
   String get termsFooter1;
 
   /// No description provided for @termsFooter2.

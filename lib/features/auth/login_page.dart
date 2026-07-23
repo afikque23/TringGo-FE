@@ -10,6 +10,7 @@ import '../../l10n/app_localizations.dart';
 import '../../core/network/api_config.dart';
 import '../../core/services/auth_storage.dart';
 import '../../core/services/notification_service.dart';
+import '../../core/utils/json_utils.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -107,7 +108,15 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = tryDecodeJsonMap(response.body);
+
+        if (data == null) {
+          final rawBody = response.body.length > 100 ? response.body.substring(0, 100) : response.body;
+          _showErrorDialog(
+            'Login gagal. Status: 200, Body: $rawBody',
+          );
+          return;
+        }
 
         // Check response structure
         if (data['success'] == true && data['data'] != null) {
@@ -189,10 +198,13 @@ class _LoginPageState extends State<LoginPage> {
           _showErrorDialog(data['message'] ?? 'Login gagal');
         }
       } else {
-        final error = jsonDecode(response.body);
-        final message = (error['message'] ?? 'Login gagal').toString();
-        final requiresVerification = error['errors'] is Map
-            ? (error['errors']['requires_verification'] == true)
+        final error = tryDecodeJsonMap(response.body);
+        final rawBody = response.body.length > 100 ? response.body.substring(0, 100) : response.body;
+        final message = error == null
+            ? 'Login gagal. Status: ${response.statusCode}, Body: $rawBody'
+            : (error['message'] ?? 'Login gagal').toString();
+        final requiresVerification = error?['errors'] is Map
+            ? (error?['errors']['requires_verification'] == true)
             : false;
 
         if (response.statusCode == 403 && requiresVerification) {

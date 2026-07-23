@@ -617,24 +617,6 @@ class _EditProfilPageState extends State<EditProfilPage> {
           icon: Icons.email_outlined,
           keyboardType: TextInputType.emailAddress,
         ),
-        const SizedBox(height: 16),
-        // Phone Field
-        _buildInputField(
-          label: l10n.phoneNumber,
-          optionalLabel: '(${l10n.optional})',
-          controller: _phoneController,
-          icon: Icons.phone_outlined,
-          keyboardType: TextInputType.phone,
-        ),
-        const SizedBox(height: 16),
-        // Location Field
-        _buildInputField(
-          label: l10n.location,
-          optionalLabel: '(${l10n.optional})',
-          controller: _locationController,
-          icon: Icons.location_on_outlined,
-          keyboardType: TextInputType.text,
-        ),
       ],
     );
   }
@@ -717,6 +699,7 @@ class _EditProfilPageState extends State<EditProfilPage> {
                     height: 1.125,
                   ),
                   decoration: const InputDecoration(
+                    filled: false,
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,

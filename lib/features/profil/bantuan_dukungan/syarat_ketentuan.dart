@@ -210,7 +210,7 @@ class SyaratKetentuanPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  l10n.welcomeToMotoTracker,
+                  l10n.welcomeToTringGo,
                   style: TextStyle(
                     fontFamily: 'Arial',
                     fontSize: 16,

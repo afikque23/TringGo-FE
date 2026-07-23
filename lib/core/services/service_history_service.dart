@@ -105,8 +105,29 @@ class ServiceHistoryService {
         }
         print('⚠️ No service histories found, returning empty array');
         return [];
+      } else if (response.statusCode == 404) {
+        try {
+          final errorData = json.decode(response.body);
+          if (errorData['message'] != null && errorData['message'].toString().contains('Motor utama belum ditetapkan')) {
+            print('⚠️ Primary motorcycle not set, returning empty array');
+            return [];
+          }
+          throw Exception(errorData['message'] ?? 'Failed to load histories: 404');
+        } catch (e) {
+          if (e is FormatException) {
+             throw Exception('Failed to load histories: 404');
+          }
+          rethrow;
+        }
       } else {
-        throw Exception('Failed to load histories: ${response.statusCode}');
+        String errorMessage = 'Failed to load histories: ${response.statusCode}';
+        try {
+          final errorData = json.decode(response.body);
+          if (errorData['message'] != null) {
+            errorMessage = errorData['message'];
+          }
+        } catch (_) {}
+        throw Exception(errorMessage);
       }
     } catch (e) {
       print('❌ Failed to fetch histories: $e');
@@ -159,8 +180,29 @@ class ServiceHistoryService {
         final jsonData = json.decode(response.body);
         // Backend returns data.summary object
         return jsonData['data']?['summary'] ?? {};
+      } else if (response.statusCode == 404) {
+        try {
+          final errorData = json.decode(response.body);
+          if (errorData['message'] != null && errorData['message'].toString().contains('Motor utama belum ditetapkan')) {
+            print('⚠️ Primary motorcycle not set, returning empty summary');
+            return {};
+          }
+          throw Exception(errorData['message'] ?? 'Failed to load cost summary: 404');
+        } catch (e) {
+          if (e is FormatException) {
+             throw Exception('Failed to load cost summary: 404');
+          }
+          rethrow;
+        }
       } else {
-        throw Exception('Failed to load cost summary: ${response.statusCode}');
+        String errorMessage = 'Failed to load cost summary: ${response.statusCode}';
+        try {
+          final errorData = json.decode(response.body);
+          if (errorData['message'] != null) {
+            errorMessage = errorData['message'];
+          }
+        } catch (_) {}
+        throw Exception(errorMessage);
       }
     } catch (e) {
       print('Failed to fetch cost summary: $e');

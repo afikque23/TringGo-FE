@@ -10,6 +10,7 @@ import '../../l10n/app_localizations.dart';
 import '../../core/network/api_config.dart';
 import '../../core/services/auth_storage.dart';
 import '../../core/services/notification_service.dart';
+import '../../core/utils/json_utils.dart';
 
 class OtpVerificationPage extends StatefulWidget {
   final String email;
@@ -121,7 +122,16 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         if (!mounted) return;
 
         if (response.statusCode == 200) {
-          final responseData = jsonDecode(response.body)['data'];
+          final decoded = tryDecodeJsonMap(response.body);
+
+          if (decoded == null) {
+            _showErrorDialog(
+              'Verifikasi OTP gagal: respons server kosong atau tidak valid',
+            );
+            return;
+          }
+
+          final responseData = decoded['data'];
           final authStorage = AuthStorage();
 
           await authStorage.clearPendingVerificationEmail();
@@ -163,8 +173,11 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
             SmoothPageRoute(page: RegistrationSuccessPage(email: widget.email)),
           );
         } else {
-          final error = jsonDecode(response.body);
-          _showErrorDialog(error['message'] ?? 'OTP tidak valid');
+          final error = tryDecodeJsonMap(response.body);
+          _showErrorDialog(
+            error?['message'] ??
+                'OTP tidak valid: respons server kosong atau tidak valid',
+          );
         }
       } else {
         // Flow: Forgot Password → OTP input → Change Password (OTP verified at reset password endpoint)
@@ -226,8 +239,11 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         _startTimer(); // Reset timer when OTP is resent
         _showSuccessDialog('OTP berhasil dikirim ulang');
       } else {
-        final error = jsonDecode(response.body);
-        _showErrorDialog(error['message'] ?? 'Gagal mengirim ulang OTP');
+        final error = tryDecodeJsonMap(response.body);
+        _showErrorDialog(
+          error?['message'] ??
+              'Gagal mengirim ulang OTP: respons server kosong atau tidak valid',
+        );
       }
     } catch (e) {
       if (mounted) {

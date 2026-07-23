@@ -214,10 +214,10 @@ class AppLocalizationsId extends AppLocalizations {
       'Tindakan permanen yang memerlukan konfirmasi';
 
   @override
-  String get footerAppName => 'MotoTracker v1.0.0';
+  String get footerAppName => 'TringGo v1.0.0';
 
   @override
-  String get footerCopyright => '© 2026 MotoTracker. All rights reserved.';
+  String get footerCopyright => '© 2026 TringGo. All rights reserved.';
 
   @override
   String get noData => 'Tidak Ada Data';
@@ -1606,7 +1606,7 @@ class AppLocalizationsId extends AppLocalizations {
       'Cek fitur terbaru di versi 2.1.0: Peningkatan GPS tracking dan insight yang lebih baik.';
 
   @override
-  String get appName => 'MotoTracker';
+  String get appName => 'TringGo';
 
   @override
   String get appTagline => 'Lacak, Rawat, Berkendara';
@@ -1618,7 +1618,7 @@ class AppLocalizationsId extends AppLocalizations {
   String get emailHint => 'email.anda@contoh.com';
 
   @override
-  String get joinToday => 'Bergabung dengan MotoTracker hari ini';
+  String get joinToday => 'Bergabung dengan TringGo hari ini';
 
   @override
   String get passwordStrength => 'Kekuatan';
@@ -1741,7 +1741,7 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String welcomeTo(String email) {
-    return 'Selamat datang di MotoTracker! Akun Anda untuk $email telah berhasil dibuat. Mari mulai lacak motor Anda.';
+    return 'Selamat datang di TringGo! Akun Anda untuk $email telah berhasil dibuat. Mari mulai lacak motor Anda.';
   }
 
   @override
@@ -1977,7 +1977,7 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get privacyCommitmentDesc =>
-      'Di MotoTracker, kami sangat menghargai privasi Anda. Kebijakan ini menjelaskan bagaimana kami mengumpulkan, menggunakan, dan melindungi informasi pribadi Anda.';
+      'Di TringGo, kami sangat menghargai privasi Anda. Kebijakan ini menjelaskan bagaimana kami mengumpulkan, menggunakan, dan melindungi informasi pribadi Anda.';
 
   @override
   String get section1Title => '1. Informasi yang Kami Kumpulkan';
@@ -2164,28 +2164,28 @@ class AppLocalizationsId extends AppLocalizations {
       'Jika Anda memiliki pertanyaan tentang kebijakan privasi ini, hubungi:';
 
   @override
-  String get privacyEmail => 'privacy@mototracker.id';
+  String get privacyEmail => 'privacy@tringgo.id';
 
   @override
   String get privacyFooter1 =>
-      '© 2026 MotoTracker. Kebijakan ini dapat diperbarui sewaktu-waktu.';
+      '© 2026 TringGo. Kebijakan ini dapat diperbarui sewaktu-waktu.';
 
   @override
   String get privacyFooter2 =>
       'Anda akan diberi tahu melalui email jika ada perubahan signifikan.';
 
   @override
-  String get completeGuideSubtitle => 'Tutorial lengkap MotoTracker';
+  String get completeGuideSubtitle => 'Tutorial lengkap TringGo';
 
   @override
   String get welcomeGuideTitle => '📖 Selamat Datang!';
 
   @override
   String get welcomeGuideDesc =>
-      'Panduan lengkap untuk memaksimalkan pengalaman Anda dengan MotoTracker. Tap setiap kategori untuk melihat tutorial detail.';
+      'Panduan lengkap untuk memaksimalkan pengalaman Anda dengan TringGo. Tap setiap kategori untuk melihat tutorial detail.';
 
   @override
-  String get gettingStartedTitle => 'Memulai dengan MotoTracker';
+  String get gettingStartedTitle => 'Memulai dengan TringGo';
 
   @override
   String get topics => 'topik';
@@ -2353,7 +2353,7 @@ class AppLocalizationsId extends AppLocalizations {
   String get stillHaveQuestions => 'Masih ada pertanyaan? Hubungi kami di';
 
   @override
-  String get supportEmail => 'support@mototracker.id';
+  String get supportEmail => 'support@tringgo.id';
 
   @override
   String get termsAndConditions => 'Syarat & Ketentuan';
@@ -2362,18 +2362,18 @@ class AppLocalizationsId extends AppLocalizations {
   String get effectiveSince30Jan2026 => 'Berlaku sejak: 30 Januari 2026';
 
   @override
-  String get welcomeToMotoTracker => 'Selamat Datang di MotoTracker';
+  String get welcomeToTringGo => 'Selamat Datang di TringGo';
 
   @override
   String get termsWelcomeDesc =>
-      'Dengan menggunakan aplikasi MotoTracker, Anda menyetujui syarat dan ketentuan berikut. Mohon baca dengan seksama sebelum melanjutkan penggunaan aplikasi.';
+      'Dengan menggunakan aplikasi TringGo, Anda menyetujui syarat dan ketentuan berikut. Mohon baca dengan seksama sebelum melanjutkan penggunaan aplikasi.';
 
   @override
   String get section1AcceptanceTitle => '1. Penerimaan Ketentuan';
 
   @override
   String get acceptanceIntro =>
-      'Dengan membuat akun atau menggunakan MotoTracker, Anda secara otomatis menyetujui:';
+      'Dengan membuat akun atau menggunakan TringGo, Anda secara otomatis menyetujui:';
 
   @override
   String get ageRequirement =>
@@ -2411,7 +2411,7 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get noLiabilityForNegligence =>
-      'MotoTracker tidak bertanggung jawab atas kerugian akibat kelalaian Anda';
+      'TringGo tidak bertanggung jawab atas kerugian akibat kelalaian Anda';
 
   @override
   String get dataAccuracy => 'Akurasi Data';
@@ -2446,7 +2446,7 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get asIsProvision =>
-      'Aplikasi ini disediakan \'sebagaimana adanya\'. MotoTracker tidak menjamin:';
+      'Aplikasi ini disediakan \'sebagaimana adanya\'. TringGo tidak menjamin:';
 
   @override
   String get limitationItem1 =>
@@ -2522,7 +2522,7 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get intellectualPropertyDesc1 =>
-      'Semua konten, fitur, dan fungsionalitas aplikasi MotoTracker (termasuk namun tidak terbatas pada teks, grafik, logo, ikon, dan kode sumber) adalah milik eksklusif kami dan dilindungi oleh hak cipta internasional.';
+      'Semua konten, fitur, dan fungsionalitas aplikasi TringGo (termasuk namun tidak terbatas pada teks, grafik, logo, ikon, dan kode sumber) adalah milik eksklusif kami dan dilindungi oleh hak cipta internasional.';
 
   @override
   String get intellectualPropertyDesc2 =>
@@ -2532,7 +2532,7 @@ class AppLocalizationsId extends AppLocalizations {
   String get section7LiabilityLimitTitle => '7. Batasan Tanggung Jawab';
 
   @override
-  String get liabilityIntro => 'MotoTracker tidak bertanggung jawab atas:';
+  String get liabilityIntro => 'TringGo tidak bertanggung jawab atas:';
 
   @override
   String get liabilityItem1 =>
@@ -2591,10 +2591,10 @@ class AppLocalizationsId extends AppLocalizations {
       'Untuk pertanyaan terkait syarat dan ketentuan, hubungi:';
 
   @override
-  String get legalEmail => 'legal@mototracker.id';
+  String get legalEmail => 'legal@tringgo.id';
 
   @override
-  String get termsFooter1 => '© 2026 MotoTracker. All Rights Reserved.';
+  String get termsFooter1 => '© 2026 TringGo. All Rights Reserved.';
 
   @override
   String get termsFooter2 =>

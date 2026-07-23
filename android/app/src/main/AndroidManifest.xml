@@ -50,7 +50,7 @@
         <!-- Firebase Notification Channel -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="mototracker_default_v2" />
+            android:value="tringgo_default_v2" />
         
 
     </application>

@@ -5,6 +5,7 @@ import 'password_change_success_page.dart';
 import '../widget/page_transition.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/network/api_config.dart';
+import '../../core/utils/json_utils.dart';
 
 class ChangePasswordPage extends StatefulWidget {
   final String email;
@@ -99,8 +100,11 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           SmoothPageRoute(page: PasswordChangeSuccessPage(email: widget.email)),
         );
       } else {
-        final error = jsonDecode(response.body);
-        _showErrorDialog(error['message'] ?? 'Gagal mengubah password');
+        final error = tryDecodeJsonMap(response.body);
+        _showErrorDialog(
+          error?['message'] ??
+              'Gagal mengubah password: respons server kosong atau tidak valid',
+        );
       }
     } catch (e) {
       if (mounted) {

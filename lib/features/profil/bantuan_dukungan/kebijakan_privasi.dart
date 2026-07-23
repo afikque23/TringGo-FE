@@ -463,7 +463,7 @@ class KebijakanPrivasiPage extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'privacy@mototracker.id',
+            'privacy@tringgo.id',
             style: TextStyle(
               fontFamily: 'Arial',
               fontSize: 14,
@@ -481,7 +481,7 @@ class KebijakanPrivasiPage extends StatelessWidget {
     return Column(
       children: [
         const Text(
-          '© 2026 MotoTracker. Kebijakan ini dapat diperbarui sewaktu-waktu.',
+          '© 2026 TringGo. Kebijakan ini dapat diperbarui sewaktu-waktu.',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontFamily: 'Arial',

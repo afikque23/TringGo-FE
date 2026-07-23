@@ -5,7 +5,7 @@ class ApiConstants {
   // Untuk emulator Android: http://10.0.2.2:8000
   // Untuk device fisik: http://YOUR_IP_ADDRESS:8000
   // Untuk production: https://tringgo.site
-  static const String baseUrl = 'https://tringgo.site/api/v1/motorcycle';
+  static String get baseUrl => ApiConfig.baseUrl;
 
   // Endpoints
   static const String deviceTokensRegister = '/device-tokens/register';

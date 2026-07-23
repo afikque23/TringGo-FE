@@ -1,3 +1,7 @@
+import 'dart:io';
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -13,7 +17,7 @@ import 'l10n/app_localizations.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
-    await Firebase.initializeApp();
+    await _ensureFirebaseInitialized();
     print('Background message: ${message.messageId}');
   } catch (e) {
     print('⚠️ Background handler error: $e');
@@ -21,20 +25,47 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Jangan lakukan heavy operation di sini
 }
 
+Future<void> _ensureFirebaseInitialized() async {
+  if (Firebase.apps.isNotEmpty) {
+    return;
+  }
+
+  await Firebase.initializeApp();
+}
+
+class _DebugHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    final client = super.createHttpClient(context);
+    client.badCertificateCallback =
+        (X509Certificate cert, String host, int port) {
+          return true;
+        };
+    return client;
+  }
+}
+
 void main() async {
   // Initialize FlutterForegroundTask before runApp
   WidgetsFlutterBinding.ensureInitialized();
 
+  if (kDebugMode) {
+    HttpOverrides.global = _DebugHttpOverrides();
+  }
+
   // Initialize Firebase with error handling
   try {
-    await Firebase.initializeApp();
+    await _ensureFirebaseInitialized();
     print('✅ Firebase initialized successfully');
 
     // Set background handler hanya jika Firebase berhasil
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-    // Initialize notification service
-    await NotificationService.instance.initialize();
+    runApp(const MainApp());
+
+    // Initialize notifications after the first frame so startup is not blocked.
+    unawaited(NotificationService.instance.initialize());
+    return;
   } catch (e) {
     print('⚠️ Firebase initialization failed: $e');
     print('⚠️ App will continue without push notifications');
@@ -47,7 +78,7 @@ void main() async {
     print('');
   }
 
-  runApp(MainApp());
+  runApp(const MainApp());
 }
 
 class MainApp extends StatefulWidget {

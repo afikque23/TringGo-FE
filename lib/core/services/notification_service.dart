@@ -131,21 +131,21 @@ class NotificationService {
         // NOTE: Android tidak bisa mengubah sound untuk channel yang sudah ada.
         // Solusi paling aman adalah pakai ID baru (v2) + delete channel lama.
         try {
-          await androidPlugin.deleteNotificationChannel('mototracker_default');
-          await androidPlugin.deleteNotificationChannel('mototracker_service');
-          await androidPlugin.deleteNotificationChannel('mototracker_trip');
-          await androidPlugin.deleteNotificationChannel('mototracker_alert');
-          await androidPlugin.deleteNotificationChannel('mototracker_insight');
+          await androidPlugin.deleteNotificationChannel('tringgo_default');
+          await androidPlugin.deleteNotificationChannel('tringgo_service');
+          await androidPlugin.deleteNotificationChannel('tringgo_trip');
+          await androidPlugin.deleteNotificationChannel('tringgo_alert');
+          await androidPlugin.deleteNotificationChannel('tringgo_insight');
           await androidPlugin.deleteNotificationChannel(
-            'mototracker_default_v2',
+            'tringgo_default_v2',
           );
           await androidPlugin.deleteNotificationChannel(
-            'mototracker_service_v2',
+            'tringgo_service_v2',
           );
-          await androidPlugin.deleteNotificationChannel('mototracker_trip_v2');
-          await androidPlugin.deleteNotificationChannel('mototracker_alert_v2');
+          await androidPlugin.deleteNotificationChannel('tringgo_trip_v2');
+          await androidPlugin.deleteNotificationChannel('tringgo_alert_v2');
           await androidPlugin.deleteNotificationChannel(
-            'mototracker_insight_v2',
+            'tringgo_insight_v2',
           );
           print('🗑️ Old notification channels deleted');
         } catch (e) {
@@ -160,7 +160,7 @@ class NotificationService {
       // DEFAULT: High importance - general notifications
       final AndroidNotificationChannel defaultChannel =
           AndroidNotificationChannel(
-            'mototracker_default_v2',
+            'tringgo_default_v2',
             'Default Notifications',
             description: 'General notifications',
             importance: Importance.high,
@@ -173,7 +173,7 @@ class NotificationService {
       // SERVICE: High importance - service reminders, pop-up + sound
       final AndroidNotificationChannel serviceChannel =
           AndroidNotificationChannel(
-            'mototracker_service_v2',
+            'tringgo_service_v2',
             'Service Reminders',
             description: 'Service and maintenance reminders',
             importance: Importance.high,
@@ -185,7 +185,7 @@ class NotificationService {
 
       // TRIP: High importance - trip completed, pop-up + sound
       final AndroidNotificationChannel tripChannel = AndroidNotificationChannel(
-        'mototracker_trip_v2',
+        'tringgo_trip_v2',
         'Trip Notifications',
         description: 'Trip tracking and completion notifications',
         importance: Importance.high,
@@ -198,7 +198,7 @@ class NotificationService {
       // ALERT: Max importance - critical alerts, pop-up with loud sound
       final AndroidNotificationChannel alertChannel =
           AndroidNotificationChannel(
-            'mototracker_alert_v2',
+            'tringgo_alert_v2',
             'Alert Notifications',
             description: 'Critical alerts and warnings',
             importance: Importance.max,
@@ -211,7 +211,7 @@ class NotificationService {
       // INSIGHT: Low importance - tips and insights, no pop-up, no sound
       const AndroidNotificationChannel insightChannel =
           AndroidNotificationChannel(
-            'mototracker_insight_v2',
+            'tringgo_insight_v2',
             'Insights & Tips',
             description: 'Riding insights and tips',
             importance: Importance.low,
@@ -317,7 +317,7 @@ class NotificationService {
 
       // Fallback: Ambil dari data jika notification null (untuk data-only messages)
       if (title == null || body == null) {
-        title = data['title'] ?? 'MotoTracker';
+        title = data['title'] ?? 'TringGo';
         body = data['body'] ?? 'New notification';
         print('⚠️ Using title/body from data payload');
       }
@@ -353,7 +353,7 @@ class NotificationService {
           android: AndroidNotificationDetails(
             channelId,
             channelName,
-            channelDescription: 'MotoTracker notifications',
+            channelDescription: 'TringGo notifications',
             importance: importance,
             priority: priority,
             icon: android?.smallIcon ?? '@mipmap/ic_launcher',
@@ -368,7 +368,7 @@ class NotificationService {
             styleInformation: BigTextStyleInformation(
               body ?? '',
               contentTitle: title,
-              summaryText: 'MotoTracker',
+              summaryText: 'TringGo',
             ),
           ),
           iOS: const DarwinNotificationDetails(
@@ -394,15 +394,15 @@ class NotificationService {
   String _getChannelId(String categoryKey) {
     switch (categoryKey) {
       case 'service':
-        return 'mototracker_service_v2';
+        return 'tringgo_service_v2';
       case 'trip':
-        return 'mototracker_trip_v2';
+        return 'tringgo_trip_v2';
       case 'alert':
-        return 'mototracker_alert_v2';
+        return 'tringgo_alert_v2';
       case 'insight':
-        return 'mototracker_insight_v2';
+        return 'tringgo_insight_v2';
       default:
-        return 'mototracker_default_v2';
+        return 'tringgo_default_v2';
     }
   }
 
@@ -578,7 +578,7 @@ class NotificationService {
         'Jika Anda melihat notifikasi ini, berarti local notification BERFUNGSI!',
         const NotificationDetails(
           android: AndroidNotificationDetails(
-            'mototracker_default_v2',
+            'tringgo_default_v2',
             'Default Notifications',
             channelDescription: 'Test notification channel',
             importance: Importance.max,

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../services/auth_storage.dart';
 import 'api_config.dart';
+import '../utils/json_utils.dart';
 
 /// API Client with automatic token refresh
 /// Handles authentication and auto-refreshes access tokens when expired
@@ -220,7 +221,12 @@ class ApiClient {
       print('Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = tryDecodeJsonMap(response.body);
+
+        if (data == null) {
+          print('❌ Empty or invalid JSON response during token refresh');
+          return false;
+        }
 
         if (data['success'] == true && data['data'] != null) {
           final newAccessToken = data['data']['access_token'];

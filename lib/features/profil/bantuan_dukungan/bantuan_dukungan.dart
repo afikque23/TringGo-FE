@@ -202,7 +202,7 @@ class _BantuanDukunganPageState extends State<BantuanDukunganPage> {
   Widget _buildContactSection() {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    final email = _supportEmail ?? 'support@mototracker.id';
+    final email = _supportEmail ?? 'support@tringgo.id';
     final phone = _supportPhone ?? '+62 812-3456-7890';
     final liveChatSubtitle = _supportLiveChatSubtitle ?? l10n.liveChatSubtitle;
     return Container(

@@ -5,6 +5,7 @@ import 'otp_verification_page.dart';
 import '../widget/page_transition.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/network/api_config.dart';
+import '../../core/utils/json_utils.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -50,8 +51,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           ),
         );
       } else {
-        final error = jsonDecode(response.body);
-        _showErrorDialog(error['message'] ?? 'Gagal mengirim OTP');
+        final error = tryDecodeJsonMap(response.body);
+        _showErrorDialog(
+          error?['message'] ??
+              'Gagal mengirim OTP: respons server kosong atau tidak valid',
+        );
       }
     } catch (e) {
       if (mounted) {

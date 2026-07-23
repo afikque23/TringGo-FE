@@ -391,7 +391,7 @@ class _TentangPageState extends State<TentangPage> {
           const SizedBox(height: 16),
           // App Name
           Text(
-            'MotoTracker',
+            'TringGo',
             style: TextStyle(
               fontFamily: 'Arial',
               fontSize: 24,
@@ -425,7 +425,7 @@ class _TentangPageState extends State<TentangPage> {
     final title = dynamicText.aboutTitle ?? 'Tentang Aplikasi';
     final description =
         dynamicText.aboutDescription ??
-        'MotoTracker adalah aplikasi manajemen sepeda motor yang dirancang khusus untuk membantu Anda merawat, melacak, dan mengoptimalkan kinerja kendaraan. Dengan teknologi GPS dan pengingat service otomatis, kami memastikan motor Anda selalu dalam kondisi prima.';
+        'TringGo adalah aplikasi manajemen sepeda motor yang dirancang khusus untuk membantu Anda merawat, melacak, dan mengoptimalkan kinerja kendaraan. Dengan teknologi GPS dan pengingat service otomatis, kami memastikan motor Anda selalu dalam kondisi prima.';
     return Container(
       padding: const EdgeInsets.all(20.65),
       decoration: BoxDecoration(
@@ -985,9 +985,9 @@ class _TentangPageState extends State<TentangPage> {
     final l10n = AppLocalizations.of(context)!;
     final sectionTitle = dynamicText.socialTitle ?? l10n.followUs;
     final fallbackLinks = <String>[
-      '@mototracker.id',
-      '@mototracker',
-      'github.com/mototracker',
+      '@tringgo.id',
+      '@tringgo',
+      'github.com/tringgo',
     ];
     final links = _pick3Strings(dynamicText.socialLinks, fallbackLinks);
     return Container(
@@ -1185,7 +1185,7 @@ class _TentangPageState extends State<TentangPage> {
   Widget _buildFooter(BuildContext context, _AboutDynamicText dynamicText) {
     final l10n = AppLocalizations.of(context)!;
     final copyright =
-        dynamicText.copyright ?? '© 2026 MotoTracker. All rights reserved.';
+        dynamicText.copyright ?? '© 2026 TringGo. All rights reserved.';
     return Column(
       children: [
         Text(
