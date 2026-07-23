@@ -7,11 +7,65 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'device_token_service.dart';
 import 'auth_storage.dart';
 
-/// Background message handler (harus top-level function)
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   print('Background message: ${message.messageId}');
-  // Jangan lakukan heavy operation di sini
+  
+  // Jika ini data-only message (tidak ada object notification dari FCM backend),
+  // kita harus memunculkan notifikasinya secara manual agar bisa menggunakan fullScreenIntent
+  if (message.notification == null) {
+    print('Processing Data-Only message in background to wake screen...');
+    final localNotifications = FlutterLocalNotificationsPlugin();
+    
+    final data = message.data;
+    final title = data['title'] ?? 'TringGo';
+    final body = data['body'] ?? 'Anda mendapat peringatan baru';
+    final categoryKey = data['category_key'] ?? 'default';
+
+    String channelId = 'tringgo_default_v5';
+    String channelName = 'Default Notifications';
+    Importance importance = Importance.high;
+    Priority priority = Priority.high;
+    bool playSound = true;
+    bool enableVibration = true;
+
+    if (categoryKey == 'alert') {
+      channelId = 'tringgo_alert_v5';
+      channelName = 'Alert Notifications';
+      importance = Importance.max;
+      priority = Priority.max;
+    } else if (categoryKey == 'service' || categoryKey == 'trip') {
+      channelId = 'tringgo_${categoryKey}_v5';
+      channelName = categoryKey == 'service' ? 'Service Reminders' : 'Trip Notifications';
+    } else if (categoryKey == 'insight') {
+      channelId = 'tringgo_insight_v5';
+      channelName = 'Insights & Tips';
+      importance = Importance.low;
+      priority = Priority.low;
+      playSound = false;
+      enableVibration = false;
+    }
+
+    await localNotifications.show(
+      DateTime.now().millisecondsSinceEpoch.remainder(100000),
+      title,
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channelId,
+          channelName,
+          importance: importance,
+          priority: priority,
+          fullScreenIntent: true, // INI YANG MEMAKSA LAYAR MENYALA
+          playSound: playSound,
+          sound: playSound ? const RawResourceAndroidNotificationSound('sound_tringgo') : null,
+          enableVibration: enableVibration,
+          icon: '@mipmap/ic_launcher',
+        ),
+      ),
+      payload: jsonEncode(data),
+    );
+  }
 }
 
 class NotificationService {
@@ -136,17 +190,11 @@ class NotificationService {
           await androidPlugin.deleteNotificationChannel('tringgo_trip');
           await androidPlugin.deleteNotificationChannel('tringgo_alert');
           await androidPlugin.deleteNotificationChannel('tringgo_insight');
-          await androidPlugin.deleteNotificationChannel(
-            'tringgo_default_v2',
-          );
-          await androidPlugin.deleteNotificationChannel(
-            'tringgo_service_v2',
-          );
+          await androidPlugin.deleteNotificationChannel('tringgo_default_v2');
+          await androidPlugin.deleteNotificationChannel('tringgo_service_v2');
           await androidPlugin.deleteNotificationChannel('tringgo_trip_v2');
           await androidPlugin.deleteNotificationChannel('tringgo_alert_v2');
-          await androidPlugin.deleteNotificationChannel(
-            'tringgo_insight_v2',
-          );
+          await androidPlugin.deleteNotificationChannel('tringgo_insight_v2');
           print('🗑️ Old notification channels deleted');
         } catch (e) {
           print('⚠️ Error deleting old channels (might not exist): $e');
@@ -155,12 +203,12 @@ class NotificationService {
 
       // Android channels dengan importance levels berbeda
       const AndroidNotificationSound tringSound =
-          RawResourceAndroidNotificationSound('tringgg');
+          RawResourceAndroidNotificationSound('sound_tringgo');
 
       // DEFAULT: High importance - general notifications
       final AndroidNotificationChannel defaultChannel =
           AndroidNotificationChannel(
-            'tringgo_default_v2',
+            'tringgo_default_v5',
             'Default Notifications',
             description: 'General notifications',
             importance: Importance.high,
@@ -173,7 +221,7 @@ class NotificationService {
       // SERVICE: High importance - service reminders, pop-up + sound
       final AndroidNotificationChannel serviceChannel =
           AndroidNotificationChannel(
-            'tringgo_service_v2',
+            'tringgo_service_v5',
             'Service Reminders',
             description: 'Service and maintenance reminders',
             importance: Importance.high,
@@ -185,7 +233,7 @@ class NotificationService {
 
       // TRIP: High importance - trip completed, pop-up + sound
       final AndroidNotificationChannel tripChannel = AndroidNotificationChannel(
-        'tringgo_trip_v2',
+        'tringgo_trip_v5',
         'Trip Notifications',
         description: 'Trip tracking and completion notifications',
         importance: Importance.high,
@@ -198,7 +246,7 @@ class NotificationService {
       // ALERT: Max importance - critical alerts, pop-up with loud sound
       final AndroidNotificationChannel alertChannel =
           AndroidNotificationChannel(
-            'tringgo_alert_v2',
+            'tringgo_alert_v5',
             'Alert Notifications',
             description: 'Critical alerts and warnings',
             importance: Importance.max,
@@ -211,7 +259,7 @@ class NotificationService {
       // INSIGHT: Low importance - tips and insights, no pop-up, no sound
       const AndroidNotificationChannel insightChannel =
           AndroidNotificationChannel(
-            'tringgo_insight_v2',
+            'tringgo_insight_v5',
             'Insights & Tips',
             description: 'Riding insights and tips',
             importance: Importance.low,
@@ -332,7 +380,7 @@ class NotificationService {
       final playSound = categoryKey != 'insight';
       final enableVibration = categoryKey != 'insight';
       final AndroidNotificationSound? sound = playSound
-          ? RawResourceAndroidNotificationSound('tringgg')
+          ? RawResourceAndroidNotificationSound('sound_tringgo')
           : null;
 
       print('📢 Title: $title');
@@ -358,6 +406,7 @@ class NotificationService {
             priority: priority,
             icon: android?.smallIcon ?? '@mipmap/ic_launcher',
             showWhen: true,
+            fullScreenIntent: true, // INI YANG MEMAKSA LAYAR MENYALA
             enableVibration: enableVibration,
             vibrationPattern: enableVibration
                 ? Int64List.fromList([0, 250, 250, 250])
@@ -394,15 +443,15 @@ class NotificationService {
   String _getChannelId(String categoryKey) {
     switch (categoryKey) {
       case 'service':
-        return 'tringgo_service_v2';
+        return 'tringgo_service_v5';
       case 'trip':
-        return 'tringgo_trip_v2';
+        return 'tringgo_trip_v5';
       case 'alert':
-        return 'tringgo_alert_v2';
+        return 'tringgo_alert_v5';
       case 'insight':
-        return 'tringgo_insight_v2';
+        return 'tringgo_insight_v5';
       default:
-        return 'tringgo_default_v2';
+        return 'tringgo_default_v5';
     }
   }
 
@@ -578,7 +627,7 @@ class NotificationService {
         'Jika Anda melihat notifikasi ini, berarti local notification BERFUNGSI!',
         const NotificationDetails(
           android: AndroidNotificationDetails(
-            'tringgo_default_v2',
+            'tringgo_default_v5',
             'Default Notifications',
             channelDescription: 'Test notification channel',
             importance: Importance.max,

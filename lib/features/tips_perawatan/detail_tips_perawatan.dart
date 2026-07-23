@@ -315,73 +315,6 @@ class _DetailTipsPerawatanPageState extends State<DetailTipsPerawatanPage> {
     }
   }
 
-  void _showShareSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFF1A1A1A),
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(20),
-              topRight: Radius.circular(20),
-            ),
-          ),
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF99A1AF),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const Text(
-                'Bagikan Tips',
-                style: TextStyle(
-                  fontFamily: 'Arial',
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFFFFFFFF),
-                ),
-              ),
-              const SizedBox(height: 12),
-              ...[
-                ('WhatsApp', Icons.chat_outlined, 'whatsapp'),
-                ('Instagram', Icons.camera_alt_outlined, 'instagram'),
-                ('Twitter / X', Icons.tag, 'twitter'),
-                ('Salin Tautan', Icons.link, 'copy_link'),
-              ].map((item) {
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(item.$2, color: const Color(0xFF6B7C4F)),
-                  title: Text(
-                    item.$1,
-                    style: const TextStyle(
-                      fontFamily: 'Arial',
-                      fontSize: 16,
-                      color: Color(0xFFFFFFFF),
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _tipsService
-                        .shareTip(widget.tipId, item.$3)
-                        .catchError((_) => <String, dynamic>{});
-                  },
-                );
-              }),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -810,13 +743,7 @@ class _DetailTipsPerawatanPageState extends State<DetailTipsPerawatanPage> {
             ),
           ),
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: GestureDetector(
-            onTap: _showShareSheet,
-            child: _buildActionButton(Icons.share, 'Share'),
-          ),
-        ),
+
         const SizedBox(width: 8),
         Expanded(
           child: GestureDetector(

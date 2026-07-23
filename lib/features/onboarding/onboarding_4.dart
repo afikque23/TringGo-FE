@@ -48,7 +48,7 @@ class Onboarding4 extends StatelessWidget {
                   ),
                   const SizedBox(height: 131),
                   // Icon Container
-                  _buildIconContainer(),
+                  _buildIconContainer(context),
                   const SizedBox(height: 48),
                   // Heading
                   Text(
@@ -91,12 +91,20 @@ class Onboarding4 extends StatelessWidget {
     );
   }
 
-  Widget _buildIconContainer() {
-    return Image.asset(
-      'assets/icon/onboarding_4.png',
+  Widget _buildIconContainer(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
       width: 160,
       height: 160,
-      fit: BoxFit.contain,
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer.withOpacity(0.5),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        Icons.insights,
+        size: 80,
+        color: colorScheme.primary,
+      ),
     );
   }
 
