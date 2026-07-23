@@ -1,6 +1,77 @@
 import 'recommendation_priority.dart';
 import '../utils/json_utils.dart';
 
+class ComponentVariableRequirementDto {
+  final String key;
+  final String label;
+  final String? unit;
+  final dynamic value;
+  final String formattedValue;
+  final double? warningThreshold;
+  final double? criticalThreshold;
+  final String formattedWarningThreshold;
+  final String formattedCriticalThreshold;
+  final double? toWarning;
+  final double? toCritical;
+  final String formattedToWarning;
+  final String formattedToCritical;
+  final String statusByThreshold;
+
+  const ComponentVariableRequirementDto({
+    required this.key,
+    required this.label,
+    required this.unit,
+    required this.value,
+    required this.formattedValue,
+    required this.warningThreshold,
+    required this.criticalThreshold,
+    required this.formattedWarningThreshold,
+    required this.formattedCriticalThreshold,
+    required this.toWarning,
+    required this.toCritical,
+    required this.formattedToWarning,
+    required this.formattedToCritical,
+    required this.statusByThreshold,
+  });
+
+  factory ComponentVariableRequirementDto.fromJson(Map<String, dynamic> json) {
+    return ComponentVariableRequirementDto(
+      key: JsonUtils.asString(json['key'], fallback: ''),
+      label: JsonUtils.asString(json['label'], fallback: ''),
+      unit: JsonUtils.asNullableString(json['unit']),
+      value: json['value'],
+      formattedValue: JsonUtils.asString(
+        json['formatted_value'],
+        fallback: '-',
+      ),
+      warningThreshold: JsonUtils.asNullableDouble(json['warning_threshold']),
+      criticalThreshold: JsonUtils.asNullableDouble(json['critical_threshold']),
+      formattedWarningThreshold: JsonUtils.asString(
+        json['formatted_warning_threshold'],
+        fallback: '-',
+      ),
+      formattedCriticalThreshold: JsonUtils.asString(
+        json['formatted_critical_threshold'],
+        fallback: '-',
+      ),
+      toWarning: JsonUtils.asNullableDouble(json['to_warning']),
+      toCritical: JsonUtils.asNullableDouble(json['to_critical']),
+      formattedToWarning: JsonUtils.asString(
+        json['formatted_to_warning'],
+        fallback: '-',
+      ),
+      formattedToCritical: JsonUtils.asString(
+        json['formatted_to_critical'],
+        fallback: '-',
+      ),
+      statusByThreshold: JsonUtils.asString(
+        json['status_by_threshold'],
+        fallback: 'unknown',
+      ),
+    );
+  }
+}
+
 class MonitoredSummaryDto {
   final int total;
   final int critical;
@@ -35,6 +106,7 @@ class RekomendasiKomponenItemDto {
   final RecommendationPriority prioritas;
   final String saran;
   final String estimasiWaktu;
+  final List<ComponentVariableRequirementDto> requiredVariables;
   final int? componentConfigId;
   final int? scheduleId;
   final double? jarakSejakServisKm;
@@ -48,6 +120,7 @@ class RekomendasiKomponenItemDto {
     required this.prioritas,
     required this.saran,
     required this.estimasiWaktu,
+    required this.requiredVariables,
     required this.componentConfigId,
     required this.scheduleId,
     required this.jarakSejakServisKm,
@@ -58,13 +131,18 @@ class RekomendasiKomponenItemDto {
   });
 
   factory RekomendasiKomponenItemDto.fromJson(Map<String, dynamic> json) {
+    final statusFuzzy = JsonUtils.asNullableString(json['status_fuzzy']);
     return RekomendasiKomponenItemDto(
       komponen: JsonUtils.asString(json['komponen'], fallback: '-'),
       prioritas: parseRecommendationPriority(
-        JsonUtils.asNullableString(json['prioritas']),
+        statusFuzzy ?? JsonUtils.asNullableString(json['prioritas']),
       ),
       saran: JsonUtils.asString(json['saran'], fallback: ''),
       estimasiWaktu: JsonUtils.asString(json['estimasi_waktu'], fallback: ''),
+      requiredVariables: JsonUtils.asList(json['required_variables'])
+          .map((e) => JsonUtils.asMap(e))
+          .map(ComponentVariableRequirementDto.fromJson)
+          .toList(),
       componentConfigId: JsonUtils.asNullableInt(json['component_config_id']),
       scheduleId: JsonUtils.asNullableInt(json['schedule_id']),
       jarakSejakServisKm: JsonUtils.asNullableDouble(
@@ -74,7 +152,7 @@ class RekomendasiKomponenItemDto {
         json['hingga_servis_berikutnya_km'],
       ),
       targetServisKm: JsonUtils.asNullableDouble(json['target_servis_km']),
-      statusFuzzy: JsonUtils.asNullableString(json['status_fuzzy']),
+      statusFuzzy: statusFuzzy,
       isServiceDue: JsonUtils.asBool(json['is_service_due']),
     );
   }

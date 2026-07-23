@@ -65,19 +65,19 @@ class RecommendationApiClient {
     required int motorId,
     required String componentName,
     required DateTime performedAt,
-    required int odometer,
+    int? odometer,
     String? serviceProvider,
     String? notes,
   }) async {
     final payload = {
       'component_name': componentName,
       'performed_at': performedAt.toIso8601String().split('T')[0],
-      'odometer': odometer,
+      if (odometer != null) 'odometer': odometer,
       if (serviceProvider != null) 'service_provider': serviceProvider,
       if (notes != null) 'notes': notes,
     };
     final res = await _apiClient.post(
-      '/vehicles//fuzzy-service-complete',
+      '/motors/$motorId/fuzzy-service-complete',
       body: payload,
     );
     _parseResponse(res.statusCode, res.body, (dataJson) => null);
