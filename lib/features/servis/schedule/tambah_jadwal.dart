@@ -5,8 +5,12 @@ import '../../../core/services/service_schedule_service.dart';
 import '../../../core/services/vehicle_service.dart';
 import '../../../core/model/service_schedule_model.dart';
 
+import '../../../core/model/tip_model.dart';
+
 class TambahJadwalPage extends StatefulWidget {
-  const TambahJadwalPage({super.key});
+  final TipModel? templateTip;
+  
+  const TambahJadwalPage({super.key, this.templateTip});
 
   @override
   State<TambahJadwalPage> createState() => _TambahJadwalPageState();
@@ -48,6 +52,15 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeData();
     });
+
+    // Listener: Jika user mengetik interval bulan, kosongkan tanggal yang dipilih
+    _bulanController.addListener(() {
+      if (_bulanController.text.isNotEmpty && _selectedDate != null) {
+        setState(() {
+          _selectedDate = null;
+        });
+      }
+    });
   }
 
   void _initializeData() {
@@ -69,6 +82,36 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
         l10n.reminderTime1Month,
         _customOption, // Custom option
       ];
+      
+      // Load data from template if provided
+      if (widget.templateTip != null) {
+        final tip = widget.templateTip!;
+        _namaController.text = tip.title;
+        
+        if (tip.importantNotes != null) {
+          _catatanController.text = tip.importantNotes!;
+        }
+        
+        if (tip.maintenanceInterval != null) {
+          final interval = tip.maintenanceInterval!;
+          
+          // Populate both fields if available so user can switch tabs freely
+          if (interval.distanceKm != null && interval.distanceKm! > 0) {
+            _kmController.text = interval.distanceKm.toString();
+          }
+          if (interval.timeMonths != null && interval.timeMonths! > 0) {
+            _bulanController.text = interval.timeMonths.toString();
+          }
+          
+          // Determine which tab to show by default
+          if (interval.distanceKm != null && interval.distanceKm! > 0) {
+            _isJarakSelected = true;
+          } else if (interval.timeMonths != null && interval.timeMonths! > 0) {
+            _isJarakSelected = false;
+            _reminderBefore = l10n.reminderTime1Week; // Switch default reminder for time
+          }
+        }
+      }
     });
   }
 
@@ -155,6 +198,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
+        _bulanController.clear(); // Hapus inputan bulan jika tanggal dipilih
       });
     }
   }
@@ -1121,10 +1165,10 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
     }
 
     if (!_isJarakSelected) {
-      if (_bulanController.text.isEmpty) {
+      if (_bulanController.text.isEmpty && _selectedDate == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Mohon isi interval waktu (bulan)'),
+            content: Text('Mohon isi interval waktu atau pilih tanggal servis'),
             backgroundColor: colorScheme.error,
           ),
         );
@@ -1196,8 +1240,59 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
         final currentMileage = vehicle.odometer;
         lastServiceMileage = currentMileage; // Set last service to current
         nextServiceMileage = currentMileage + intervalValue;
+        
+        // Frontend validation for reminder vs interval
+        if (reminderThreshold != null && reminderThreshold >= intervalValue) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Jarak pengingat ($reminderThreshold km) harus lebih kecil dari interval ($intervalValue km)'),
+              backgroundColor: colorScheme.error,
+            ),
+          );
+          return;
+        }
       } else {
         nextServiceDate = _selectedDate;
+        
+        // Hitung target date sementara untuk validasi
+        DateTime targetDate;
+        if (nextServiceDate != null) {
+          targetDate = nextServiceDate;
+        } else {
+          final now = DateTime.now();
+          final monthsToAdd = intervalValue > 0 ? intervalValue : 1;
+          targetDate = DateTime(now.year, now.month + monthsToAdd, now.day);
+          if (!targetDate.isAfter(now)) {
+            targetDate = DateTime(now.year, now.month + monthsToAdd + 1, now.day);
+          }
+        }
+        
+        final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+        final targetDateOnly = DateTime(targetDate.year, targetDate.month, targetDate.day);
+        final diffDays = targetDateOnly.difference(today).inDays;
+        
+        if (diffDays <= 0) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Tanggal servis harus setelah hari ini (minimal besok)'),
+              backgroundColor: colorScheme.error,
+            ),
+          );
+          return;
+        }
+        
+        if (reminderThreshold != null && reminderThreshold >= diffDays) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Waktu pengingat ($reminderThreshold hari) tidak boleh lebih lama dari sisa hari ($diffDays hari)'),
+              backgroundColor: colorScheme.error,
+            ),
+          );
+          return;
+        }
       }
 
       // Get notes (don't append reminder info - it's stored separately)

@@ -230,6 +230,13 @@ class ServiceScheduleService {
         }
 
         body['target_date'] = targetDate.toIso8601String().split('T')[0];
+        
+        // Backend expects interval_value in days for time-based schedules
+        // Calculate days between today and targetDate
+        final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+        final targetDateOnly = DateTime(targetDate.year, targetDate.month, targetDate.day);
+        final diffDays = targetDateOnly.difference(today).inDays;
+        body['interval_value'] = diffDays > 0 ? diffDays : 30;
       }
 
       // Add custom reminder threshold if provided
@@ -329,6 +336,17 @@ class ServiceScheduleService {
         body['target_date'] = schedule.nextServiceDate!.toIso8601String().split(
           'T',
         )[0];
+        
+        // Convert interval to days if it's currently in months for backend
+        final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+        final targetDate = schedule.nextServiceDate!;
+        final targetDateOnly = DateTime(targetDate.year, targetDate.month, targetDate.day);
+        final diffDays = targetDateOnly.difference(today).inDays;
+        
+        // Only override if the calculated diffDays is reasonable, otherwise use the existing intervalValue
+        if (diffDays > 0) {
+           body['interval_value'] = diffDays;
+        }
       }
 
       // Add custom reminder threshold if provided
@@ -481,7 +499,6 @@ class ServiceScheduleService {
     }
   }
 
-  /// Mark schedule as completed and roll the next target forward.
   Future<ServiceScheduleModel> completeSchedule({
     required int scheduleId,
     required DateTime performedAt,
@@ -491,8 +508,18 @@ class ServiceScheduleService {
     String? notes,
   }) async {
     try {
+      // Backend validates `performed_at <= today` based on its own timezone (often UTC).
+      // If local date is "tomorrow" in backend time, we cap it to backend's "today".
+      DateTime dateToSend = performedAt;
+      final nowUtc = DateTime.now().toUtc();
+      final serverToday = DateTime(nowUtc.year, nowUtc.month, nowUtc.day);
+      
+      if (dateToSend.isAfter(serverToday)) {
+        dateToSend = serverToday;
+      }
+
       final body = <String, dynamic>{
-        'performed_at': performedAt.toIso8601String().split('T')[0],
+        'performed_at': dateToSend.toIso8601String().split('T')[0],
         if (odometer != null) 'odometer': odometer,
         if (serviceProvider != null && serviceProvider.trim().isNotEmpty)
           'service_provider': serviceProvider.trim(),

@@ -260,6 +260,16 @@ class _DashboardPageState extends State<DashboardPage>
     }
   }
 
+  Future<void> _onRefresh() async {
+    // Menjalankan semua fungsi load data secara paralel untuk mempercepat loading
+    await Future.wait([
+      _loadPrimaryVehicle(),
+      _loadServiceMetrics(),
+      _loadUnreadCount(),
+      _loadDashboardSchedules(),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -452,11 +462,15 @@ class _DashboardPageState extends State<DashboardPage>
           ),
           // Scrollable Content
           Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  // Odometer Card
-                  Padding(
+            child: RefreshIndicator(
+              onRefresh: _onRefresh,
+              color: colorScheme.primary,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(), // Memastikan selalu bisa ditarik
+                child: Column(
+                  children: [
+                    // Odometer Card
+                    Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Container(
                       width: double.infinity,
@@ -1461,6 +1475,7 @@ class _DashboardPageState extends State<DashboardPage>
                   ),
                 ],
               ),
+            ),
             ),
           ),
         ],
