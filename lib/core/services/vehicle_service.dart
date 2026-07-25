@@ -246,9 +246,12 @@ class VehicleService {
           'Failed to create vehicle: ${response.statusCode} - ${response.body}',
         );
       }
-    } catch (e) {
+    } on Exception catch (e) {
       print('Failed to create vehicle on server: $e');
-      // Fallback: save locally only
+      if (e.toString().contains('422') || e.toString().contains('400')) {
+        rethrow;
+      }
+      // Fallback: save locally only for network errors
       final savedVehicle = await _localStorage.addVehicle(vehicle);
       return savedVehicle;
     }
@@ -273,9 +276,12 @@ class VehicleService {
           'Failed to update vehicle: ${response.statusCode} - ${response.body}',
         );
       }
-    } catch (e) {
+    } on Exception catch (e) {
       print('Failed to update vehicle on server: $e');
-      // Fallback: update locally only
+      if (e.toString().contains('422') || e.toString().contains('400')) {
+        rethrow;
+      }
+      // Fallback: update locally only for network errors
       final updated = await _localStorage.updateVehicle(id, vehicle);
       if (updated == null) {
         throw Exception('Vehicle not found');
