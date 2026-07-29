@@ -124,6 +124,7 @@ class TrackingApiService {
             '_': DateTime.now().millisecondsSinceEpoch.toString(),
           },
         );
+    print('🌐 [GET] $uri');
     final response = await _apiClient.get(
       uri.toString(),
       headers: {
@@ -132,6 +133,9 @@ class TrackingApiService {
         'Expires': '0',
       },
     );
+
+    print('📥 [Last Location] Status: ${response.statusCode}');
+    print('📥 [Last Location] Body: ${response.body}');
 
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body);
