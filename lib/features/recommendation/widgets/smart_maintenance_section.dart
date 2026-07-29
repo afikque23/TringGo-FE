@@ -21,7 +21,7 @@ class SmartMaintenanceSection extends StatelessWidget {
         Row(
           children: [
             Icon(
-              Icons.auto_awesome,
+              Icons.build_circle_outlined,
               size: 16,
               color: colorScheme.primary,
             ),
