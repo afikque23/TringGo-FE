@@ -303,6 +303,12 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
                           controller: _namaController,
                           hintText: l10n.exampleOilChange,
                           icon: Icons.build_outlined,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Mohon isi nama perawatan';
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 24),
 
@@ -1039,6 +1045,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
     required TextEditingController controller,
     required String hintText,
     required IconData icon,
+    String? Function(String?)? validator,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     return Column(
@@ -1057,6 +1064,7 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
+          validator: validator,
           style: TextStyle(
             fontFamily: 'Arial',
             fontSize: 16,
