@@ -4,6 +4,7 @@ import '../state/recommendation_home_insight_notifier.dart';
 import '../widgets/fuzzy_scores_section.dart';
 import '../widgets/meta_info_row.dart';
 import '../widgets/priority_badge.dart';
+import '../widgets/smart_maintenance_section.dart';
 
 class RecommendationHomeInsightScreen extends StatefulWidget {
   const RecommendationHomeInsightScreen({super.key, required this.motorId});
@@ -197,6 +198,29 @@ class _RecommendationHomeInsightScreenState
   Widget _buildInsightSistem(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final insight = _notifier.homeInsight?.insightSistem;
+    final smart = _notifier.homeInsight?.smartMaintenance;
+
+    if (insight == null && (smart == null || smart.isEmpty)) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          border: Border.all(color: colorScheme.outlineVariant, width: 0.65),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Text(
+          'Insight sistem belum tersedia.',
+          style: TextStyle(
+            fontFamily: 'Arial',
+            fontSize: 12,
+            fontWeight: FontWeight.w400,
+            height: 1.6,
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
+    }
 
     return Container(
       width: double.infinity,
@@ -206,9 +230,23 @@ class _RecommendationHomeInsightScreenState
         border: Border.all(color: colorScheme.outlineVariant, width: 0.65),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: insight == null
-          ? Text(
-              'Insight sistem belum tersedia.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (insight != null) ...[
+            Text(
+              insight.label,
+              style: TextStyle(
+                fontFamily: 'Arial',
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                height: 1.4,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              insight.isi,
               style: TextStyle(
                 fontFamily: 'Arial',
                 fontSize: 12,
@@ -216,33 +254,21 @@ class _RecommendationHomeInsightScreenState
                 height: 1.6,
                 color: colorScheme.onSurfaceVariant,
               ),
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  insight.label,
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    height: 1.4,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  insight.isi,
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    height: 1.6,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
             ),
+          ],
+          if (smart != null && smart.isNotEmpty) ...[
+            if (insight != null) ...[
+              const SizedBox(height: 14),
+              Divider(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                height: 1,
+              ),
+              const SizedBox(height: 14),
+            ],
+            SmartMaintenanceSection(smartMaintenance: smart),
+          ],
+        ],
+      ),
     );
   }
 }

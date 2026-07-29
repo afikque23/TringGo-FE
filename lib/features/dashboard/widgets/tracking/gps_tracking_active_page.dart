@@ -358,6 +358,10 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
       final normalizedStatus = _deriveIotStatus(secondsAgo);
       final gpsReady = latestData['gps_ready'] == true;
 
+      debugPrint(
+        '📡 [IoT Debug] status=$normalizedStatus, secondsAgo=$secondsAgo, gpsReady=$gpsReady, data=$latestData',
+      );
+
       setState(() {
         _iotStatus = normalizedStatus;
         _iotSecondsAgo = secondsAgo;
@@ -1099,6 +1103,8 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                           child: Text(
                             _isTracking
                                 ? 'STOP'
+                                : _iotStatus == 'unknown'
+                                ? 'Mendeteksi IoT...'
                                 : !_isIotOnline
                                 ? 'IoT Offline'
                                 : !_gpsReady

@@ -24,6 +24,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import '../recommendation/screens/recommendation_service_screen.dart';
 import '../recommendation/state/recommendation_home_insight_notifier.dart';
 import '../recommendation/widgets/meta_info_row.dart';
+import '../recommendation/widgets/smart_maintenance_section.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -1348,6 +1349,8 @@ class _DashboardPageState extends State<DashboardPage>
                             final motorId = _primaryVehicle?.id;
                             final insight =
                                 _homeInsightNotifier.homeInsight?.insightSistem;
+                            final smart =
+                                _homeInsightNotifier.homeInsight?.smartMaintenance;
 
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1425,7 +1428,7 @@ class _DashboardPageState extends State<DashboardPage>
                                             color: colorScheme.onSurfaceVariant,
                                           ),
                                         )
-                                      : insight == null
+                                      : (insight == null && (smart == null || smart.isEmpty))
                                       ? Text(
                                           'Insight sistem belum tersedia.',
                                           style: TextStyle(
@@ -1440,28 +1443,41 @@ class _DashboardPageState extends State<DashboardPage>
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            Text(
-                                              insight.label,
-                                              style: TextStyle(
-                                                fontFamily: 'Arial',
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w700,
-                                                height: 1.43,
-                                                color: colorScheme.onSurface,
+                                            if (insight != null) ...[
+                                              Text(
+                                                insight.label,
+                                                style: TextStyle(
+                                                  fontFamily: 'Arial',
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w700,
+                                                  height: 1.43,
+                                                  color: colorScheme.onSurface,
+                                                ),
                                               ),
-                                            ),
-                                            const SizedBox(height: 6),
-                                            Text(
-                                              insight.isi,
-                                              style: TextStyle(
-                                                fontFamily: 'Arial',
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w400,
-                                                height: 1.67,
-                                                color: colorScheme
-                                                    .onSurfaceVariant,
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                insight.isi,
+                                                style: TextStyle(
+                                                  fontFamily: 'Arial',
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w400,
+                                                  height: 1.67,
+                                                  color: colorScheme
+                                                      .onSurfaceVariant,
+                                                ),
                                               ),
-                                            ),
+                                            ],
+                                            if (smart != null && smart.isNotEmpty) ...[
+                                              if (insight != null) ...[
+                                                const SizedBox(height: 12),
+                                                Divider(
+                                                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                                                  height: 1,
+                                                ),
+                                                const SizedBox(height: 12),
+                                              ],
+                                              SmartMaintenanceSection(smartMaintenance: smart),
+                                            ],
                                           ],
                                         ),
                                 ),
