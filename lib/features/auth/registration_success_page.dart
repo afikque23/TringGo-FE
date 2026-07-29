@@ -56,10 +56,14 @@ class _RegistrationSuccessPageState extends State<RegistrationSuccessPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            children: [
+        child: CustomScrollView(
+          slivers: [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Column(
+                  children: [
               const Spacer(flex: 2),
               // Content
               Column(
@@ -188,9 +192,12 @@ class _RegistrationSuccessPageState extends State<RegistrationSuccessPage> {
                   ),
                 ],
               ),
-              const Spacer(flex: 1),
-            ],
-          ),
+                  const Spacer(flex: 1),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

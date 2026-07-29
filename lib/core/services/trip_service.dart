@@ -221,6 +221,7 @@ class TripService {
     required int vehicleId,
     required double distanceKm,
     required DateTime tripDate,
+    required int durationMinutes,
     String? notes,
   }) async {
     try {
@@ -230,6 +231,7 @@ class TripService {
         'vehicle_id': vehicleId,
         'distance_km': distanceKm,
         'trip_date': tripDate.toIso8601String().split('T')[0], // YYYY-MM-DD
+        'duration_minutes': durationMinutes,
         if (notes != null && notes.isNotEmpty) 'notes': notes,
       };
 

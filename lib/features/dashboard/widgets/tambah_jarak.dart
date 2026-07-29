@@ -5,6 +5,8 @@ import '../../../core/services/vehicle_service.dart';
 import '../../../core/services/trip_service.dart';
 import '../../../core/model/vehicle_model.dart';
 
+enum InputMode { jarakTempuh, odometerTerakhir }
+
 class TambahJarakPage extends StatefulWidget {
   const TambahJarakPage({super.key});
 
@@ -34,8 +36,10 @@ class _TambahJarakPageState extends State<TambahJarakPage> {
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
+  InputMode _inputMode = InputMode.jarakTempuh;
   final TextEditingController _jarakController = TextEditingController();
-  final TextEditingController _catatanController = TextEditingController();
+  final TextEditingController _odometerController = TextEditingController();
+  final TextEditingController _durasiController = TextEditingController();
   DateTime? _selectedDate;
   VehicleModel? _selectedVehicle;
 
@@ -83,7 +87,8 @@ class _TambahJarakPageState extends State<TambahJarakPage> {
   @override
   void dispose() {
     _jarakController.dispose();
-    _catatanController.dispose();
+    _odometerController.dispose();
+    _durasiController.dispose();
     super.dispose();
   }
 
@@ -118,7 +123,9 @@ class _TambahJarakPageState extends State<TambahJarakPage> {
   }
 
   Future<void> _handleSave() async {
-    if (_jarakController.text.isEmpty ||
+    if ((_inputMode == InputMode.jarakTempuh && _jarakController.text.isEmpty) ||
+        (_inputMode == InputMode.odometerTerakhir && _odometerController.text.isEmpty) ||
+        _durasiController.text.isEmpty ||
         _selectedDate == null ||
         _selectedVehicle == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -130,25 +137,59 @@ class _TambahJarakPageState extends State<TambahJarakPage> {
       return;
     }
 
-    // Validate vehicle has an ID
     if (_selectedVehicle!.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text(
-            'Kendaraan tidak valid. Silakan pilih kendaraan lain.',
-          ),
+          content: const Text('Kendaraan tidak valid. Silakan pilih kendaraan lain.'),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
       return;
     }
 
-    // Validate distance value
-    final distance = double.tryParse(_jarakController.text);
-    if (distance == null || distance <= 0) {
+    double finalDistance = 0;
+    if (_inputMode == InputMode.jarakTempuh) {
+      final distance = double.tryParse(_jarakController.text);
+      if (distance == null || distance <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Jarak harus berupa angka yang valid'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+        return;
+      }
+      finalDistance = distance;
+    } else {
+      final inputOdo = double.tryParse(_odometerController.text);
+      if (inputOdo == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Odometer harus berupa angka yang valid'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+        return;
+      }
+      final currentOdo = _selectedVehicle!.odometer ?? 0;
+      final selisih = inputOdo - currentOdo;
+      if (selisih <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Angka odometer harus lebih besar dari odometer saat ini ($currentOdo km)'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+        return;
+      }
+      finalDistance = selisih;
+    }
+
+    final duration = int.tryParse(_durasiController.text);
+    if (duration == null || duration <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Jarak harus berupa angka yang valid'),
+          content: const Text('Durasi harus berupa angka yang valid'),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
@@ -162,14 +203,14 @@ class _TambahJarakPageState extends State<TambahJarakPage> {
     try {
       final result = await _tripService.addManualDistance(
         vehicleId: _selectedVehicle!.id!,
-        distanceKm: distance,
+        distanceKm: finalDistance,
         tripDate: _selectedDate!,
-        notes: _catatanController.text.isEmpty ? null : _catatanController.text,
+        durationMinutes: duration,
       );
 
       if (result != null && mounted) {
         final l10n = AppLocalizations.of(context)!;
-        Navigator.pop(context, true); // Return true to indicate success
+        Navigator.pop(context, true); 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(l10n.distanceSaved),
@@ -301,66 +342,127 @@ class _TambahJarakPageState extends State<TambahJarakPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Jarak Input
-                      _buildLabel(l10n.distanceTraveled, required: true),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _jarakController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
+                      // Input Mode Toggle
+                      Container(
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceVariant,
+                          borderRadius: BorderRadius.circular(14),
                         ),
-                        style: TextStyle(
-                          fontFamily: 'Arial',
-                          fontSize: 18,
-                          color: colorScheme.onSurface,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() => _inputMode = InputMode.jarakTempuh),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: _inputMode == InputMode.jarakTempuh ? colorScheme.primary : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Jarak Tempuh',
+                                      style: TextStyle(
+                                        fontFamily: 'Arial',
+                                        fontSize: 14,
+                                        fontWeight: _inputMode == InputMode.jarakTempuh ? FontWeight.w700 : FontWeight.w400,
+                                        color: _inputMode == InputMode.jarakTempuh ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() => _inputMode = InputMode.odometerTerakhir),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: _inputMode == InputMode.odometerTerakhir ? colorScheme.primary : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Odometer Terakhir',
+                                      style: TextStyle(
+                                        fontFamily: 'Arial',
+                                        fontSize: 14,
+                                        fontWeight: _inputMode == InputMode.odometerTerakhir ? FontWeight.w700 : FontWeight.w400,
+                                        color: _inputMode == InputMode.odometerTerakhir ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        decoration: InputDecoration(
-                          hintText: l10n.distancePlaceholder,
-                          hintStyle: TextStyle(
+                      ),
+                      const SizedBox(height: 20),
+
+                      if (_inputMode == InputMode.jarakTempuh) ...[
+                        _buildLabel(l10n.distanceTraveled, required: true),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _jarakController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          style: TextStyle(fontFamily: 'Arial', fontSize: 18, color: colorScheme.onSurface),
+                          decoration: InputDecoration(
+                            hintText: 'Misal: 15.5',
+                            filled: true,
+                            fillColor: colorScheme.surface,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(color: colorScheme.outline, width: 0.65),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(color: colorScheme.outline, width: 0.65),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(color: colorScheme.primary, width: 1),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          ),
+                        ),
+                      ] else ...[
+                        _buildLabel('Angka Odometer Saat Ini (km)', required: true),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _odometerController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          style: TextStyle(fontFamily: 'Arial', fontSize: 18, color: colorScheme.onSurface),
+                          decoration: InputDecoration(
+                            hintText: 'Lihat angka speedometer',
+                            filled: true,
+                            fillColor: colorScheme.surface,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(color: colorScheme.outline, width: 0.65),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(color: colorScheme.outline, width: 0.65),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(color: colorScheme.primary, width: 1),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Sistem otomatis menghitung selisih dari odometer motor saat ini (${_selectedVehicle?.odometer ?? 0} km)',
+                          style: TextStyle(
                             fontFamily: 'Arial',
-                            fontSize: 18,
-                            color: colorScheme.onSurface.withOpacity(0.5),
-                          ),
-                          filled: true,
-                          fillColor: colorScheme.surface,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(
-                              color: colorScheme.outline,
-                              width: 0.65,
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(
-                              color: colorScheme.outline,
-                              width: 0.65,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(
-                              color: colorScheme.primary,
-                              width: 1,
-                            ),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        l10n.distanceHint,
-                        style: TextStyle(
-                          fontFamily: 'Arial',
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                          height: 1.33,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
+                      ],
                       const SizedBox(height: 20),
 
                       // Tanggal Perjalanan
@@ -370,36 +472,22 @@ class _TambahJarakPageState extends State<TambahJarakPage> {
                         onTap: () => _selectDate(context),
                         child: Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           decoration: BoxDecoration(
                             color: colorScheme.surface,
-                            border: Border.all(
-                              color: colorScheme.outline,
-                              width: 0.65,
-                            ),
+                            border: Border.all(color: colorScheme.outline, width: 0.65),
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: Row(
                             children: [
-                              Icon(
-                                Icons.calendar_today,
-                                size: 20,
-                                color: colorScheme.secondary,
-                              ),
+                              Icon(Icons.calendar_today, size: 20, color: colorScheme.secondary),
                               const SizedBox(width: 12),
                               Text(
-                                _selectedDate == null
-                                    ? l10n.selectDate
-                                    : _formatDate(_selectedDate!),
+                                _selectedDate == null ? l10n.selectDate : _formatDate(_selectedDate!),
                                 style: TextStyle(
                                   fontFamily: 'Arial',
                                   fontSize: 18,
-                                  color: _selectedDate == null
-                                      ? colorScheme.onSurface.withOpacity(0.5)
-                                      : colorScheme.onSurface,
+                                  color: _selectedDate == null ? colorScheme.onSurface.withOpacity(0.5) : colorScheme.onSurface,
                                 ),
                               ),
                             ],
@@ -408,167 +496,30 @@ class _TambahJarakPageState extends State<TambahJarakPage> {
                       ),
                       const SizedBox(height: 20),
 
-                      // Kendaraan Dropdown
-                      _buildLabel(l10n.vehicle, required: true),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: colorScheme.surface,
-                          border: Border.all(
-                            color: colorScheme.outline,
-                            width: 0.65,
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: _vehicles.isEmpty
-                            ? Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                ),
-                                child: Text(
-                                  'Tidak ada kendaraan tersedia',
-                                  style: TextStyle(
-                                    fontFamily: 'Arial',
-                                    fontSize: 18,
-                                    color: colorScheme.onSurface.withOpacity(
-                                      0.5,
-                                    ),
-                                  ),
-                                ),
-                              )
-                            : DropdownButtonHideUnderline(
-                                child: DropdownButton<VehicleModel>(
-                                  value: _selectedVehicle,
-                                  hint: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.directions_bike,
-                                        size: 20,
-                                        color: colorScheme.secondary,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        l10n.selectVehicle,
-                                        style: TextStyle(
-                                          fontFamily: 'Arial',
-                                          fontSize: 18,
-                                          color: colorScheme.onSurface
-                                              .withOpacity(0.5),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  icon: Icon(
-                                    Icons.keyboard_arrow_down,
-                                    color: colorScheme.secondary,
-                                  ),
-                                  dropdownColor: colorScheme.surface,
-                                  isExpanded: true,
-                                  style: TextStyle(
-                                    fontFamily: 'Arial',
-                                    fontSize: 18,
-                                    color: colorScheme.onSurface,
-                                  ),
-                                  items: _vehicles.map((VehicleModel vehicle) {
-                                    return DropdownMenuItem<VehicleModel>(
-                                      value: vehicle,
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.directions_bike,
-                                            size: 20,
-                                            color: colorScheme.secondary,
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Text(
-                                              vehicle.title,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }).toList(),
-                                  onChanged: (VehicleModel? newValue) {
-                                    setState(() {
-                                      _selectedVehicle = newValue;
-                                    });
-                                  },
-                                ),
-                              ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Catatan (Optional)
-                      Row(
-                        children: [
-                          Text(
-                            l10n.notesLabel,
-                            style: TextStyle(
-                              fontFamily: 'Arial',
-                              fontSize: 14,
-                              fontWeight: FontWeight.w400,
-                              height: 1.43,
-                              color: colorScheme.onSurface,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '(${l10n.optional})',
-                            style: TextStyle(
-                              fontFamily: 'Arial',
-                              fontSize: 14,
-                              fontWeight: FontWeight.w400,
-                              height: 1.43,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
+                      // Durasi Perjalanan
+                      _buildLabel('Durasi Perjalanan (Menit)', required: true),
                       const SizedBox(height: 8),
                       TextField(
-                        controller: _catatanController,
-                        maxLines: 4,
-                        minLines: 4,
-                        style: TextStyle(
-                          fontFamily: 'Arial',
-                          fontSize: 16,
-                          color: colorScheme.onSurface,
-                        ),
+                        controller: _durasiController,
+                        keyboardType: TextInputType.number,
+                        style: TextStyle(fontFamily: 'Arial', fontSize: 18, color: colorScheme.onSurface),
                         decoration: InputDecoration(
-                          hintText: l10n.notesPlaceholder,
-                          hintStyle: TextStyle(
-                            fontFamily: 'Arial',
-                            fontSize: 16,
-                            color: colorScheme.onSurface.withOpacity(0.5),
-                          ),
+                          hintText: 'Estimasi perjalanan dalam menit',
                           filled: true,
                           fillColor: colorScheme.surface,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(
-                              color: colorScheme.outline,
-                              width: 0.65,
-                            ),
+                            borderSide: BorderSide(color: colorScheme.outline, width: 0.65),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(
-                              color: colorScheme.outline,
-                              width: 0.65,
-                            ),
+                            borderSide: BorderSide(color: colorScheme.outline, width: 0.65),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(
-                              color: colorScheme.primary,
-                              width: 1,
-                            ),
+                            borderSide: BorderSide(color: colorScheme.primary, width: 1),
                           ),
-                          contentPadding: const EdgeInsets.all(16),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -576,30 +527,20 @@ class _TambahJarakPageState extends State<TambahJarakPage> {
                       // Info Box
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: colorScheme.primary.withOpacity(0.1),
-                          border: Border.all(
-                            color: colorScheme.primary.withOpacity(0.3),
-                            width: 0.65,
-                          ),
+                          border: Border.all(color: colorScheme.primary.withOpacity(0.3), width: 0.65),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: Column(
-                          children: [
-                            Text(
-                              l10n.distanceWillBeAdded,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontFamily: 'Arial',
-                                fontSize: 14,
-                                fontWeight: FontWeight.w400,
-                                height: 1.64,
-                                color: colorScheme.onSurface,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
+                        child: Text(
+                          'Data akan disimpan untuk kalkulasi jarak dan Fuzzy Logic secara akurat.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Arial',
+                            fontSize: 14,
+                            color: colorScheme.onSurface,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 20),

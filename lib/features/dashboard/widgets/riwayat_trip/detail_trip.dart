@@ -12,6 +12,9 @@ class DetailTripPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final List<dynamic>? routePoints = tripData['routePoints'];
+    final bool isManualTrip = routePoints == null || routePoints.length <= 1;
+
     return Scaffold(
       backgroundColor: colorScheme.surfaceContainerLow,
       body: Column(
@@ -21,7 +24,7 @@ class DetailTripPage extends StatelessWidget {
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  _buildMapContainer(context),
+                  _buildMapContainer(context, isManualTrip),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                     child: Column(
@@ -30,11 +33,13 @@ class DetailTripPage extends StatelessWidget {
                         const SizedBox(height: 16),
                         _buildStatsRow(context),
                         const SizedBox(height: 16),
-                        _buildSpeedStats(context),
+                        _buildSpeedStats(context, isManualTrip),
+                        if (!isManualTrip) ...[
+                          const SizedBox(height: 16),
+                          _buildRouteInfo(context, isManualTrip),
+                        ],
                         const SizedBox(height: 16),
-                        _buildRouteInfo(context),
-                        const SizedBox(height: 16),
-                        _buildSummaryCard(context),
+                        _buildSummaryCard(context, isManualTrip),
                         const SizedBox(height: 16),
                       ],
                     ),
@@ -104,7 +109,7 @@ class DetailTripPage extends StatelessWidget {
     );
   }
 
-  Widget _buildMapContainer(BuildContext context) {
+  Widget _buildMapContainer(BuildContext context, bool isManualTrip) {
     final colorScheme = Theme.of(context).colorScheme;
 
     final rawPoints = tripData['routePoints'];
@@ -126,6 +131,8 @@ class DetailTripPage extends StatelessWidget {
       }
     }
 
+    if (isManualTrip) return const SizedBox.shrink();
+
     return Container(
       width: double.infinity,
       height: 256,
@@ -137,7 +144,6 @@ class DetailTripPage extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          // Gradient background
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -402,7 +408,7 @@ class DetailTripPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSpeedStats(BuildContext context) {
+  Widget _buildSpeedStats(BuildContext context, bool isManualTrip) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     return Container(
@@ -436,12 +442,14 @@ class DetailTripPage extends StatelessWidget {
             l10n.averageSpeed,
             '${(tripData["averageSpeedKph"] ?? "0").toString()} km/h',
           ),
-          const SizedBox(height: 12),
-          _buildStatRow(
-            context,
-            l10n.maxSpeedEstimate,
-            '${(tripData["maxSpeedKph"] ?? "0").toString()} km/h',
-          ),
+          if (!isManualTrip) ...[
+            const SizedBox(height: 12),
+            _buildStatRow(
+              context,
+              l10n.maxSpeedEstimate,
+              '${(tripData["maxSpeedKph"] ?? "0").toString()} km/h',
+            ),
+          ],
           const SizedBox(height: 20),
         ],
       ),
@@ -477,7 +485,7 @@ class DetailTripPage extends StatelessWidget {
     );
   }
 
-  Widget _buildRouteInfo(BuildContext context) {
+  Widget _buildRouteInfo(BuildContext context, bool isManualTrip) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
 
@@ -584,7 +592,7 @@ class DetailTripPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSummaryCard(BuildContext context) {
+  Widget _buildSummaryCard(BuildContext context, bool isManualTrip) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
 

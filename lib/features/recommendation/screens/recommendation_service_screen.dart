@@ -373,9 +373,11 @@ class _RecommendationServiceScreenState
         notes: payload['notes'] as String?,
       );
     } finally {
-      odometerController.dispose();
-      notesController.dispose();
-      serviceProviderController.dispose();
+      Future.delayed(const Duration(milliseconds: 400), () {
+        odometerController.dispose();
+        notesController.dispose();
+        serviceProviderController.dispose();
+      });
     }
   }
 
@@ -703,9 +705,11 @@ class _RecommendationServiceScreenState
           _completingComponentNames.clear();
         });
       }
-      odometerController.dispose();
-      notesController.dispose();
-      serviceProviderController.dispose();
+      Future.delayed(const Duration(milliseconds: 400), () {
+        odometerController.dispose();
+        notesController.dispose();
+        serviceProviderController.dispose();
+      });
     }
   }
 
