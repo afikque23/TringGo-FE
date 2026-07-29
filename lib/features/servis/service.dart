@@ -483,9 +483,8 @@ class _MaintenancePageState extends State<MaintenancePage> {
                                   ),
                                 ),
                                 ],
-                              ],
+                              ),
                             ),
-                          ),
                       ],
                     ),
                   if (hasTips) ...[
