@@ -176,6 +176,8 @@ class _JadwalPageState extends State<JadwalPage> {
                                         data['progressColor'] as Color,
                                     isTimeBased:
                                         schedule.intervalType == 'time',
+                                    reminderInfo:
+                                        data['reminderInfo'] as String,
                                   ),
                                 );
                               }),
@@ -240,6 +242,18 @@ class _JadwalPageState extends State<JadwalPage> {
         progressColor = colorScheme.primary;
       }
 
+      String reminderInfo = '';
+      if (schedule.reminderEnabled == true &&
+          schedule.reminderThreshold != null &&
+          schedule.reminderThreshold! > 0) {
+        final toReminder = kmRemaining - schedule.reminderThreshold!;
+        if (toReminder > 0) {
+          reminderInfo = ' (Pengingat dlm $toReminder km)';
+        } else {
+          reminderInfo = ' (Pengingat aktif)';
+        }
+      }
+
       return {
         'status': status,
         'statusColor': statusColor,
@@ -249,6 +263,7 @@ class _JadwalPageState extends State<JadwalPage> {
         'percentage': percentage,
         'progressColor': progressColor,
         'hasCustomInterval': schedule.notes?.contains('disesuaikan') ?? false,
+        'reminderInfo': reminderInfo,
       };
     } else {
       // Time-based schedule
@@ -298,6 +313,18 @@ class _JadwalPageState extends State<JadwalPage> {
         progressColor = colorScheme.primary;
       }
 
+      String reminderInfo = '';
+      if (schedule.reminderEnabled == true &&
+          schedule.reminderThreshold != null &&
+          schedule.reminderThreshold! > 0) {
+        final toReminder = daysRemaining - schedule.reminderThreshold!;
+        if (toReminder > 0) {
+          reminderInfo = ' (Pengingat dlm $toReminder hari)';
+        } else {
+          reminderInfo = ' (Pengingat aktif)';
+        }
+      }
+
       return {
         'status': status,
         'statusColor': statusColor,
@@ -307,6 +334,7 @@ class _JadwalPageState extends State<JadwalPage> {
         'percentage': percentage,
         'progressColor': progressColor,
         'hasCustomInterval': schedule.notes?.contains('disesuaikan') ?? false,
+        'reminderInfo': reminderInfo,
       };
     }
   }
@@ -449,13 +477,14 @@ class _JadwalPageState extends State<JadwalPage> {
     required int percentage,
     required Color progressColor,
     required bool isTimeBased,
+    required String reminderInfo,
   }) {
     final l10n = AppLocalizations.of(context)!;
 
     // Format tampilan berbeda untuk jarak vs waktu
     final remainingText = isTimeBased
-        ? '$kmRemaining hari lagi'
-        : '$kmRemaining ${l10n.kmRemaining}';
+        ? '$kmRemaining hari lagi$reminderInfo'
+        : '$kmRemaining ${l10n.kmRemaining}$reminderInfo';
 
     return GestureDetector(
       onTap: () async {
