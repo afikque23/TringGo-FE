@@ -482,18 +482,6 @@ class _MaintenancePageState extends State<MaintenancePage> {
                                     color: colorScheme.onSurfaceVariant,
                                   ),
                                 ),
-                                if (item.estimasiWaktu.trim().isNotEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Estimasi: ${item.estimasiWaktu}',
-                                    style: TextStyle(
-                                      fontFamily: 'Arial',
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w400,
-                                      height: 1.67,
-                                      color: colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
                                 ],
                               ],
                             ),

@@ -481,10 +481,9 @@ class _JadwalPageState extends State<JadwalPage> {
   }) {
     final l10n = AppLocalizations.of(context)!;
 
-    // Format tampilan berbeda untuk jarak vs waktu
     final remainingText = isTimeBased
-        ? '$kmRemaining hari lagi$reminderInfo'
-        : '$kmRemaining ${l10n.kmRemaining}$reminderInfo';
+        ? '$kmRemaining hari lagi'
+        : '$kmRemaining ${l10n.kmRemaining}';
 
     return GestureDetector(
       onTap: () async {
@@ -623,6 +622,18 @@ class _JadwalPageState extends State<JadwalPage> {
                           ),
                         ],
                       ),
+                      if (reminderInfo.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          reminderInfo.trim(),
+                          style: TextStyle(
+                            fontFamily: 'Arial',
+                            fontSize: 11,
+                            fontWeight: FontWeight.w400,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

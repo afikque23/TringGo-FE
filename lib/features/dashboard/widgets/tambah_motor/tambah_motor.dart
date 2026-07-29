@@ -19,12 +19,10 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
   final _namaKendaraanController = TextEditingController();
   final _merekController = TextEditingController();
   final _modelController = TextEditingController();
-  final _tahunController = TextEditingController(text: '2026');
   final _odometerController = TextEditingController(text: '0');
   final _deviceIdController = TextEditingController();
 
   String? _selectedMotorcycleType;
-  String? _selectedKapasitasCc;
   bool _isMainVehicle = false;
   bool _isLoading = false;
 
@@ -33,7 +31,6 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
     _namaKendaraanController.dispose();
     _merekController.dispose();
     _modelController.dispose();
-    _tahunController.dispose();
     _odometerController.dispose();
     _deviceIdController.dispose();
     super.dispose();
@@ -109,22 +106,7 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
                       placeholder: l10n.modelPlaceholder,
                     ),
                     const SizedBox(height: 20),
-                    _buildInputField(
-                      label: l10n.motorcycleYear,
-                      controller: _tahunController,
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 20),
                     _buildMotorcycleTypeDropdown(),
-                    const SizedBox(height: 20),
-                    _buildChipSelector(
-                      label: 'Kapasitas Mesin',
-                      options: const ['<125cc', '125-250cc', '>250cc'],
-                      values: const ['<125', '125-250', '>250'],
-                      selected: _selectedKapasitasCc,
-                      onSelected: (v) =>
-                          setState(() => _selectedKapasitasCc = v),
-                    ),
                     const SizedBox(height: 20),
                     _buildInputField(
                       label: l10n.currentOdometerKm,
@@ -668,7 +650,7 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
       setState(() => _isLoading = true);
 
       try {
-        final year = int.tryParse(_tahunController.text) ?? 2026;
+        final year = 2026;
         final odometer = int.tryParse(_odometerController.text) ?? 0;
 
         final vehicle = VehicleModel(
@@ -677,7 +659,7 @@ class _TambahMotorPageState extends State<TambahMotorPage> {
         model: _modelController.text,
         year: year,
         tipeMotor: _selectedMotorcycleType,
-        kapasitasCc: _selectedKapasitasCc,
+        kapasitasCc: null,
         odometer: odometer,
         isPrimary: _isMainVehicle,
         deviceId: mac.isEmpty ? null : mac,

@@ -40,12 +40,10 @@ class _EditMotorPageState extends State<EditMotorPage> {
   late final TextEditingController _namaKendaraanController;
   late final TextEditingController _merekController;
   late final TextEditingController _modelController;
-  late final TextEditingController _tahunController;
   late final TextEditingController _odometerController;
   late final TextEditingController _deviceIdController;
   late bool _isMainVehicle;
   String? _selectedMotorcycleType;
-  String? _selectedKapasitasCc;
   bool _isLoading = false;
   bool _isLinkingDevice = false;
 
@@ -58,12 +56,10 @@ class _EditMotorPageState extends State<EditMotorPage> {
     _namaKendaraanController = TextEditingController(text: widget.name);
     _merekController = TextEditingController(text: widget.brand);
     _modelController = TextEditingController(text: widget.model);
-    _tahunController = TextEditingController(text: widget.year);
     _odometerController = TextEditingController(text: widget.odometer);
     _deviceIdController = TextEditingController();
     _isMainVehicle = widget.isMainVehicle;
     _selectedMotorcycleType = widget.tipeMotor;
-    _selectedKapasitasCc = widget.kapasitasCc;
     _linkedDeviceId = widget.deviceId;
   }
 
@@ -72,7 +68,6 @@ class _EditMotorPageState extends State<EditMotorPage> {
     _namaKendaraanController.dispose();
     _merekController.dispose();
     _modelController.dispose();
-    _tahunController.dispose();
     _odometerController.dispose();
     _deviceIdController.dispose();
     super.dispose();
@@ -106,7 +101,7 @@ class _EditMotorPageState extends State<EditMotorPage> {
     setState(() => _isLinkingDevice = true);
 
     try {
-      final year = int.tryParse(_tahunController.text) ?? 2026;
+      final year = 2026;
       final odometer = int.tryParse(_odometerController.text) ?? 0;
 
       final vehicle = VehicleModel(
@@ -116,7 +111,7 @@ class _EditMotorPageState extends State<EditMotorPage> {
         model: _modelController.text,
         year: year,
         tipeMotor: _selectedMotorcycleType,
-        kapasitasCc: _selectedKapasitasCc,
+        kapasitasCc: null,
         odometer: odometer,
         isPrimary: _isMainVehicle,
         deviceId: mac,
@@ -183,7 +178,7 @@ class _EditMotorPageState extends State<EditMotorPage> {
     setState(() => _isLinkingDevice = true);
 
     try {
-      final year = int.tryParse(_tahunController.text) ?? 2026;
+      final year = 2026;
       final odometer = int.tryParse(_odometerController.text) ?? 0;
 
       final vehicle = VehicleModel(
@@ -193,7 +188,7 @@ class _EditMotorPageState extends State<EditMotorPage> {
         model: _modelController.text,
         year: year,
         tipeMotor: _selectedMotorcycleType,
-        kapasitasCc: _selectedKapasitasCc,
+        kapasitasCc: null,
         odometer: odometer,
         isPrimary: _isMainVehicle,
         deviceId: null,
@@ -293,22 +288,7 @@ class _EditMotorPageState extends State<EditMotorPage> {
                       placeholder: l10n.modelPlaceholder,
                     ),
                     const SizedBox(height: 20),
-                    _buildInputField(
-                      label: l10n.motorcycleYear,
-                      controller: _tahunController,
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 20),
                     _buildMotorcycleTypeDropdown(),
-                    const SizedBox(height: 20),
-                    _buildChipSelector(
-                      label: 'Kapasitas Mesin',
-                      options: const ['<125cc', '125-250cc', '>250cc'],
-                      values: const ['<125', '125-250', '>250'],
-                      selected: _selectedKapasitasCc,
-                      onSelected: (v) =>
-                          setState(() => _selectedKapasitasCc = v),
-                    ),
                     const SizedBox(height: 20),
                     _buildInputField(
                       label: l10n.currentOdometerKm,
@@ -1015,7 +995,7 @@ class _EditMotorPageState extends State<EditMotorPage> {
     setState(() => _isLoading = true);
 
     try {
-      final year = int.tryParse(_tahunController.text) ?? 2026;
+      final year = 2026;
       final odometer = int.tryParse(_odometerController.text) ?? 0;
 
       final vehicle = VehicleModel(
@@ -1025,7 +1005,7 @@ class _EditMotorPageState extends State<EditMotorPage> {
         model: _modelController.text,
         year: year,
         tipeMotor: _selectedMotorcycleType,
-        kapasitasCc: _selectedKapasitasCc,
+        kapasitasCc: null,
         odometer: odometer,
         isPrimary: _isMainVehicle,
         deviceId: _linkedDeviceId, // Preserve linked device
