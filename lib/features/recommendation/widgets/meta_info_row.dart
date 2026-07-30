@@ -15,21 +15,7 @@ class MetaInfoRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Expanded(
-          child: Text(
-            generatedAt == null || generatedAt.isEmpty
-                ? 'Terakhir diperbarui: -'
-                : 'Terakhir diperbarui: $generatedAt',
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: 'Arial',
-              fontSize: 11,
-              fontWeight: FontWeight.w400,
-              height: 1.4,
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
+        Spacer(),
         if (meta.fromCache)
           Container(
             margin: const EdgeInsets.only(left: 8),

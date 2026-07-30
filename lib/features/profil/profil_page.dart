@@ -862,7 +862,7 @@ class _ProfilPageState extends State<ProfilPage> {
           crossAxisCount: 2,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
-          childAspectRatio: 1.15,
+          childAspectRatio: 0.85,
         ),
         itemCount: _savedTips.length,
         itemBuilder: (context, index) {
@@ -916,7 +916,7 @@ class _ProfilPageState extends State<ProfilPage> {
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 1.15,
+        childAspectRatio: 0.85,
       ),
       itemCount: _templateTips.length,
       itemBuilder: (context, index) {

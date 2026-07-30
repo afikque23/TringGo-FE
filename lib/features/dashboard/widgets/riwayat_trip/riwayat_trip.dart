@@ -306,34 +306,38 @@ class _RiwayatTripPageState extends State<RiwayatTripPage> {
             ),
           ),
           const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                value,
-                style: TextStyle(
-                  fontFamily: 'Arial',
-                  fontSize: 24,
-                  fontWeight: FontWeight.w400,
-                  height: 1.33,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              if (unit != null) ...[
-                const SizedBox(width: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
                 Text(
-                  unit,
+                  value,
                   style: TextStyle(
                     fontFamily: 'Arial',
-                    fontSize: 12,
+                    fontSize: 24,
                     fontWeight: FontWeight.w400,
                     height: 1.33,
-                    color: colorScheme.onSurfaceVariant,
+                    color: colorScheme.onSurface,
                   ),
                 ),
+                if (unit != null) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    unit,
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      height: 1.33,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
           const SizedBox(height: 16),
         ],

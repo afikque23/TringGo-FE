@@ -152,29 +152,32 @@ class _DetailTipsPerawatanPageState extends State<DetailTipsPerawatanPage> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(5, (index) {
-                        return GestureDetector(
-                          onTap: () {
-                            setDialogState(() {
-                              tempRating = index + 1;
-                            });
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 6),
-                            child: Icon(
-                              index < tempRating
-                                  ? Icons.star
-                                  : Icons.star_border,
-                              size: 40,
-                              color: index < tempRating
-                                  ? const Color(0xFFF0B100)
-                                  : const Color(0xFF99A1AF),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(5, (index) {
+                          return GestureDetector(
+                            onTap: () {
+                              setDialogState(() {
+                                tempRating = index + 1;
+                              });
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                              child: Icon(
+                                index < tempRating
+                                    ? Icons.star
+                                    : Icons.star_border,
+                                size: 40,
+                                color: index < tempRating
+                                    ? const Color(0xFFF0B100)
+                                    : const Color(0xFF99A1AF),
+                              ),
                             ),
-                          ),
-                        );
-                      }),
+                          );
+                        }),
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(

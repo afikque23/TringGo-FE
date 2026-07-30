@@ -563,17 +563,21 @@ class _TambahJadwalPageState extends State<TambahJadwalPage> {
                                         color: colorScheme.onSurfaceVariant,
                                       ),
                                       const SizedBox(width: 12),
-                                      Text(
-                                        _selectedDate == null
-                                            ? 'Kosongkan untuk dihitung otomatis'
-                                            : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
-                                        style: TextStyle(
-                                          fontFamily: 'Arial',
-                                          fontSize: 16,
-                                          color: _selectedDate == null
-                                              ? colorScheme.onSurface
-                                                    .withValues(alpha: 0.5)
-                                              : colorScheme.onSurface,
+                                      Expanded(
+                                        child: Text(
+                                          _selectedDate == null
+                                              ? 'Kosongkan untuk dihitung otomatis'
+                                              : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
+                                          style: TextStyle(
+                                            fontFamily: 'Arial',
+                                            fontSize: 16,
+                                            color: _selectedDate == null
+                                                ? colorScheme.onSurface
+                                                      .withValues(alpha: 0.5)
+                                                : colorScheme.onSurface,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
                                     ],

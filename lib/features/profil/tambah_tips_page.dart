@@ -504,8 +504,6 @@ class _TambahTipsPageState extends State<TambahTipsPage> {
             onChanged: (value) =>
                 setState(() => _selectedGayaBerkendara = value),
           ),
-          const SizedBox(height: 16),
-          _buildCopyableToggle(),
         ],
       ),
     );
