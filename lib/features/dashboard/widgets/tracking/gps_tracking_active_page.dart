@@ -405,14 +405,18 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
             if (deltaMeters >= 2.0 && deltaMeters <= 200.0) {
               _distanceKm += deltaMeters / 1000.0;
 
-              // Hitung current speed matematika jika sensor kecepatan gagal/0
-              if (currentSpeed == 0) {
+              // Hitung current speed matematika jika sensor kecepatan kurang akurat di bawah 5 km/h
+              if (currentSpeed < 5) {
                 final dtSeconds = (DateTime.now().millisecondsSinceEpoch - lastPt.timestampMs) / 1000.0;
                 if (dtSeconds > 0) {
-                  currentSpeed = ((deltaMeters / dtSeconds) * 3.6).round();
+                  int mathSpeed = ((deltaMeters / dtSeconds) * 3.6).round();
+                  // Ambil kecepatan terbesar (sensor vs math) untuk menghindari under-reporting sensor
+                  if (mathSpeed > currentSpeed) {
+                    currentSpeed = mathSpeed;
+                  }
                 }
               }
-            } else if (deltaMeters < 2.0) {
+            } else if (deltaMeters < 2.0 && currentSpeed == 0) {
               // Jika perpindahan sangat kecil (< 2m), anggap diam
               currentSpeed = 0;
             }
@@ -625,6 +629,11 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
 
   Future<void> _stopTracking() async {
     _timer?.cancel();
+    
+    // Sanity check: Max speed logikanya tidak mungkin lebih rendah dari Average speed
+    if (_maxSpeedKph < _avgSpeedKph.round()) {
+      _maxSpeedKph = _avgSpeedKph.round();
+    }
 
     try {
       final tripSummary = await TrackingApiService.stopTracking(

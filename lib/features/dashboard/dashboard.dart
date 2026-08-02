@@ -541,8 +541,10 @@ class _DashboardPageState extends State<DashboardPage>
                                       ),
                                     );
 
-                                    // Saat kembali dari halaman tracking, sinkronkan lagi status tombol.
+                                    // Saat kembali dari halaman tracking, sinkronkan lagi status tombol dan muat ulang data.
                                     await _refreshTrackingStatus();
+                                    await _loadPrimaryVehicle();
+                                    await _loadWeeklyTrends(_primaryVehicle!.id!);
                                   },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: _primaryVehicle == null
