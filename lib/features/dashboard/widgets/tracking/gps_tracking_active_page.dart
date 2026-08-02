@@ -379,7 +379,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
       }
 
       // Fix #1: Mendukung key speed_kph (mobile), speed_kmh (ESP32), maupun speed
-      final currentSpeed =
+      int currentSpeed =
           ((latestData['speed_kph'] ??
                   latestData['speed_kmh'] ??
                   latestData['speed']) as num?)
@@ -387,8 +387,6 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
           0;
 
       setState(() {
-        _speedKph = currentSpeed;
-        _maxSpeedKph = max(_maxSpeedKph, currentSpeed);
         _currentLocation = LatLng(newLat, newLng);
 
         if (_isTracking) {
@@ -406,6 +404,17 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
             // >= 2 meter (bukan noise GPS) dan <= 200 meter (bukan GPS jump)
             if (deltaMeters >= 2.0 && deltaMeters <= 200.0) {
               _distanceKm += deltaMeters / 1000.0;
+
+              // Hitung current speed matematika jika sensor kecepatan gagal/0
+              if (currentSpeed == 0) {
+                final dtSeconds = (DateTime.now().millisecondsSinceEpoch - lastPt.timestampMs) / 1000.0;
+                if (dtSeconds > 0) {
+                  currentSpeed = ((deltaMeters / dtSeconds) * 3.6).round();
+                }
+              }
+            } else if (deltaMeters < 2.0) {
+              // Jika perpindahan sangat kecil (< 2m), anggap diam
+              currentSpeed = 0;
             }
           }
 
@@ -422,6 +431,9 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
             ),
           );
         }
+
+        _speedKph = currentSpeed;
+        _maxSpeedKph = max(_maxSpeedKph, currentSpeed);
       });
 
       _mapController.move(_currentLocation, _mapController.camera.zoom);
