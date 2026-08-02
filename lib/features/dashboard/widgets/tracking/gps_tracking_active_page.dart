@@ -378,7 +378,13 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         return;
       }
 
-      final currentSpeed = (latestData['speed_kph'] as num?)?.toInt() ?? 0;
+      // Fix #1: Mendukung key speed_kph (mobile), speed_kmh (ESP32), maupun speed
+      final currentSpeed =
+          ((latestData['speed_kph'] ??
+                  latestData['speed_kmh'] ??
+                  latestData['speed']) as num?)
+              ?.toInt() ??
+          0;
 
       setState(() {
         _speedKph = currentSpeed;
@@ -386,8 +392,22 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         _currentLocation = LatLng(newLat, newLng);
 
         if (_isTracking) {
-          final distanceDelta = (currentSpeed / 3600.0) * 5;
-          _distanceKm += distanceDelta;
+          // Fix #2: Hitung jarak dari perpindahan koordinat GPS (Haversine)
+          // agar jarak tetap bertambah meski kecepatan dari IoT tidak terbaca.
+          if (_routePoints.isNotEmpty) {
+            final lastPt = _routePoints.last;
+            final deltaMeters = _haversineMeters(
+              lastPt.lat,
+              lastPt.lng,
+              newLat,
+              newLng,
+            );
+            // Hanya tambahkan jika perpindahan realistis:
+            // >= 2 meter (bukan noise GPS) dan <= 200 meter (bukan GPS jump)
+            if (deltaMeters >= 2.0 && deltaMeters <= 200.0) {
+              _distanceKm += deltaMeters / 1000.0;
+            }
+          }
 
           if (_durationSec > 0) {
             _avgSpeedKph = (_distanceKm / _durationSec) * 3600.0;
@@ -675,9 +695,19 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                     summaryDuration.toString())
         : (_durationSec ~/ 60).toString();
 
-    final avgKph = useBackend && summaryAvgSpeed is num
+    // Gunakan avg speed dari backend jika > 0.
+    // Jika 0 (misalnya karena key mismatch speed di IoT), hitung dari jarak/waktu lokal.
+    final backendAvgValid = useBackend &&
+        summaryAvgSpeed is num &&
+        summaryAvgSpeed > 0;
+    final localAvgFromDistTime = _durationSec > 0
+        ? (_distanceKm / _durationSec) * 3600.0
+        : 0.0;
+    final avgKph = backendAvgValid
         ? summaryAvgSpeed.toStringAsFixed(1)
-        : _avgSpeedKph.toStringAsFixed(1);
+        : (_avgSpeedKph > 0
+              ? _avgSpeedKph.toStringAsFixed(1)
+              : localAvgFromDistTime.toStringAsFixed(1));
 
     final maxKph = useBackend && summaryMaxSpeed != null
         ? summaryMaxSpeed.toString()
