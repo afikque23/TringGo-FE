@@ -45,18 +45,6 @@ class _RecommendationServiceScreenState
     );
   }
 
-  String _statusBadgeLabel(String status) {
-    switch (status.toLowerCase()) {
-      case 'critical':
-        return 'Kritis';
-      case 'warning':
-        return 'Perhatian';
-      case 'normal':
-        return 'Normal';
-      default:
-        return 'Tidak diketahui';
-    }
-  }
 
   Color _statusBadgeColor(String status, ColorScheme colorScheme) {
     switch (status.toLowerCase()) {
@@ -84,111 +72,88 @@ class _RecommendationServiceScreenState
     super.dispose();
   }
 
-  Widget _buildVariableChip(
+  Widget _buildVariableProgress(
     ComponentVariableRequirementDto variable,
     ColorScheme colorScheme,
   ) {
+    final currentValue = variable.value is num
+        ? (variable.value as num).toDouble()
+        : 0.0;
+    final maxThreshold =
+        variable.criticalThreshold ?? variable.warningThreshold;
+    double progress = 0.0;
+    if (maxThreshold != null && maxThreshold > 0) {
+      progress = (currentValue / maxThreshold).clamp(0.0, 1.0);
+    }
+
     final statusColor = _statusBadgeColor(
       variable.statusByThreshold,
       colorScheme,
     );
 
-    return Container(
-      constraints: const BoxConstraints(minWidth: 130),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colorScheme.outlineVariant, width: 0.65),
-      ),
+    String statusMessage;
+    switch (variable.statusByThreshold.toLowerCase()) {
+      case 'critical':
+        statusMessage = '⚠️ Sudah waktunya diservis';
+        break;
+      case 'warning':
+        statusMessage = '🔔 Mulai perlu diperhatikan';
+        break;
+      default:
+        if (variable.toWarning != null && variable.toWarning! > 0) {
+          statusMessage =
+              '✅ Masih aman (${variable.formattedToWarning})';
+        } else {
+          statusMessage = '✅ Kondisi baik';
+        }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            variable.label,
-            style: TextStyle(
-              fontFamily: 'Arial',
-              fontSize: 11,
-              fontWeight: FontWeight.w400,
-              color: colorScheme.onSurfaceVariant,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 4),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Text(
-                  variable.formattedValue,
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: colorScheme.onSurface,
-                    height: 1.35,
-                  ),
+              Text(
+                variable.label,
+                style: TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                  color: colorScheme.onSurfaceVariant,
+                  height: 1.3,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: statusColor.withValues(alpha: 0.35),
-                    width: 0.65,
-                  ),
-                ),
-                child: Text(
-                  _statusBadgeLabel(variable.statusByThreshold),
-                  style: TextStyle(
-                    fontFamily: 'Arial',
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: statusColor,
-                  ),
+              Text(
+                variable.formattedValue,
+                style: TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: colorScheme.onSurface,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 6),
-          Text(
-            'Batas perhatian: ${variable.formattedWarningThreshold}',
-            style: TextStyle(
-              fontFamily: 'Arial',
-              fontSize: 10,
-              fontWeight: FontWeight.w400,
-              color: colorScheme.onSurfaceVariant,
-              height: 1.3,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 6,
+              backgroundColor: colorScheme.surfaceContainerHighest,
+              valueColor: AlwaysStoppedAnimation<Color>(statusColor),
             ),
           ),
+          const SizedBox(height: 5),
           Text(
-            'Batas kritis: ${variable.formattedCriticalThreshold}',
+            statusMessage,
             style: TextStyle(
               fontFamily: 'Arial',
-              fontSize: 10,
-              fontWeight: FontWeight.w400,
-              color: colorScheme.onSurfaceVariant,
-              height: 1.3,
-            ),
-          ),
-          Text(
-            'Status ke batas perhatian: ${variable.formattedToWarning}',
-            style: TextStyle(
-              fontFamily: 'Arial',
-              fontSize: 10,
-              fontWeight: FontWeight.w400,
-              color: colorScheme.onSurfaceVariant,
-              height: 1.3,
-            ),
-          ),
-          Text(
-            'Status ke batas kritis: ${variable.formattedToCritical}',
-            style: TextStyle(
-              fontFamily: 'Arial',
-              fontSize: 10,
-              fontWeight: FontWeight.w400,
-              color: colorScheme.onSurfaceVariant,
+              fontSize: 11,
+              color: statusColor,
               height: 1.3,
             ),
           ),
@@ -283,10 +248,10 @@ class _RecommendationServiceScreenState
                         keyboardType: TextInputType.number,
                         decoration: InputDecoration(
                           labelText: requiresOdometer
-                              ? 'Odometer saat servis (km) *'
-                              : 'Odometer saat servis (km) (opsional)',
+                              ? 'Angka speedometer saat servis (km) *'
+                              : 'Angka speedometer saat servis (km)',
                           helperText:
-                              'Boleh lebih kecil dari odometer saat ini jika ini servis historis.',
+                              'Lihat angka di speedometer motor saat diservis. Contoh: jika tertera 8.450 km, isi 8450',
                           border: const OutlineInputBorder(),
                         ),
                       ),
@@ -335,7 +300,7 @@ class _RecommendationServiceScreenState
                       if (requiresOdometer && odometerValue == null) {
                         setDialogState(() {
                           validationMessage =
-                              'Odometer wajib diisi untuk komponen berbasis jarak.';
+                              'Angka speedometer wajib diisi untuk komponen ini.';
                         });
                         return;
                       }
@@ -456,7 +421,7 @@ class _RecommendationServiceScreenState
                   borderRadius: BorderRadius.circular(16),
                 ),
                 title: const Text(
-                  'Backfill Servis Awal',
+                  'Isi Riwayat Servis Awal',
                   style: TextStyle(fontFamily: 'Arial', fontSize: 18),
                 ),
                 content: SingleChildScrollView(
@@ -465,7 +430,7 @@ class _RecommendationServiceScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Pilih komponen yang sudah pernah diservis sebelumnya.',
+                        'Centang komponen yang sudah pernah kamu servis sebelumnya, lalu isi tanggal dan posisi speedometer saat itu.',
                         style: TextStyle(fontFamily: 'Arial', fontSize: 12),
                       ),
                       const SizedBox(height: 8),
@@ -484,8 +449,8 @@ class _RecommendationServiceScreenState
                           ),
                           subtitle: Text(
                             _requiresOdometerForItem(item)
-                                ? 'Memakai variabel jarak (butuh odometer).'
-                                : 'Tidak wajib odometer.',
+                                ? 'Perlu tahu posisi speedometer saat itu.'
+                                : 'Tidak perlu posisi speedometer.',
                             style: const TextStyle(
                               fontFamily: 'Arial',
                               fontSize: 11,
@@ -551,10 +516,10 @@ class _RecommendationServiceScreenState
                         keyboardType: TextInputType.number,
                         decoration: InputDecoration(
                           labelText: needsOdometer
-                              ? 'Odometer saat servis (km) *'
-                              : 'Odometer saat servis (km) (opsional)',
+                              ? 'Angka speedometer saat servis (km) *'
+                              : 'Angka speedometer saat servis (km)',
                           helperText:
-                              'Wajib jika ada komponen terpilih yang memakai variabel jarak.',
+                              'Isi angka yang tertera di speedometer motor saat itu.',
                           border: const OutlineInputBorder(),
                         ),
                       ),
@@ -611,7 +576,7 @@ class _RecommendationServiceScreenState
                       if (needsOdometer && odometerValue == null) {
                         setDialogState(() {
                           validationMessage =
-                              'Odometer wajib diisi karena ada komponen berbasis jarak.';
+                              'Angka speedometer wajib diisi untuk komponen yang dipilih.';
                         });
                         return;
                       }
@@ -632,7 +597,7 @@ class _RecommendationServiceScreenState
                         'notes': notesController.text.trim(),
                       });
                     },
-                    child: const Text('Simpan Backfill'),
+                    child: const Text('Simpan'),
                   ),
                 ],
               );
@@ -685,7 +650,7 @@ class _RecommendationServiceScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Backfill servis awal berhasil untuk ${selectedItems.length} komponen.',
+            'Riwayat servis awal berhasil disimpan untuk ${selectedItems.length} komponen.',
           ),
           backgroundColor: Colors.green,
         ),
@@ -789,7 +754,7 @@ class _RecommendationServiceScreenState
                         label: Text(
                           _isBackfillSubmitting
                               ? 'Menyimpan...'
-                              : 'Backfill Servis Awal',
+                              : 'Isi Riwayat Servis Awal',
                           style: const TextStyle(
                             fontFamily: 'Arial',
                             fontSize: 12,
@@ -934,63 +899,13 @@ class _RecommendationServiceScreenState
                   ),
                 ),
                 const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
+                if (item.requiredVariables.isNotEmpty) ...[
+                  const Divider(height: 20, thickness: 0.65),
+                  ...item.requiredVariables.map(
+                    (variable) =>
+                        _buildVariableProgress(variable, colorScheme),
                   ),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: colorScheme.outlineVariant,
-                      width: 0.65,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.tune,
-                        size: 16,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Variabel yang dibutuhkan',
-                          style: TextStyle(
-                            fontFamily: 'Arial',
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400,
-                            height: 1.4,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (item.requiredVariables.isEmpty)
-                  Text(
-                    'Variabel komponen belum tersedia.',
-                    style: TextStyle(
-                      fontFamily: 'Arial',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      height: 1.5,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  )
-                else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final variable in item.requiredVariables)
-                        _buildVariableChip(variable, colorScheme),
-                    ],
-                  ),
+                ],
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,

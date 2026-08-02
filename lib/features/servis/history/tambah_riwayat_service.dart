@@ -189,37 +189,23 @@ class _TambahRiwayatServicePageState extends State<TambahRiwayatServicePage> {
                     color: colorScheme.textSecondary,
                   ),
                   decoration: _inputDecoration(l10n.selectServiceType),
-                  items: [
+                  items: const [
                     DropdownMenuItem(
-                      value: 'oilChange',
-                      child: Text(l10n.oilChange),
+                      value: 'periodic_service',
+                      child: Text('🔧 Servis Berkala'),
                     ),
                     DropdownMenuItem(
-                      value: 'brakePadReplacement',
-                      child: Text(l10n.brakePadReplacement),
+                      value: 'component_replacement',
+                      child: Text('🔩 Ganti Komponen'),
                     ),
                     DropdownMenuItem(
-                      value: 'tireReplacement',
-                      child: Text(l10n.tireReplacement),
+                      value: 'repair',
+                      child: Text('🛠️ Perbaikan'),
                     ),
                     DropdownMenuItem(
-                      value: 'chainSprocketReplacement',
-                      child: Text(l10n.chainSprocketReplacement),
+                      value: 'other',
+                      child: Text('📝 Lainnya'),
                     ),
-                    DropdownMenuItem(value: 'tuneUp', child: Text(l10n.tuneUp)),
-                    DropdownMenuItem(
-                      value: 'sparkPlugReplacement',
-                      child: Text(l10n.sparkPlugReplacement),
-                    ),
-                    DropdownMenuItem(
-                      value: 'periodicService',
-                      child: Text(l10n.periodicService),
-                    ),
-                    DropdownMenuItem(
-                      value: 'engineRepair',
-                      child: Text(l10n.engineRepair),
-                    ),
-                    DropdownMenuItem(value: 'other', child: Text(l10n.other)),
                   ],
                   onChanged: (val) =>
                       setState(() => _selectedServiceType = val),
@@ -573,8 +559,6 @@ class _TambahRiwayatServicePageState extends State<TambahRiwayatServicePage> {
   }
 
   Future<void> _saveServiceRecord() async {
-    final l10n = AppLocalizations.of(context)!;
-
     if (!_formKey.currentState!.validate()) return;
 
     if (_selectedDate == null) {
@@ -633,16 +617,11 @@ class _TambahRiwayatServicePageState extends State<TambahRiwayatServicePage> {
             );
 
       // Map service type to readable name
-      final serviceNameMap = {
-        'oilChange': l10n.oilChange,
-        'tireReplacement': l10n.tireReplacement,
-        'chainSprocketReplacement': 'Ganti Rantai & Gir',
-        'brakePadReplacement': l10n.brakePadReplacement,
-        'tuneUp': 'Tune Up',
-        'sparkPlugReplacement': l10n.sparkPlugReplacement,
-        'periodicService': l10n.periodicService,
-        'engineRepair': l10n.engineRepair,
-        'other': l10n.other,
+      const serviceNameMap = {
+        'periodic_service': 'Servis Berkala',
+        'component_replacement': 'Ganti Komponen',
+        'repair': 'Perbaikan',
+        'other': 'Lainnya',
       };
 
       // Create service history model

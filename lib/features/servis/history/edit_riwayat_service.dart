@@ -29,23 +29,21 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
   late TextEditingController _catatanController;
 
   DateTime? _selectedDate;
-  String _selectedServiceType = 'other'; // Initialize with default value
+  String _selectedServiceType = 'periodic_service'; // Initialize with default value
   File? _selectedImage;
   String? _existingImageUrl;
 
-  // Mapping tipe servis dari database ke key yang sesuai
-  String _mapServiceType(String englishName) {
-    final Map<String, String> serviceTypeMap = {
-      'Oil Change': 'oilChange',
-      'Tire Replacement': 'tireReplacement',
-      'Chain Adjustment': 'chainSprocketReplacement',
-      'Brake Pad Replacement': 'brakePadReplacement',
-      'Tune Up': 'tuneUp',
-      'Spark Plug Replacement': 'sparkPlugReplacement',
-      'Periodic Service': 'periodicService',
-      'Engine Repair': 'engineRepair',
-    };
-    return serviceTypeMap[englishName] ?? 'other';
+  // Mapping tipe servis dari database ke kategori baru
+  String _mapServiceType(String serviceName) {
+    final name = serviceName.toLowerCase();
+    if (name.contains('berkala') || name.contains('periodic') || name.contains('tune up') || name.contains('tune-up') || name.contains('ganti oli')) {
+      return 'periodic_service';
+    } else if (name.contains('ganti') || name.contains('replacement') || name.contains('replace')) {
+      return 'component_replacement';
+    } else if (name.contains('perbaikan') || name.contains('repair')) {
+      return 'repair';
+    }
+    return 'other';
   }
 
   @override
@@ -216,37 +214,23 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
                     color: colorScheme.textSecondary,
                   ),
                   decoration: _inputStyle(l10n.selectServiceType),
-                  items: [
+                  items: const [
                     DropdownMenuItem(
-                      value: 'oilChange',
-                      child: Text(l10n.oilChange),
+                      value: 'periodic_service',
+                      child: Text('🔧 Servis Berkala'),
                     ),
                     DropdownMenuItem(
-                      value: 'brakePadReplacement',
-                      child: Text(l10n.brakePadReplacement),
+                      value: 'component_replacement',
+                      child: Text('🔩 Ganti Komponen'),
                     ),
                     DropdownMenuItem(
-                      value: 'tireReplacement',
-                      child: Text(l10n.tireReplacement),
+                      value: 'repair',
+                      child: Text('🛠️ Perbaikan'),
                     ),
                     DropdownMenuItem(
-                      value: 'chainSprocketReplacement',
-                      child: Text(l10n.chainSprocketReplacement),
+                      value: 'other',
+                      child: Text('📝 Lainnya'),
                     ),
-                    DropdownMenuItem(value: 'tuneUp', child: Text(l10n.tuneUp)),
-                    DropdownMenuItem(
-                      value: 'sparkPlugReplacement',
-                      child: Text(l10n.sparkPlugReplacement),
-                    ),
-                    DropdownMenuItem(
-                      value: 'periodicService',
-                      child: Text(l10n.periodicService),
-                    ),
-                    DropdownMenuItem(
-                      value: 'engineRepair',
-                      child: Text(l10n.engineRepair),
-                    ),
-                    DropdownMenuItem(value: 'other', child: Text(l10n.other)),
                   ],
                   onChanged: (val) =>
                       setState(() => _selectedServiceType = val ?? 'other'),
@@ -710,16 +694,11 @@ class _EditRiwayatServicePageState extends State<EditRiwayatServicePage> {
       }
 
       // Map service type to readable name
-      final serviceNameMap = {
-        'oilChange': l10n.oilChange,
-        'tireReplacement': l10n.tireReplacement,
-        'chainSprocketReplacement': 'Ganti Rantai & Gir',
-        'brakePadReplacement': l10n.brakePadReplacement,
-        'tuneUp': 'Tune Up',
-        'sparkPlugReplacement': l10n.sparkPlugReplacement,
-        'periodicService': l10n.periodicService,
-        'engineRepair': l10n.engineRepair,
-        'other': l10n.other,
+      const serviceNameMap = {
+        'periodic_service': 'Servis Berkala',
+        'component_replacement': 'Ganti Komponen',
+        'repair': 'Perbaikan',
+        'other': 'Lainnya',
       };
 
       // Create updated service history model
