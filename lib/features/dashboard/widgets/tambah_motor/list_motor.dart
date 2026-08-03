@@ -265,12 +265,16 @@ class _ListMotorPageState extends State<ListMotorPage> {
                 Expanded(
                   child: Row(
                     children: [
-                      Text(
-                        vehicle.title,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w400,
-                          color: colorScheme.onSurface,
+                      Flexible(
+                        child: Text(
+                          vehicle.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w400,
+                            color: colorScheme.onSurface,
+                          ),
                         ),
                       ),
                       if (isActive) ...[
@@ -375,6 +379,8 @@ class _ListMotorPageState extends State<ListMotorPage> {
             // Vehicle details
             Text(
               '${vehicle.make} ${vehicle.model} • ${vehicle.year}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w400,
