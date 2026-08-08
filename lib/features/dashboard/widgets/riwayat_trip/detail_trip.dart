@@ -34,6 +34,12 @@ class DetailTripPage extends StatelessWidget {
                         _buildStatsRow(context),
                         const SizedBox(height: 16),
                         _buildSpeedStats(context, isManualTrip),
+                        // Suhu mesin DS18B20 — tampil jika ada data suhu di tripData
+                        if (tripData['engineTempC'] != null ||
+                            tripData.containsKey('engineTempC')) ...[
+                          const SizedBox(height: 16),
+                          _buildEngineTempCard(context),
+                        ],
                         if (!isManualTrip) ...[
                           const SizedBox(height: 16),
                           _buildRouteInfo(context, isManualTrip),
@@ -245,7 +251,7 @@ class DetailTripPage extends StatelessWidget {
                   Icon(
                     Icons.map_outlined,
                     size: 48,
-                    color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -482,6 +488,113 @@ class DetailTripPage extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildEngineTempCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final rawTemp = tripData['engineTempC'];
+    final temp = rawTemp is num ? rawTemp.toDouble() : null;
+    final overheat = tripData['engineOverheat'] == true;
+
+    // Tentukan warna & status berdasarkan nilai suhu
+    Color statusColor;
+    String statusLabel;
+    Color cardBg;
+    IconData tempIcon;
+
+    if (temp == null) {
+      statusColor = colorScheme.onSurfaceVariant.withValues(alpha: 0.5);
+      statusLabel = 'Sensor N/A';
+      cardBg = colorScheme.surface;
+      tempIcon = Icons.thermostat_outlined;
+    } else if (temp >= 110.0 || overheat) {
+      statusColor = Colors.redAccent;
+      statusLabel = 'OVERHEAT';
+      cardBg = Colors.redAccent.withValues(alpha: 0.08);
+      tempIcon = Icons.warning_amber_rounded;
+    } else if (temp >= 90.0) {
+      statusColor = Colors.orange;
+      statusLabel = 'Panas';
+      cardBg = Colors.orange.withValues(alpha: 0.08);
+      tempIcon = Icons.thermostat;
+    } else {
+      statusColor = colorScheme.primary;
+      statusLabel = 'Normal';
+      cardBg = colorScheme.primary.withValues(alpha: 0.08);
+      tempIcon = Icons.thermostat_outlined;
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20.65, 20.65, 20.65, 20.65),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        border: Border.all(color: colorScheme.outlineVariant, width: 0.65),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(Icons.thermostat, size: 20, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Suhu Mesin',
+                style: TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  height: 1.43,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: statusColor.withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              children: [
+                Icon(tempIcon, color: statusColor, size: 22),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    temp != null ? '${temp.toStringAsFixed(1)} °C' : 'Data tidak tersedia',
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: statusColor,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    statusLabel,
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: statusColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

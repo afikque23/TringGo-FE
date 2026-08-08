@@ -258,7 +258,7 @@ class _TripSummaryPageState extends State<TripSummaryPage>
         border: Border.all(color: _border),
         boxShadow: [
           BoxShadow(
-            color: _greenLight.withOpacity(0.08),
+            color: _greenLight.withValues(alpha: 0.08),
             blurRadius: 20,
             offset: const Offset(0, 4),
           ),
@@ -356,9 +356,105 @@ class _TripSummaryPageState extends State<TripSummaryPage>
             ],
           ),
 
-          // Elevasi dihapus sesuai permintaan
+          // ── Baris Suhu Mesin DS18B20 ──────────────────────────
+          _buildEngineTemperatureRow(tripData),
         ],
       ),
+    );
+  }
+
+  // ── Widget: Baris Suhu Mesin ─────────────────────────────────
+
+  Widget _buildEngineTemperatureRow(Map<String, dynamic> tripData) {
+    final rawTemp = tripData['engineTempC'];
+    final temp = rawTemp is num ? rawTemp.toDouble() : null;
+    final overheat = tripData['engineOverheat'] == true;
+
+    // Tentukan warna & status
+    Color statusColor;
+    String statusLabel;
+    Color chipBg;
+    IconData tempIcon;
+
+    if (temp == null) {
+      statusColor = const Color(0xFF6B7280);
+      statusLabel = 'Sensor N/A';
+      chipBg = const Color(0xFF1A1A1A);
+      tempIcon = Icons.thermostat_outlined;
+    } else if (temp >= 110.0 || overheat) {
+      statusColor = Colors.redAccent;
+      statusLabel = 'OVERHEAT';
+      chipBg = const Color(0xFF2D0A0A);
+      tempIcon = Icons.warning_amber_rounded;
+    } else if (temp >= 90.0) {
+      statusColor = Colors.orange;
+      statusLabel = 'Panas';
+      chipBg = const Color(0xFF2D2200);
+      tempIcon = Icons.thermostat;
+    } else {
+      statusColor = const Color(0xFF8FA06A);
+      statusLabel = 'Normal';
+      chipBg = const Color(0xFF0A1A0F);
+      tempIcon = Icons.thermostat_outlined;
+    }
+
+    return Column(
+      children: [
+        const SizedBox(height: 12),
+        Container(height: 1, color: _border),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: chipBg,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: statusColor.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            children: [
+              Icon(tempIcon, color: statusColor, size: 18),
+              const SizedBox(width: 10),
+              Text(
+                'Suhu Mesin',
+                style: const TextStyle(
+                  fontFamily: 'Arial',
+                  color: Color(0xFF9CA3AF),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                temp != null ? '${temp.toStringAsFixed(1)} °C' : '--',
+                style: TextStyle(
+                  fontFamily: 'Arial',
+                  color: statusColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  statusLabel,
+                  style: TextStyle(
+                    fontFamily: 'Arial',
+                    color: statusColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

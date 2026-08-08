@@ -66,6 +66,10 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
   int? _iotSecondsAgo;
   bool _gpsReady = false;
 
+  // Suhu Mesin DS18B20 (monitoring only)
+  double? _engineTempC;
+  bool _engineOverheat = false;
+
   bool get _isIotOnline {
     if (_iotStatus != 'online') return false;
     if (_iotSecondsAgo == null) return false;
@@ -440,6 +444,18 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         _maxSpeedKph = max(_maxSpeedKph, currentSpeed);
       });
 
+      // Baca suhu mesin dari payload IoT
+      final engineTempRaw = latestData['engine_temp_c'];
+      final engineTempVal = engineTempRaw is num ? engineTempRaw.toDouble() : null;
+      // Validasi: DS18B20 mengembalikan -127 jika sensor disconnect
+      final validTemp = (engineTempVal != null && engineTempVal > -50.0) ? engineTempVal : null;
+      if (mounted && validTemp != _engineTempC) {
+        setState(() {
+          _engineTempC = validTemp;
+          _engineOverheat = latestData['engine_overheat'] == true;
+        });
+      }
+
       _mapController.move(_currentLocation, _mapController.camera.zoom);
     } catch (e) {
       debugPrint('Error get latest location: $e');
@@ -776,6 +792,9 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         'endLat': _routePoints.last.lat,
         'endLng': _routePoints.last.lng,
       },
+      // Suhu mesin DS18B20 — diteruskan ke TripSummaryPage & DetailTripPage
+      'engineTempC': _engineTempC,
+      'engineOverheat': _engineOverheat,
     };
 
     // Ambil vehicle terkini dari service untuk pre-fill parameter default
@@ -1127,6 +1146,11 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                           ),
                         ],
                       ),
+                      // ── Chip Suhu Mesin DS18B20 ─────────────────────────
+                      if (_engineTempC != null) ...[
+                        const SizedBox(height: 12),
+                        _buildEngineTemperatureChip(),
+                      ],
                       const SizedBox(height: 32),
                       // Tombol START/STOP
                       SizedBox(
@@ -1177,6 +1201,96 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Widget chip suhu mesin — dipakai di overlay bawah halaman tracking aktif.
+extension _EngineTemperatureChipExt on _GpsTrackingActivePageState {
+  /// Tentukan warna & label status berdasarkan nilai suhu.
+  ({Color chipBg, Color chipBorder, Color textColor, String statusLabel, IconData icon})
+      _tempStyle(double temp) {
+    if (temp >= 110.0) {
+      return (
+        chipBg: const Color(0xFF2D0A0A),
+        chipBorder: Colors.redAccent,
+        textColor: Colors.redAccent,
+        statusLabel: 'OVERHEAT',
+        icon: Icons.warning_amber_rounded,
+      );
+    } else if (temp >= 90.0) {
+      return (
+        chipBg: const Color(0xFF2D2200),
+        chipBorder: Colors.orange,
+        textColor: Colors.orange,
+        statusLabel: 'Panas',
+        icon: Icons.thermostat,
+      );
+    } else {
+      return (
+        chipBg: const Color(0xFF0A1A0F),
+        chipBorder: const Color(0xFF6B7C4F),
+        textColor: const Color(0xFF8FA06A),
+        statusLabel: 'Normal',
+        icon: Icons.thermostat_outlined,
+      );
+    }
+  }
+
+  Widget _buildEngineTemperatureChip() {
+    final temp = _engineTempC!;
+    final style = _tempStyle(temp);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: style.chipBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: style.chipBorder.withValues(alpha: 0.6)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(style.icon, color: style.textColor, size: 16),
+          const SizedBox(width: 8),
+          Text(
+            'Suhu Mesin',
+            style: TextStyle(
+              fontFamily: 'Arial',
+              color: const Color(0xFF9CA3AF),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${temp.toStringAsFixed(1)} °C',
+            style: TextStyle(
+              fontFamily: 'Arial',
+              color: style.textColor,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: style.chipBorder.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              style.statusLabel,
+              style: TextStyle(
+                fontFamily: 'Arial',
+                color: style.textColor,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
