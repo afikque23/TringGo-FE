@@ -36,7 +36,9 @@ class DetailTripPage extends StatelessWidget {
                         _buildSpeedStats(context, isManualTrip),
                         // Suhu mesin DS18B20 — tampil jika ada data suhu di tripData
                         if (tripData['engineTempC'] != null ||
-                            tripData.containsKey('engineTempC')) ...[
+                            tripData.containsKey('engineTempC') ||
+                            tripData['engine_temp_c'] != null ||
+                            tripData.containsKey('engine_temp_c')) ...[
                           const SizedBox(height: 16),
                           _buildEngineTempCard(context),
                         ],
@@ -493,36 +495,72 @@ class DetailTripPage extends StatelessWidget {
 
   Widget _buildEngineTempCard(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final rawTemp = tripData['engineTempC'];
-    final temp = rawTemp is num ? rawTemp.toDouble() : null;
-    final overheat = tripData['engineOverheat'] == true;
+    final rawTemp = tripData['engine_temp_c'] ?? tripData['engineTempC'];
+    final rawMax = tripData['max_engine_temp_c'] ?? tripData['maxEngineTempC'];
+    final rawMin = tripData['min_engine_temp_c'] ?? tripData['minEngineTempC'];
 
-    // Tentukan warna & status berdasarkan nilai suhu
-    Color statusColor;
-    String statusLabel;
-    Color cardBg;
-    IconData tempIcon;
+    final temp = rawTemp is num ? rawTemp.toDouble() : double.tryParse(rawTemp?.toString() ?? '');
+    final maxTemp = rawMax is num ? rawMax.toDouble() : double.tryParse(rawMax?.toString() ?? '');
+    final minTemp = rawMin is num ? rawMin.toDouble() : double.tryParse(rawMin?.toString() ?? '');
+
+    final overheat = tripData['engine_overheat'] == true || tripData['engineOverheat'] == true;
 
     if (temp == null) {
-      statusColor = colorScheme.onSurfaceVariant.withValues(alpha: 0.5);
-      statusLabel = 'Sensor N/A';
-      cardBg = colorScheme.surface;
-      tempIcon = Icons.thermostat_outlined;
-    } else if (temp >= 110.0 || overheat) {
-      statusColor = Colors.redAccent;
-      statusLabel = 'OVERHEAT';
-      cardBg = Colors.redAccent.withValues(alpha: 0.08);
-      tempIcon = Icons.warning_amber_rounded;
-    } else if (temp >= 90.0) {
-      statusColor = Colors.orange;
-      statusLabel = 'Panas';
-      cardBg = Colors.orange.withValues(alpha: 0.08);
-      tempIcon = Icons.thermostat;
-    } else {
-      statusColor = colorScheme.primary;
-      statusLabel = 'Normal';
-      cardBg = colorScheme.primary.withValues(alpha: 0.08);
-      tempIcon = Icons.thermostat_outlined;
+      return Container(
+        padding: const EdgeInsets.all(20.65),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          border: Border.all(color: colorScheme.outlineVariant, width: 0.65),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Icon(Icons.thermostat, size: 20, color: colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Suhu Mesin',
+                  style: TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    height: 1.43,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.thermostat_outlined, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5), size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Data tidak tersedia',
+                      style: TextStyle(
+                        fontFamily: 'Arial',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     return Container(
@@ -548,49 +586,94 @@ class DetailTripPage extends StatelessWidget {
                   color: colorScheme.onSurfaceVariant,
                 ),
               ),
+              const Spacer(),
+              if (overheat || temp >= 110.0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'OVERHEAT',
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.redAccent,
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: statusColor.withValues(alpha: 0.4)),
+          Row(
+            children: [
+              Expanded(
+                child: _buildTempBox(
+                  context, 
+                  label: 'Terendah', 
+                  value: minTemp ?? temp, 
+                  icon: Icons.ac_unit, 
+                  color: Colors.lightBlue
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildTempBox(
+                  context, 
+                  label: 'Rata-rata', 
+                  value: temp, 
+                  icon: Icons.thermostat, 
+                  color: (temp >= 110.0 || overheat) ? Colors.redAccent : (temp >= 90.0 ? Colors.orange : colorScheme.primary)
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildTempBox(
+                  context, 
+                  label: 'Tertinggi', 
+                  value: maxTemp ?? temp, 
+                  icon: Icons.local_fire_department, 
+                  color: ((maxTemp ?? temp) >= 110.0 || overheat) ? Colors.redAccent : Colors.orange
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTempBox(BuildContext context, {required String label, required double value, required IconData icon, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(height: 6),
+          Text(
+            '${value.toStringAsFixed(1)}°',
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: color,
             ),
-            child: Row(
-              children: [
-                Icon(tempIcon, color: statusColor, size: 22),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    temp != null ? '${temp.toStringAsFixed(1)} °C' : 'Data tidak tersedia',
-                    style: TextStyle(
-                      fontFamily: 'Arial',
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      color: statusColor,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    statusLabel,
-                    style: TextStyle(
-                      fontFamily: 'Arial',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: statusColor,
-                    ),
-                  ),
-                ),
-              ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: color.withValues(alpha: 0.8),
             ),
           ),
         ],

@@ -446,7 +446,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
 
       // Baca suhu mesin dari payload IoT
       final engineTempRaw = latestData['engine_temp_c'];
-      final engineTempVal = engineTempRaw is num ? engineTempRaw.toDouble() : null;
+      final engineTempVal = _toDouble(engineTempRaw);
       // Validasi: DS18B20 mengembalikan -127 jika sensor disconnect
       final validTemp = (engineTempVal != null && engineTempVal > -50.0) ? engineTempVal : null;
       if (mounted && validTemp != _engineTempC) {
@@ -1147,7 +1147,7 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
                         ],
                       ),
                       // ── Chip Suhu Mesin DS18B20 ─────────────────────────
-                      if (_engineTempC != null) ...[
+                      if (_isTracking && _engineTempC != null) ...[
                         const SizedBox(height: 12),
                         _buildEngineTemperatureChip(),
                       ],

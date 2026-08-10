@@ -36,6 +36,10 @@ TripModel _$TripModelFromJson(Map<String, dynamic> json) => TripModel(
   isCalibrated: json['is_calibrated'] as bool? ?? false,
   serviceScoreFactor: (json['service_score_factor'] as num?)?.toDouble() ?? 1.0,
   notes: json['notes'] as String?,
+  engineTempC: (json['engine_temp_c'] as num?)?.toDouble(),
+  maxEngineTempC: (json['max_engine_temp_c'] as num?)?.toDouble(),
+  minEngineTempC: (json['min_engine_temp_c'] as num?)?.toDouble(),
+  engineOverheat: json['engine_overheat'] as bool?,
 );
 
 Map<String, dynamic> _$TripModelToJson(TripModel instance) => <String, dynamic>{
@@ -63,4 +67,8 @@ Map<String, dynamic> _$TripModelToJson(TripModel instance) => <String, dynamic>{
   'is_calibrated': instance.isCalibrated,
   'service_score_factor': instance.serviceScoreFactor,
   'notes': instance.notes,
+  'engine_temp_c': instance.engineTempC,
+  'max_engine_temp_c': instance.maxEngineTempC,
+  'min_engine_temp_c': instance.minEngineTempC,
+  'engine_overheat': instance.engineOverheat,
 };
