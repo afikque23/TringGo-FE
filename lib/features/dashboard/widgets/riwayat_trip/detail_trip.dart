@@ -34,6 +34,14 @@ class DetailTripPage extends StatelessWidget {
                         _buildStatsRow(context),
                         const SizedBox(height: 16),
                         _buildSpeedStats(context, isManualTrip),
+                        // Suhu mesin DS18B20 — tampil jika ada data suhu di tripData
+                        if (tripData['engineTempC'] != null ||
+                            tripData.containsKey('engineTempC') ||
+                            tripData['engine_temp_c'] != null ||
+                            tripData.containsKey('engine_temp_c')) ...[
+                          const SizedBox(height: 16),
+                          _buildEngineTempCard(context),
+                        ],
                         if (!isManualTrip) ...[
                           const SizedBox(height: 16),
                           _buildRouteInfo(context, isManualTrip),
@@ -245,7 +253,7 @@ class DetailTripPage extends StatelessWidget {
                   Icon(
                     Icons.map_outlined,
                     size: 48,
-                    color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -482,6 +490,194 @@ class DetailTripPage extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildEngineTempCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final rawTemp = tripData['engine_temp_c'] ?? tripData['engineTempC'];
+    final rawMax = tripData['max_engine_temp_c'] ?? tripData['maxEngineTempC'];
+    final rawMin = tripData['min_engine_temp_c'] ?? tripData['minEngineTempC'];
+
+    final temp = rawTemp is num ? rawTemp.toDouble() : double.tryParse(rawTemp?.toString() ?? '');
+    final maxTemp = rawMax is num ? rawMax.toDouble() : double.tryParse(rawMax?.toString() ?? '');
+    final minTemp = rawMin is num ? rawMin.toDouble() : double.tryParse(rawMin?.toString() ?? '');
+
+    final overheat = tripData['engine_overheat'] == true || tripData['engineOverheat'] == true;
+
+    if (temp == null) {
+      return Container(
+        padding: const EdgeInsets.all(20.65),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          border: Border.all(color: colorScheme.outlineVariant, width: 0.65),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Icon(Icons.thermostat, size: 20, color: colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Suhu Mesin',
+                  style: TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    height: 1.43,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.thermostat_outlined, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5), size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Data tidak tersedia',
+                      style: TextStyle(
+                        fontFamily: 'Arial',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20.65, 20.65, 20.65, 20.65),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        border: Border.all(color: colorScheme.outlineVariant, width: 0.65),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(Icons.thermostat, size: 20, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Suhu Mesin',
+                style: TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  height: 1.43,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const Spacer(),
+              if (overheat || temp >= 110.0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'OVERHEAT',
+                    style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.redAccent,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildTempBox(
+                  context, 
+                  label: 'Terendah', 
+                  value: minTemp ?? temp, 
+                  icon: Icons.ac_unit, 
+                  color: Colors.lightBlue
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildTempBox(
+                  context, 
+                  label: 'Rata-rata', 
+                  value: temp, 
+                  icon: Icons.thermostat, 
+                  color: (temp >= 110.0 || overheat) ? Colors.redAccent : (temp >= 90.0 ? Colors.orange : colorScheme.primary)
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildTempBox(
+                  context, 
+                  label: 'Tertinggi', 
+                  value: maxTemp ?? temp, 
+                  icon: Icons.local_fire_department, 
+                  color: ((maxTemp ?? temp) >= 110.0 || overheat) ? Colors.redAccent : Colors.orange
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTempBox(BuildContext context, {required String label, required double value, required IconData icon, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(height: 6),
+          Text(
+            '${value.toStringAsFixed(1)}°',
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: color.withValues(alpha: 0.8),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

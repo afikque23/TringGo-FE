@@ -53,6 +53,16 @@ class TripModel {
 
   final String? notes;
 
+  // Suhu mesin DS18B20 (monitoring only)
+  @JsonKey(name: 'engine_temp_c')
+  final double? engineTempC;
+  @JsonKey(name: 'max_engine_temp_c')
+  final double? maxEngineTempC;
+  @JsonKey(name: 'min_engine_temp_c')
+  final double? minEngineTempC;
+  @JsonKey(name: 'engine_overheat')
+  final bool? engineOverheat;
+
   TripModel({
     required this.id,
     required this.motorcycleName,
@@ -78,6 +88,10 @@ class TripModel {
     this.isCalibrated = false,
     this.serviceScoreFactor = 1.0,
     this.notes,
+    this.engineTempC,
+    this.maxEngineTempC,
+    this.minEngineTempC,
+    this.engineOverheat,
   });
 
   factory TripModel.fromJson(Map<String, dynamic> json) =>
@@ -218,6 +232,11 @@ class TripModel {
       maxSpeed: maxSpeed,
       points: points,
       status: endAt == null ? 'active' : 'completed',
+      // Suhu mesin DS18B20 — bisa ada di response jika backend menyertakannya
+      engineTempC: _toDouble(json['engine_temp_c']),
+      maxEngineTempC: _toDouble(json['max_engine_temp_c']),
+      minEngineTempC: _toDouble(json['min_engine_temp_c']),
+      engineOverheat: json['engine_overheat'] == true,
     );
   }
 

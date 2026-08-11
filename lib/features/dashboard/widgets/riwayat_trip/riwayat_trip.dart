@@ -435,6 +435,9 @@ class _RiwayatTripPageState extends State<RiwayatTripPage> {
             'endLat': endPoint.latitude,
             'endLng': endPoint.longitude,
           },
+          // Suhu mesin DS18B20 — dari TripModel (null jika tidak ada data)
+          'engineTempC': trip.engineTempC,
+          'engineOverheat': trip.engineOverheat ?? false,
         };
 
         Navigator.push(

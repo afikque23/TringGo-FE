@@ -258,7 +258,7 @@ class _TripSummaryPageState extends State<TripSummaryPage>
         border: Border.all(color: _border),
         boxShadow: [
           BoxShadow(
-            color: _greenLight.withOpacity(0.08),
+            color: _greenLight.withValues(alpha: 0.08),
             blurRadius: 20,
             offset: const Offset(0, 4),
           ),
@@ -356,7 +356,174 @@ class _TripSummaryPageState extends State<TripSummaryPage>
             ],
           ),
 
-          // Elevasi dihapus sesuai permintaan
+          // ── Baris Suhu Mesin DS18B20 ──────────────────────────
+          _buildEngineTemperatureRow(tripData),
+        ],
+      ),
+    );
+  }
+
+  // ── Widget: Baris Suhu Mesin ─────────────────────────────────
+
+  Widget _buildEngineTemperatureRow(Map<String, dynamic> tripData) {
+    final rawTemp = tripData['engine_temp_c'] ?? tripData['engineTempC'];
+    final rawMax = tripData['max_engine_temp_c'] ?? tripData['maxEngineTempC'];
+    final rawMin = tripData['min_engine_temp_c'] ?? tripData['minEngineTempC'];
+
+    final temp = rawTemp is num ? rawTemp.toDouble() : double.tryParse(rawTemp?.toString() ?? '');
+    final maxTemp = rawMax is num ? rawMax.toDouble() : double.tryParse(rawMax?.toString() ?? '');
+    final minTemp = rawMin is num ? rawMin.toDouble() : double.tryParse(rawMin?.toString() ?? '');
+
+    final overheat = tripData['engine_overheat'] == true || tripData['engineOverheat'] == true;
+
+    if (temp == null) {
+      return Column(
+        children: [
+          const SizedBox(height: 12),
+          Container(height: 1, color: _border),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF6B7280).withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.thermostat_outlined, color: Color(0xFF6B7280), size: 18),
+                const SizedBox(width: 10),
+                const Text(
+                  'Suhu Mesin',
+                  style: TextStyle(
+                    fontFamily: 'Arial',
+                    color: Color(0xFF9CA3AF),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Spacer(),
+                const Text(
+                  '--',
+                  style: TextStyle(
+                    fontFamily: 'Arial',
+                    color: Color(0xFF6B7280),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        const SizedBox(height: 12),
+        Container(height: 1, color: _border),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            const Icon(Icons.thermostat, color: Color(0xFF9CA3AF), size: 18),
+            const SizedBox(width: 8),
+            const Text(
+              'Suhu Mesin',
+              style: TextStyle(
+                fontFamily: 'Arial',
+                color: Color(0xFF9CA3AF),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const Spacer(),
+            if (overheat || temp >= 110.0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'OVERHEAT',
+                  style: TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.redAccent,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildTempBoxSummary(
+                label: 'Terendah', 
+                value: minTemp ?? temp, 
+                icon: Icons.ac_unit, 
+                color: Colors.lightBlue
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildTempBoxSummary(
+                label: 'Rata-rata', 
+                value: temp, 
+                icon: Icons.thermostat, 
+                color: (temp >= 110.0 || overheat) ? Colors.redAccent : (temp >= 90.0 ? Colors.orange : const Color(0xFF8FA06A))
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildTempBoxSummary(
+                label: 'Tertinggi', 
+                value: maxTemp ?? temp, 
+                icon: Icons.local_fire_department, 
+                color: ((maxTemp ?? temp) >= 110.0 || overheat) ? Colors.redAccent : Colors.orange
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTempBoxSummary({required String label, required double value, required IconData icon, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(height: 4),
+          Text(
+            '${value.toStringAsFixed(1)}°',
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Arial',
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: color.withValues(alpha: 0.8),
+            ),
+          ),
         ],
       ),
     );
