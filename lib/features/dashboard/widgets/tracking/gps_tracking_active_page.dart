@@ -768,6 +768,12 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         : int.tryParse(tripPointsCountRaw?.toString() ?? '');
     final usedClientDistance =
         summary != null && summary['used_client_distance'] == true;
+        
+    // Ambil data trip (suhu) dari backend jika tersedia
+    final tripObj = tripSummary?['trip'] as Map<String, dynamic>?;
+    final backendAvgTemp = tripObj?['avg_temperature_c'];
+    final backendMaxTemp = tripObj?['max_temperature_c'];
+    final backendMinTemp = tripObj?['min_temperature_c'];
 
     final tripData = {
       'vehicle': widget.vehicleName,
@@ -793,7 +799,10 @@ class _GpsTrackingActivePageState extends State<GpsTrackingActivePage> {
         'endLng': _routePoints.last.lng,
       },
       // Suhu mesin DS18B20 — diteruskan ke TripSummaryPage & DetailTripPage
-      'engineTempC': _engineTempC,
+      'engineTempC': backendAvgTemp ?? _engineTempC,
+      'avg_temperature_c': backendAvgTemp ?? _engineTempC,
+      'max_temperature_c': backendMaxTemp,
+      'min_temperature_c': backendMinTemp,
       'engineOverheat': _engineOverheat,
     };
 

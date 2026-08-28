@@ -366,9 +366,9 @@ class _TripSummaryPageState extends State<TripSummaryPage>
   // ── Widget: Baris Suhu Mesin ─────────────────────────────────
 
   Widget _buildEngineTemperatureRow(Map<String, dynamic> tripData) {
-    final rawTemp = tripData['engine_temp_c'] ?? tripData['engineTempC'];
-    final rawMax = tripData['max_engine_temp_c'] ?? tripData['maxEngineTempC'];
-    final rawMin = tripData['min_engine_temp_c'] ?? tripData['minEngineTempC'];
+    final rawTemp = tripData['engine_temp_c'] ?? tripData['engineTempC'] ?? tripData['avg_temperature_c'];
+    final rawMax = tripData['max_engine_temp_c'] ?? tripData['maxEngineTempC'] ?? tripData['max_temperature_c'];
+    final rawMin = tripData['min_engine_temp_c'] ?? tripData['minEngineTempC'] ?? tripData['min_temperature_c'];
 
     final temp = rawTemp is num ? rawTemp.toDouble() : double.tryParse(rawTemp?.toString() ?? '');
     final maxTemp = rawMax is num ? rawMax.toDouble() : double.tryParse(rawMax?.toString() ?? '');
