@@ -437,6 +437,8 @@ class _RiwayatTripPageState extends State<RiwayatTripPage> {
           },
           // Suhu mesin DS18B20 — dari TripModel (null jika tidak ada data)
           'engineTempC': trip.engineTempC,
+          'max_engine_temp_c': trip.maxEngineTempC,
+          'min_engine_temp_c': trip.minEngineTempC,
           'engineOverheat': trip.engineOverheat ?? false,
         };
 
